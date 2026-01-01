@@ -66,3 +66,18 @@ func (c *Client) GetInstanceLogs(idOrName string) (string, error) {
 	}
 	return string(resp.Body()), nil
 }
+
+type InstanceStats struct {
+	CPUPercentage    float64 `json:"cpu_percentage"`
+	MemoryUsageBytes float64 `json:"memory_usage_bytes"`
+	MemoryLimitBytes float64 `json:"memory_limit_bytes"`
+	MemoryPercentage float64 `json:"memory_percentage"`
+}
+
+func (c *Client) GetInstanceStats(idOrName string) (*InstanceStats, error) {
+	var res Response[InstanceStats]
+	if err := c.get(fmt.Sprintf("/instances/%s/stats", idOrName), &res); err != nil {
+		return nil, err
+	}
+	return &res.Data, nil
+}

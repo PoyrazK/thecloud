@@ -124,6 +124,15 @@ func (a *DockerAdapter) GetLogs(ctx context.Context, containerID string) (io.Rea
 	return r, nil
 }
 
+func (a *DockerAdapter) GetContainerStats(ctx context.Context, containerID string) (io.ReadCloser, error) {
+	// Stream: false = get one snapshot
+	stats, err := a.cli.ContainerStats(ctx, containerID, false)
+	if err != nil {
+		return nil, err
+	}
+	return stats.Body, nil
+}
+
 func (a *DockerAdapter) CreateNetwork(ctx context.Context, name string) (string, error) {
 	resp, err := a.cli.NetworkCreate(ctx, name, network.CreateOptions{
 		Driver: "bridge",

@@ -120,6 +120,14 @@ func (m *MockDocker) CreateNetwork(ctx context.Context, name string) (string, er
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockDocker) GetContainerStats(ctx context.Context, containerID string) (io.ReadCloser, error) {
+	args := m.Called(ctx, containerID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(io.ReadCloser), args.Error(1)
+}
+
 func (m *MockDocker) RemoveNetwork(ctx context.Context, networkID string) error {
 	args := m.Called(ctx, networkID)
 	return args.Error(0)

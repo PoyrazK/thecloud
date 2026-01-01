@@ -24,5 +24,6 @@ type InstanceService interface {
 	ListInstances(ctx context.Context) ([]*domain.Instance, error)
 	GetInstance(ctx context.Context, idOrName string) (*domain.Instance, error)
 	GetInstanceLogs(ctx context.Context, idOrName string) (string, error)
+	GetInstanceStats(ctx context.Context, idOrName string) (*domain.InstanceStats, error)
 	TerminateInstance(ctx context.Context, idOrName string) error
 }

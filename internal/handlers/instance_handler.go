@@ -104,3 +104,13 @@ func (h *InstanceHandler) Terminate(c *gin.Context) {
 
 	httputil.Success(c, http.StatusOK, gin.H{"message": "instance terminated"})
 }
+
+func (h *InstanceHandler) GetStats(c *gin.Context) {
+	idStr := c.Param("id")
+	stats, err := h.svc.GetInstanceStats(c.Request.Context(), idStr)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, stats)
+}

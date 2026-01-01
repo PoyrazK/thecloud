@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -197,4 +198,70 @@ func (s *InstanceService) TerminateInstance(ctx context.Context, idOrName string
 
 	// 3. Delete from DB
 	return s.repo.Delete(ctx, inst.ID)
+}
+
+func (s *InstanceService) GetInstanceStats(ctx context.Context, idOrName string) (*domain.InstanceStats, error) {
+	inst, err := s.GetInstance(ctx, idOrName)
+	if err != nil {
+		return nil, err
+	}
+
+	if inst.ContainerID == "" {
+		return nil, errors.New(errors.InstanceNotRunning, "instance not running")
+	}
+
+	stream, err := s.docker.GetContainerStats(ctx, inst.ContainerID)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to get stats stream", err)
+	}
+	defer stream.Close()
+
+	// Parse JSON
+	var stats struct {
+		CPUStats struct {
+			CPUUsage struct {
+				TotalUsage uint64 `json:"total_usage"`
+			} `json:"cpu_usage"`
+			SystemCPUUsage uint64 `json:"system_cpu_usage"`
+		} `json:"cpu_stats"`
+		PreCPUStats struct {
+			CPUUsage struct {
+				TotalUsage uint64 `json:"total_usage"`
+			} `json:"cpu_usage"`
+			SystemCPUUsage uint64 `json:"system_cpu_usage"`
+		} `json:"precpu_stats"`
+		MemoryStats struct {
+			Usage uint64 `json:"usage"`
+			Limit uint64 `json:"limit"`
+		} `json:"memory_stats"`
+	}
+
+	if err := json.NewDecoder(stream).Decode(&stats); err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to decode stats", err)
+	}
+
+	// Calculate CPU %
+	// (total - pre_total) / (system - pre_system) * number_cpus * 100
+	// For simplicity, we assume single core or simple calc for now
+	cpuDelta := float64(stats.CPUStats.CPUUsage.TotalUsage) - float64(stats.PreCPUStats.CPUUsage.TotalUsage)
+	systemDelta := float64(stats.CPUStats.SystemCPUUsage) - float64(stats.PreCPUStats.SystemCPUUsage)
+
+	cpuPercent := 0.0
+	if systemDelta > 0.0 && cpuDelta > 0.0 {
+		cpuPercent = (cpuDelta / systemDelta) * 100.0
+	}
+
+	memUsage := float64(stats.MemoryStats.Usage)
+	memLimit := float64(stats.MemoryStats.Limit)
+	memPercent := 0.0
+	if memLimit > 0 {
+		memPercent = (memUsage / memLimit) * 100.0
+	}
+
+	return &domain.InstanceStats{
+		CPUPercentage:    cpuPercent,
+		MemoryUsageBytes: memUsage,
+		MemoryLimitBytes: memLimit,
+		MemoryPercentage: memPercent,
+	}, nil
 }

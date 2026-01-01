@@ -34,3 +34,10 @@ type Instance struct {
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
+
+type InstanceStats struct {
+	CPUPercentage    float64 `json:"cpu_percentage"`
+	MemoryUsageBytes float64 `json:"memory_usage_bytes"`
+	MemoryLimitBytes float64 `json:"memory_limit_bytes"`
+	MemoryPercentage float64 `json:"memory_percentage"`
+}

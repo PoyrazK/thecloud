@@ -11,6 +11,7 @@ type DockerClient interface {
 	StopContainer(ctx context.Context, containerID string) error
 	RemoveContainer(ctx context.Context, containerID string) error
 	GetLogs(ctx context.Context, containerID string) (io.ReadCloser, error)
+	GetContainerStats(ctx context.Context, containerID string) (io.ReadCloser, error)
 	CreateNetwork(ctx context.Context, name string) (string, error)
 	RemoveNetwork(ctx context.Context, networkID string) error
 }

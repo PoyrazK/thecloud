@@ -183,7 +183,35 @@ var rmCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("[SUCCESS] Instance %s removed successfully.\n", id)
+	},
+}
+
+var statsCmd = &cobra.Command{
+	Use:   "stats [id/name]",
+	Short: "Show instance statistics (CPU/Mem)",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		client := getClient()
+		stats, err := client.GetInstanceStats(id)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+
+		if outputJSON {
+			data, _ := json.MarshalIndent(stats, "", "  ")
+			fmt.Println(string(data))
+			return
+		}
+
+		fmt.Printf("\nStatistics for %s\n", id)
+		fmt.Println(strings.Repeat("-", 40))
+		fmt.Printf("CPU:    %.2f%%\n", stats.CPUPercentage)
+		fmt.Printf("Memory: %.2f%% (%.2f MB / %.2f MB)\n",
+			stats.MemoryPercentage,
+			stats.MemoryUsageBytes/1024/1024,
+			stats.MemoryLimitBytes/1024/1024)
 	},
 }
 
@@ -194,6 +222,7 @@ func init() {
 	computeCmd.AddCommand(logsCmd)
 	computeCmd.AddCommand(showCmd)
 	computeCmd.AddCommand(rmCmd)
+	computeCmd.AddCommand(statsCmd)
 
 	launchCmd.Flags().StringP("name", "n", "", "Name of the instance (required)")
 	launchCmd.Flags().StringP("image", "i", "alpine", "Image to use")
