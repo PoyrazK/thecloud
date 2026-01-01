@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -79,4 +80,37 @@ func TestWebSocket_Lifecycle(t *testing.T) {
 	conn.Close()
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(t, 0, hub.ClientCount())
+}
+
+func TestWebSocket_AuthFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	hub := NewHub(logger)
+	mockId := new(mockIdentityService)
+	handler := NewHandler(hub, mockId, logger)
+
+	r := gin.New()
+	r.GET("/ws", handler.ServeWS)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	t.Run("Missing API Key", func(t *testing.T) {
+		wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
+		dialer := websocket.Dialer{}
+		_, resp, err := dialer.Dial(wsURL, nil)
+		assert.Error(t, err)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
+
+	t.Run("Invalid API Key", func(t *testing.T) {
+		wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?api_key=invalid"
+		mockId.On("ValidateApiKey", mock.Anything, "invalid").Return(false, nil)
+
+		dialer := websocket.Dialer{}
+		_, resp, err := dialer.Dial(wsURL, nil)
+		assert.Error(t, err)
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 }
