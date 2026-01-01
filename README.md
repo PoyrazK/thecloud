@@ -34,9 +34,30 @@ cloud storage upload my-bucket README.md
 - **CLI**: Cobra (command-based) + Survey (interactive)
 
 ## 📚 Documentation
-- [Development Guide](docs/development.md) - Setup on Windows/Mac
-- [Database Guide](docs/database.md) - Schema & migrations
-- [Storage Guide](docs/guides/storage.md) - Object storage usage
+
+### 🎓 Getting Started
+| Doc | Description |
+|-----|-------------|
+| [Development Guide](docs/development.md) | Setup on Windows, Mac, or Linux |
+| [Roadmap](docs/roadmap.md) | Project phases and progress |
+
+### 📖 How-to Guides
+| Guide | What you'll learn |
+|-------|-------------------|
+| [Storage Guide](docs/guides/storage.md) | Upload, download, and manage files |
+
+### 🔧 Reference
+| Reference | Contents |
+|-----------|----------|
+| [CLI Reference](docs/cli-reference.md) | All commands and flags |
+| [Database Guide](docs/database.md) | Schema, tables, and migrations |
+
+### 🏛️ Architecture
+| Doc | Description |
+|-----|-------------|
+| [Architecture Overview](docs/architecture.md) | System design and patterns |
+| [Backend Guide](docs/backend.md) | Go service implementation |
+| [Infrastructure](docs/infrastructure.md) | Docker and deployment |
 
 ## 📊 KPIs
 - Time to Hello World: < 5 min
