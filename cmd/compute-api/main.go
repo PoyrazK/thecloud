@@ -54,7 +54,12 @@ func main() {
 	identityHandler := httphandlers.NewIdentityHandler(identitySvc)
 
 	instanceRepo := postgres.NewInstanceRepository(db)
-	instanceSvc := services.NewInstanceService(instanceRepo, dockerAdapter)
+	vpcRepo := postgres.NewVpcRepository(db)
+
+	vpcSvc := services.NewVpcService(vpcRepo, dockerAdapter)
+	instanceSvc := services.NewInstanceService(instanceRepo, vpcRepo, dockerAdapter)
+
+	vpcHandler := httphandlers.NewVpcHandler(vpcSvc)
 	instanceHandler := httphandlers.NewInstanceHandler(instanceSvc)
 
 	// Storage Service
@@ -105,6 +110,16 @@ func main() {
 		instanceGroup.POST("/:id/stop", instanceHandler.Stop)
 		instanceGroup.GET("/:id/logs", instanceHandler.GetLogs)
 		instanceGroup.DELETE("/:id", instanceHandler.Terminate)
+	}
+
+	// VPC Routes (Protected)
+	vpcGroup := r.Group("/vpcs")
+	vpcGroup.Use(httputil.Auth(identitySvc))
+	{
+		vpcGroup.POST("", vpcHandler.Create)
+		vpcGroup.GET("", vpcHandler.List)
+		vpcGroup.GET("/:id", vpcHandler.Get)
+		vpcGroup.DELETE("/:id", vpcHandler.Delete)
 	}
 
 	// Storage Routes (Protected)

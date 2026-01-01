@@ -28,6 +28,7 @@ func init() {
 	rootCmd.AddCommand(computeCmd)
 	rootCmd.AddCommand(authCmd)
 	rootCmd.AddCommand(storageCmd)
+	rootCmd.AddCommand(vpcCmd)
 }
 
 func main() {

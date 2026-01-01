@@ -14,18 +14,20 @@ import (
 )
 
 type InstanceService struct {
-	repo   ports.InstanceRepository
-	docker ports.DockerClient
+	repo    ports.InstanceRepository
+	vpcRepo ports.VpcRepository
+	docker  ports.DockerClient
 }
 
-func NewInstanceService(repo ports.InstanceRepository, docker ports.DockerClient) *InstanceService {
+func NewInstanceService(repo ports.InstanceRepository, vpcRepo ports.VpcRepository, docker ports.DockerClient) *InstanceService {
 	return &InstanceService{
-		repo:   repo,
-		docker: docker,
+		repo:    repo,
+		vpcRepo: vpcRepo,
+		docker:  docker,
 	}
 }
 
-func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports string) (*domain.Instance, error) {
+func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports string, vpcID *uuid.UUID) (*domain.Instance, error) {
 	// 1. Validate ports if provided
 	portList, err := s.parseAndValidatePorts(ports)
 	if err != nil {
@@ -39,6 +41,7 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports
 		Image:     image,
 		Status:    domain.StatusStarting,
 		Ports:     ports,
+		VpcID:     vpcID,
 		Version:   1,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -52,7 +55,16 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports
 	// 4. Call Docker to create actual container
 	dockerName := fmt.Sprintf("miniaws-%s", inst.ID.String()[:8])
 
-	containerID, err := s.docker.CreateContainer(ctx, dockerName, image, portList)
+	networkID := ""
+	if vpcID != nil {
+		vpc, err := s.vpcRepo.GetByID(ctx, *vpcID)
+		if err != nil {
+			return nil, err
+		}
+		networkID = vpc.NetworkID
+	}
+
+	containerID, err := s.docker.CreateContainer(ctx, dockerName, image, portList, networkID)
 	if err != nil {
 		inst.Status = domain.StatusError
 		_ = s.repo.Update(ctx, inst)

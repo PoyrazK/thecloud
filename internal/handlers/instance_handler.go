@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/poyraz/cloud/internal/core/ports"
 	"github.com/poyraz/cloud/pkg/httputil"
 )
@@ -20,6 +21,7 @@ type LaunchRequest struct {
 	Name  string `json:"name" binding:"required"`
 	Image string `json:"image" binding:"required"`
 	Ports string `json:"ports"`
+	VpcID string `json:"vpc_id"`
 }
 
 func (h *InstanceHandler) Launch(c *gin.Context) {
@@ -29,7 +31,17 @@ func (h *InstanceHandler) Launch(c *gin.Context) {
 		return
 	}
 
-	inst, err := h.svc.LaunchInstance(c.Request.Context(), req.Name, req.Image, req.Ports)
+	var vpcUUID *uuid.UUID
+	if req.VpcID != "" {
+		id, err := uuid.Parse(req.VpcID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vpc_id format"})
+			return
+		}
+		vpcUUID = &id
+	}
+
+	inst, err := h.svc.LaunchInstance(c.Request.Context(), req.Name, req.Image, req.Ports, vpcUUID)
 	if err != nil {
 		httputil.Error(c, err)
 		return

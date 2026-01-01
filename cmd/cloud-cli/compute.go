@@ -31,7 +31,7 @@ func getClient() *sdk.Client {
 	}
 
 	if key == "" {
-		fmt.Println("⚠️  No API Key found. Run 'cloud auth create-demo <name>' to get one.")
+		fmt.Println("[WARN] No API Key found. Run 'cloud auth create-demo <name>' to get one.")
 		os.Exit(1)
 	}
 
@@ -96,15 +96,16 @@ var launchCmd = &cobra.Command{
 		name, _ := cmd.Flags().GetString("name")
 		image, _ := cmd.Flags().GetString("image")
 		ports, _ := cmd.Flags().GetString("port")
+		vpc, _ := cmd.Flags().GetString("vpc")
 
 		client := getClient()
-		inst, err := client.LaunchInstance(name, image, ports)
+		inst, err := client.LaunchInstance(name, image, ports, vpc)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
-		fmt.Printf("🚀 Instance launched successfully!\n")
+		fmt.Printf("[SUCCESS] Instance launched successfully!\n")
 		data, _ := json.MarshalIndent(inst, "", "  ")
 		fmt.Println(string(data))
 	},
@@ -121,7 +122,7 @@ var stopCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Println("🛑 Instance stop initiated.")
+		fmt.Println("[INFO] Instance stop initiated.")
 	},
 }
 
@@ -155,7 +156,7 @@ var showCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("\n☁️  Instance Details\n")
+		fmt.Printf("\nInstance Details\n")
 		fmt.Println(strings.Repeat("-", 40))
 		fmt.Printf("%-15s %v\n", "ID:", inst.ID)
 		fmt.Printf("%-15s %v\n", "Name:", inst.Name)
@@ -182,7 +183,7 @@ var rmCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("🗑️  Instance %s removed successfully.\n", id)
+		fmt.Printf("[SUCCESS] Instance %s removed successfully.\n", id)
 	},
 }
 
@@ -197,6 +198,7 @@ func init() {
 	launchCmd.Flags().StringP("name", "n", "", "Name of the instance (required)")
 	launchCmd.Flags().StringP("image", "i", "alpine", "Image to use")
 	launchCmd.Flags().StringP("port", "p", "", "Port mapping (host:container)")
+	launchCmd.Flags().StringP("vpc", "v", "", "VPC ID or Name to attach to")
 	launchCmd.MarkFlagRequired("name")
 
 	rootCmd.PersistentFlags().BoolVarP(&outputJSON, "json", "j", false, "Output in JSON format")

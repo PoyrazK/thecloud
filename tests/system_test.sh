@@ -62,4 +62,4 @@ echo -e "${BLUE}Testing 'cloud compute rm'...${NC}"
 sleep 1
 ! ./bin/cloud compute list | grep -q $TEST_NAME
 
-echo -e "${GREEN}✅ System Test Passed!${NC}"
+echo -e "${GREEN}[SUCCESS] System Test Passed!${NC}"

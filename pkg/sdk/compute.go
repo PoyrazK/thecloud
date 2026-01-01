@@ -11,6 +11,7 @@ type Instance struct {
 	Image       string    `json:"image"`
 	Status      string    `json:"status"`
 	Ports       string    `json:"ports"`
+	VpcID       string    `json:"vpc_id,omitempty"`
 	ContainerID string    `json:"container_id"`
 	Version     int       `json:"version"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -33,11 +34,12 @@ func (c *Client) GetInstance(idOrName string) (*Instance, error) {
 	return &res.Data, nil
 }
 
-func (c *Client) LaunchInstance(name, image, ports string) (*Instance, error) {
+func (c *Client) LaunchInstance(name, image, ports string, vpcID string) (*Instance, error) {
 	body := map[string]string{
-		"name":  name,
-		"image": image,
-		"ports": ports,
+		"name":   name,
+		"image":  image,
+		"ports":  ports,
+		"vpc_id": vpcID,
 	}
 	var res Response[Instance]
 	if err := c.post("/instances", body, &res); err != nil {

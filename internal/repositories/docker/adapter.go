@@ -9,6 +9,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
@@ -26,7 +27,7 @@ func NewDockerAdapter() (*DockerAdapter, error) {
 	return &DockerAdapter{cli: cli}, nil
 }
 
-func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string, ports []string) (string, error) {
+func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string, ports []string, networkID string) (string, error) {
 	// 1. Ensure image exists (pull if not)
 	reader, err := a.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
@@ -42,6 +43,13 @@ func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName str
 	}
 	hostConfig := &container.HostConfig{
 		PortBindings: make(nat.PortMap),
+	}
+	networkingConfig := &network.NetworkingConfig{}
+
+	if networkID != "" {
+		networkingConfig.EndpointsConfig = map[string]*network.EndpointSettings{
+			networkID: {},
+		}
 	}
 
 	for _, p := range ports {
@@ -63,7 +71,7 @@ func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName str
 	}
 
 	// 3. Create container
-	resp, err := a.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, name)
+	resp, err := a.cli.ContainerCreate(ctx, config, hostConfig, networkingConfig, nil, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
@@ -114,4 +122,22 @@ func (a *DockerAdapter) GetLogs(ctx context.Context, containerID string) (io.Rea
 	}()
 
 	return r, nil
+}
+
+func (a *DockerAdapter) CreateNetwork(ctx context.Context, name string) (string, error) {
+	resp, err := a.cli.NetworkCreate(ctx, name, network.CreateOptions{
+		Driver: "bridge",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create network %s: %w", name, err)
+	}
+	return resp.ID, nil
+}
+
+func (a *DockerAdapter) RemoveNetwork(ctx context.Context, networkID string) error {
+	err := a.cli.NetworkRemove(ctx, networkID)
+	if err != nil {
+		return fmt.Errorf("failed to remove network %s: %w", networkID, err)
+	}
+	return nil
 }

@@ -29,9 +29,9 @@ var createDemoCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("🔑 Generated Key: %s\n", key)
+		fmt.Printf("[INFO] Generated Key: %s\n", key)
 		saveConfig(key)
-		fmt.Println("✅ Key saved to configuration. You can now use 'cloud' commands without flags.")
+		fmt.Println("[SUCCESS] Key saved to configuration. You can now use 'cloud' commands without flags.")
 	},
 }
 
@@ -42,7 +42,7 @@ var loginCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
 		saveConfig(key)
-		fmt.Println("✅ Key saved to configuration.")
+		fmt.Println("[SUCCESS] Key saved to configuration.")
 	},
 }
 

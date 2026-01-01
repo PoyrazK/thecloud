@@ -18,7 +18,7 @@ func main() {
 	// 1. Auth Setup
 	apiKey = os.Getenv("MINIAWS_API_KEY")
 	if apiKey == "" {
-		fmt.Println("⚠️  MINIAWS_API_KEY not set.")
+		fmt.Println("[WARN] MINIAWS_API_KEY not set.")
 		createDemo := false
 		prompt := &survey.Confirm{
 			Message: "Would you like to generate a temporary key for this session?",
@@ -38,9 +38,9 @@ func main() {
 			key, err := tempClient.CreateKey(name)
 			if err == nil {
 				apiKey = key
-				fmt.Printf("🔑 Generated Key: %s\n\n", apiKey)
+				fmt.Printf("[INFO] Generated Key: %s\n\n", apiKey)
 			} else {
-				fmt.Println("❌ Failed to generate key. Falling back to manual input.")
+				fmt.Println("[ERROR] Failed to generate key. Falling back to manual input.")
 			}
 		}
 
@@ -57,8 +57,8 @@ func main() {
 	for {
 		mode := ""
 		prompt := &survey.Select{
-			Message: "☁️  Cloud CLI Control Panel - What would you like to do?",
-			Options: []string{"List Instances", "Launch Instance", "Stop Instance", "Remove Instance", "View Logs", "View Details", "Exit"},
+			Message: "Cloud CLI Control Panel - What would you like to do?",
+			Options: []string{"List Instances", "Launch Instance", "Stop Instance", "Remove Instance", "View Logs", "View Details", "Manage VPCs", "Exit"},
 		}
 		if err := survey.AskOne(prompt, &mode); err != nil {
 			fmt.Println("Bye!")
@@ -78,8 +78,10 @@ func main() {
 			viewLogs()
 		case "View Details":
 			showInstance()
+		case "Manage VPCs":
+			vpcMenu()
 		case "Exit":
-			fmt.Println("👋 See you in the cloud!")
+			fmt.Println("See you in the cloud!")
 			return
 		}
 		fmt.Println("")
@@ -156,13 +158,41 @@ func launchInstance() {
 		return
 	}
 
-	inst, err := sdkClient.LaunchInstance(answers.Name, answers.Image, answers.Ports)
+	// VPC Selection
+	vpcs, _ := sdkClient.ListVPCs()
+	vpcID := ""
+	if len(vpcs) > 0 {
+		var vpcOptions []string
+		vpcOptions = append(vpcOptions, "None (Default Bridge)")
+		for _, v := range vpcs {
+			vpcOptions = append(vpcOptions, fmt.Sprintf("%s (%s)", v.Name, v.ID[:8]))
+		}
+
+		vpcChoice := ""
+		prompt := &survey.Select{
+			Message: "Attach to VPC?",
+			Options: vpcOptions,
+		}
+		survey.AskOne(prompt, &vpcChoice)
+
+		if vpcChoice != "None (Default Bridge)" {
+			// Extract ID
+			for _, v := range vpcs {
+				if vpcChoice == fmt.Sprintf("%s (%s)", v.Name, v.ID[:8]) {
+					vpcID = v.ID
+					break
+				}
+			}
+		}
+	}
+
+	inst, err := sdkClient.LaunchInstance(answers.Name, answers.Image, answers.Ports, vpcID)
 	if err != nil {
-		fmt.Printf("❌ Failed: %v\n", err)
+		fmt.Printf("[ERROR] Failed: %v\n", err)
 		return
 	}
 
-	fmt.Printf("✅ Launched %s (%s) successfully!\n", inst.Name, inst.Image)
+	fmt.Printf("[SUCCESS] Launched %s (%s) successfully!\n", inst.Name, inst.Image)
 }
 
 func selectInstance(message string, statusFilter string) *sdk.Instance {
@@ -184,8 +214,8 @@ func selectInstance(message string, statusFilter string) *sdk.Instance {
 		instMap[display] = inst
 	}
 
-	if len(options) == 0 {
-		fmt.Println("⚠️  No matching instances found.")
+	if len(instances) == 0 {
+		fmt.Println("[WARN] No matching instances found.")
 		return nil
 	}
 
@@ -209,11 +239,11 @@ func stopInstance() {
 	}
 
 	if err := sdkClient.StopInstance(inst.ID); err != nil {
-		fmt.Printf("❌ Failed to stop: %v\n", err)
+		fmt.Printf("[ERROR] Failed to stop: %v\n", err)
 		return
 	}
 
-	fmt.Printf("🛑 Stopping %s...\n", inst.Name)
+	fmt.Printf("[INFO] Stopping %s...\n", inst.Name)
 }
 
 func removeInstance() {
@@ -223,11 +253,11 @@ func removeInstance() {
 	}
 
 	if err := sdkClient.TerminateInstance(inst.ID); err != nil {
-		fmt.Printf("❌ Failed to remove: %v\n", err)
+		fmt.Printf("[ERROR] Failed to remove: %v\n", err)
 		return
 	}
 
-	fmt.Printf("🗑️  %s removed successfully.\n", inst.Name)
+	fmt.Printf("[INFO] %s removed successfully.\n", inst.Name)
 }
 
 func viewLogs() {
@@ -238,13 +268,13 @@ func viewLogs() {
 
 	logs, err := sdkClient.GetInstanceLogs(inst.ID)
 	if err != nil {
-		fmt.Printf("❌ Failed to fetch logs: %v\n", err)
+		fmt.Printf("[ERROR] Failed to fetch logs: %v\n", err)
 		return
 	}
 
-	fmt.Println("📜 --- Logs Start ---")
+	fmt.Println("--- Logs Start ---")
 	fmt.Print(logs)
-	fmt.Println("📜 --- Logs End ---")
+	fmt.Println("--- Logs End ---")
 }
 
 func showInstance() {
@@ -256,11 +286,11 @@ func showInstance() {
 	// Fetch fresh details
 	details, err := sdkClient.GetInstance(inst.ID)
 	if err != nil {
-		fmt.Printf("❌ Failed to fetch details: %v\n", err)
+		fmt.Printf("[ERROR] Failed to fetch details: %v\n", err)
 		return
 	}
 
-	fmt.Printf("\n☁️  Instance Details\n")
+	fmt.Printf("\nInstance Details\n")
 	fmt.Println(strings.Repeat("-", 40))
 	fmt.Printf("%-15s %v\n", "ID:", details.ID)
 	fmt.Printf("%-15s %v\n", "Name:", details.Name)
@@ -271,4 +301,63 @@ func showInstance() {
 	fmt.Printf("%-15s %v\n", "Version:", details.Version)
 	fmt.Printf("%-15s %v\n", "Container ID:", details.ContainerID)
 	fmt.Println(strings.Repeat("-", 40))
+}
+func vpcMenu() {
+	mode := ""
+	prompt := &survey.Select{
+		Message: "VPC Management",
+		Options: []string{"List VPCs", "Create VPC", "Remove VPC", "Back"},
+	}
+	survey.AskOne(prompt, &mode)
+
+	switch mode {
+	case "List VPCs":
+		vpcs, err := sdkClient.ListVPCs()
+		if err != nil {
+			fmt.Printf("[ERROR] Error: %v\n", err)
+			return
+		}
+		table := tablewriter.NewWriter(os.Stdout)
+		table.Header([]string{"ID", "NAME", "NETWORK ID"})
+		for _, v := range vpcs {
+			table.Append([]string{v.ID[:8], v.Name, v.NetworkID[:12]})
+		}
+		table.Render()
+
+	case "Create VPC":
+		name := ""
+		survey.AskOne(&survey.Input{Message: "Enter VPC Name:"}, &name)
+		if name == "" {
+			return
+		}
+		vpc, err := sdkClient.CreateVPC(name)
+		if err != nil {
+			fmt.Printf("[ERROR] Error: %v\n", err)
+			return
+		}
+		fmt.Printf("[SUCCESS] VPC %s created.\n", vpc.Name)
+
+	case "Remove VPC":
+		vpcs, _ := sdkClient.ListVPCs()
+		if len(vpcs) == 0 {
+			fmt.Println("No VPCs found.")
+			return
+		}
+		var options []string
+		for _, v := range vpcs {
+			options = append(options, fmt.Sprintf("%s (%s)", v.Name, v.ID[:8]))
+		}
+		choice := ""
+		survey.AskOne(&survey.Select{Message: "Select VPC to remove:", Options: options}, &choice)
+		for _, v := range vpcs {
+			if choice == fmt.Sprintf("%s (%s)", v.Name, v.ID[:8]) {
+				if err := sdkClient.DeleteVPC(v.ID); err != nil {
+					fmt.Printf("[ERROR] Error: %v\n", err)
+				} else {
+					fmt.Println("[SUCCESS] VPC removed.")
+				}
+				break
+			}
+		}
+	}
 }

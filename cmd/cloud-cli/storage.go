@@ -75,7 +75,7 @@ var storageUploadCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("✅ Uploaded %s to bucket %s\n", key, bucket)
+		fmt.Printf("[SUCCESS] Uploaded %s to bucket %s\n", key, bucket)
 	},
 }
 
@@ -109,7 +109,7 @@ var storageDownloadCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("✅ Downloaded %s to %s\n", key, dest)
+		fmt.Printf("[SUCCESS] Downloaded %s to %s\n", key, dest)
 	},
 }
 
@@ -127,7 +127,7 @@ var storageDeleteCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("🗑️ Deleted %s from bucket %s\n", key, bucket)
+		fmt.Printf("[SUCCESS] Deleted %s from bucket %s\n", key, bucket)
 	},
 }
 
