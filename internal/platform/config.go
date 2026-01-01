@@ -17,7 +17,7 @@ func NewConfig() (*Config, error) {
 
 	return &Config{
 		Port:        getEnv("PORT", "8080"),
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://cloud:cloud@localhost:5432/miniaws"),
+		DatabaseURL: getEnv("DATABASE_URL", "postgres://cloud:cloud@localhost:5433/miniaws"),
 		Environment: getEnv("APP_ENV", "development"),
 	}, nil
 }

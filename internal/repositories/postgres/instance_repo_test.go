@@ -18,7 +18,7 @@ import (
 func setupDB(t *testing.T) *pgxpool.Pool {
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://cloud:cloud@localhost:5432/miniaws"
+		dbURL = "postgres://cloud:cloud@localhost:5433/miniaws"
 	}
 
 	ctx := context.Background()
