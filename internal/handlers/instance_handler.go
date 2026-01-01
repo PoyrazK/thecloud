@@ -20,6 +20,7 @@ func NewInstanceHandler(svc ports.InstanceService) *InstanceHandler {
 type LaunchRequest struct {
 	Name  string `json:"name" binding:"required"`
 	Image string `json:"image" binding:"required"`
+	Ports string `json:"ports"`
 }
 
 func (h *InstanceHandler) Launch(c *gin.Context) {
@@ -29,7 +30,7 @@ func (h *InstanceHandler) Launch(c *gin.Context) {
 		return
 	}
 
-	inst, err := h.svc.LaunchInstance(c.Request.Context(), req.Name, req.Image)
+	inst, err := h.svc.LaunchInstance(c.Request.Context(), req.Name, req.Image, req.Ports)
 	if err != nil {
 		httputil.Error(c, err)
 		return

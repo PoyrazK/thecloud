@@ -22,11 +22,11 @@ func NewInstanceRepository(db *pgxpool.Pool) *InstanceRepository {
 
 func (r *InstanceRepository) Create(ctx context.Context, inst *domain.Instance) error {
 	query := `
-		INSERT INTO instances (id, name, image, container_id, status, version, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO instances (id, name, image, container_id, status, ports, version, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	_, err := r.db.Exec(ctx, query,
-		inst.ID, inst.Name, inst.Image, inst.ContainerID, inst.Status, inst.Version, inst.CreatedAt, inst.UpdatedAt,
+		inst.ID, inst.Name, inst.Image, inst.ContainerID, inst.Status, inst.Ports, inst.Version, inst.CreatedAt, inst.UpdatedAt,
 	)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to create instance", err)
@@ -36,13 +36,13 @@ func (r *InstanceRepository) Create(ctx context.Context, inst *domain.Instance) 
 
 func (r *InstanceRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Instance, error) {
 	query := `
-		SELECT id, name, image, COALESCE(container_id, ''), status, version, created_at, updated_at
+		SELECT id, name, image, COALESCE(container_id, ''), status, COALESCE(ports, ''), version, created_at, updated_at
 		FROM instances
 		WHERE id = $1
 	`
 	var inst domain.Instance
 	err := r.db.QueryRow(ctx, query, id).Scan(
-		&inst.ID, &inst.Name, &inst.Image, &inst.ContainerID, &inst.Status, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
+		&inst.ID, &inst.Name, &inst.Image, &inst.ContainerID, &inst.Status, &inst.Ports, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -55,7 +55,7 @@ func (r *InstanceRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain
 
 func (r *InstanceRepository) List(ctx context.Context) ([]*domain.Instance, error) {
 	query := `
-		SELECT id, name, image, COALESCE(container_id, ''), status, version, created_at, updated_at
+		SELECT id, name, image, COALESCE(container_id, ''), status, COALESCE(ports, ''), version, created_at, updated_at
 		FROM instances
 		ORDER BY created_at DESC
 	`
@@ -69,7 +69,7 @@ func (r *InstanceRepository) List(ctx context.Context) ([]*domain.Instance, erro
 	for rows.Next() {
 		var inst domain.Instance
 		err := rows.Scan(
-			&inst.ID, &inst.Name, &inst.Image, &inst.ContainerID, &inst.Status, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
+			&inst.ID, &inst.Name, &inst.Image, &inst.ContainerID, &inst.Status, &inst.Ports, &inst.Version, &inst.CreatedAt, &inst.UpdatedAt,
 		)
 		if err != nil {
 			return nil, errors.Wrap(errors.Internal, "failed to scan instance", err)
@@ -83,11 +83,11 @@ func (r *InstanceRepository) Update(ctx context.Context, inst *domain.Instance) 
 	// Implements Optimistic Locking via 'version'
 	query := `
 		UPDATE instances
-		SET name = $1, status = $2, version = version + 1, updated_at = $3, container_id = $4
-		WHERE id = $5 AND version = $6
+		SET name = $1, status = $2, version = version + 1, updated_at = $3, container_id = $4, ports = $5
+		WHERE id = $6 AND version = $7
 	`
 	now := time.Now()
-	cmd, err := r.db.Exec(ctx, query, inst.Name, inst.Status, now, inst.ContainerID, inst.ID, inst.Version)
+	cmd, err := r.db.Exec(ctx, query, inst.Name, inst.Status, now, inst.ContainerID, inst.Ports, inst.ID, inst.Version)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to update instance", err)
 	}

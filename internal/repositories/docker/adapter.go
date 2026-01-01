@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 
+	"strings"
+
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 )
 
 type DockerAdapter struct {
@@ -22,7 +25,7 @@ func NewDockerAdapter() (*DockerAdapter, error) {
 	return &DockerAdapter{cli: cli}, nil
 }
 
-func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string) (string, error) {
+func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string, ports []string) (string, error) {
 	// 1. Ensure image exists (pull if not)
 	reader, err := a.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
@@ -33,9 +36,30 @@ func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName str
 
 	// 2. Configure container
 	config := &container.Config{
-		Image: imageName,
+		Image:        imageName,
+		ExposedPorts: make(nat.PortSet),
 	}
-	hostConfig := &container.HostConfig{}
+	hostConfig := &container.HostConfig{
+		PortBindings: make(nat.PortMap),
+	}
+
+	for _, p := range ports {
+		parts := strings.Split(p, ":")
+		if len(parts) == 2 {
+			hostPort := parts[0]
+			containerPort := parts[1]
+
+			// We assume TCP for now as per plan
+			cPort := nat.Port(containerPort + "/tcp")
+			config.ExposedPorts[cPort] = struct{}{}
+			hostConfig.PortBindings[cPort] = []nat.PortBinding{
+				{
+					HostIP:   "0.0.0.0",
+					HostPort: hostPort,
+				},
+			}
+		}
+	}
 
 	// 3. Create container
 	resp, err := a.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, name)

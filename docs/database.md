@@ -13,6 +13,7 @@ CREATE TABLE instances (
     image VARCHAR(255) NOT NULL,
     status VARCHAR(50) NOT NULL,
     container_id VARCHAR(255),
+    ports VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ

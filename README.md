@@ -20,8 +20,8 @@ curl localhost:8080/health
 # 3. Get an API Key
 cloud auth create-demo my-user
 
-# 4. Launch an instance
-cloud compute launch --name my-server --image nginx:alpine
+# 4. Launch an instance with port mapping
+cloud compute launch --name my-server --image nginx:alpine --port 8080:80
 
 # 5. Upload a file
 cloud storage upload my-bucket README.md
@@ -45,6 +45,7 @@ cloud storage upload my-bucket README.md
 | Guide | What you'll learn |
 |-------|-------------------|
 | [Storage Guide](docs/guides/storage.md) | Upload, download, and manage files |
+| [Networking Guide](docs/guides/networking.md) | Port mapping and accessing services |
 
 ### 🔧 Reference
 | Reference | Contents |

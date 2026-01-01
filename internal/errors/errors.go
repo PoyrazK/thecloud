@@ -17,6 +17,17 @@ const (
 	BucketNotFound Type = "BUCKET_NOT_FOUND"
 	ObjectNotFound Type = "OBJECT_NOT_FOUND"
 	ObjectTooLarge Type = "OBJECT_TOO_LARGE"
+
+	// Networking Errors
+	InvalidPortFormat Type = "INVALID_PORT_FORMAT"
+	PortConflict      Type = "PORT_CONFLICT"
+	TooManyPorts      Type = "TOO_MANY_PORTS"
+)
+
+const (
+	MinPort             = 1
+	MaxPort             = 65535
+	MaxPortsPerInstance = 10
 )
 
 type Error struct {

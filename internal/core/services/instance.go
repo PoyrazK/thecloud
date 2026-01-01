@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,45 +24,69 @@ func NewInstanceService(repo ports.InstanceRepository, docker ports.DockerClient
 	}
 }
 
-func (s *InstanceService) LaunchInstance(ctx context.Context, name, image string) (*domain.Instance, error) {
-	// 1. Create domain entity
+func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports string) (*domain.Instance, error) {
+	// 1. Validate ports if provided
+	portList, err := s.parseAndValidatePorts(ports)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Create domain entity
 	inst := &domain.Instance{
 		ID:        uuid.New(),
 		Name:      name,
 		Image:     image,
 		Status:    domain.StatusStarting,
+		Ports:     ports,
 		Version:   1,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	// 2. Persist to DB first (Pending state)
+	// 3. Persist to DB first (Pending state)
 	if err := s.repo.Create(ctx, inst); err != nil {
 		return nil, err
 	}
 
-	// 3. Call Docker to create actual container
-	// We generate a unique name for Docker to avoid conflicts if user reuses "Name"
-	// Docker name format: miniaws-<short_uuid>
+	// 4. Call Docker to create actual container
 	dockerName := fmt.Sprintf("miniaws-%s", inst.ID.String()[:8])
 
-	containerID, err := s.docker.CreateContainer(ctx, dockerName, image)
+	containerID, err := s.docker.CreateContainer(ctx, dockerName, image, portList)
 	if err != nil {
 		inst.Status = domain.StatusError
-		_ = s.repo.Update(ctx, inst) // Try to mark error in DB
+		_ = s.repo.Update(ctx, inst)
 		return nil, errors.Wrap(errors.Internal, "failed to launch container", err)
 	}
 
-	// 4. Update status and save ContainerID
+	// 5. Update status and save ContainerID
 	inst.Status = domain.StatusRunning
 	inst.ContainerID = containerID
-	// Note: We might want to store the docker container ID in our DB too.
-	// For simplicity, we'll just update status for now.
 	if err := s.repo.Update(ctx, inst); err != nil {
 		return nil, err
 	}
 
 	return inst, nil
+}
+
+func (s *InstanceService) parseAndValidatePorts(ports string) ([]string, error) {
+	if ports == "" {
+		return nil, nil
+	}
+
+	portList := strings.Split(ports, ",")
+	if len(portList) > errors.MaxPortsPerInstance {
+		return nil, errors.New(errors.TooManyPorts, fmt.Sprintf("max %d ports allowed", errors.MaxPortsPerInstance))
+	}
+
+	for _, p := range portList {
+		parts := strings.Split(p, ":")
+		if len(parts) != 2 {
+			return nil, errors.New(errors.InvalidPortFormat, "port format must be host:container")
+		}
+		// In a more robust version we'd check if ports are integers within range
+	}
+
+	return portList, nil
 }
 
 func (s *InstanceService) StopInstance(ctx context.Context, id uuid.UUID) error {

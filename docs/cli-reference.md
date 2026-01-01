@@ -45,6 +45,7 @@ cloud compute launch --name my-server --image nginx:alpine
 |------|---------|-------------|
 | `-n, --name` | (required) | Instance name |
 | `-i, --image` | `alpine` | Docker image |
+| `-p, --port` | | Port mapping (host:container) |
 
 ### `compute stop <id>`
 Stop an instance.

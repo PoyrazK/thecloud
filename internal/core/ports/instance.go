@@ -18,7 +18,7 @@ type InstanceRepository interface {
 
 // InstanceService defines the business logic interface.
 type InstanceService interface {
-	LaunchInstance(ctx context.Context, name, image string) (*domain.Instance, error)
+	LaunchInstance(ctx context.Context, name, image, ports string) (*domain.Instance, error)
 	StopInstance(ctx context.Context, id uuid.UUID) error
 	ListInstances(ctx context.Context) ([]*domain.Instance, error)
 }

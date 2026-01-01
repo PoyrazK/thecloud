@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"strings"
+
 	"github.com/go-resty/resty/v2"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -63,19 +65,35 @@ var listCmd = &cobra.Command{
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
-		table.Header([]string{"ID", "NAME", "IMAGE", "STATUS", "CREATED AT"})
+		table.Header([]string{"ID", "NAME", "IMAGE", "STATUS", "ACCESS"})
 
 		for _, inst := range result.Data {
 			id := fmt.Sprintf("%v", inst["id"])
 			if len(id) > 8 {
 				id = id[:8]
 			}
+
+			access := "-"
+			ports := fmt.Sprintf("%v", inst["ports"])
+			if ports != "" && inst["status"] == "RUNNING" {
+				// Show localhost:port for convenience
+				pList := strings.Split(ports, ",")
+				var mappings []string
+				for _, mapping := range pList {
+					parts := strings.Split(mapping, ":")
+					if len(parts) == 2 {
+						mappings = append(mappings, fmt.Sprintf("localhost:%s->%s", parts[0], parts[1]))
+					}
+				}
+				access = strings.Join(mappings, ", ")
+			}
+
 			table.Append([]string{
 				id,
 				fmt.Sprintf("%v", inst["name"]),
 				fmt.Sprintf("%v", inst["image"]),
 				fmt.Sprintf("%v", inst["status"]),
-				fmt.Sprintf("%v", inst["created_at"]),
+				access,
 			})
 		}
 		table.Render()
@@ -88,6 +106,7 @@ var launchCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		name, _ := cmd.Flags().GetString("name")
 		image, _ := cmd.Flags().GetString("image")
+		ports, _ := cmd.Flags().GetString("port")
 
 		client := getClient()
 		resp, err := client.R().
@@ -95,6 +114,7 @@ var launchCmd = &cobra.Command{
 			SetBody(map[string]string{
 				"name":  name,
 				"image": image,
+				"ports": ports,
 			}).
 			Post(apiURL + "/instances")
 
@@ -141,6 +161,7 @@ func init() {
 
 	launchCmd.Flags().StringP("name", "n", "", "Name of the instance (required)")
 	launchCmd.Flags().StringP("image", "i", "alpine", "Image to use")
+	launchCmd.Flags().StringP("port", "p", "", "Port mapping (host:container)")
 	launchCmd.MarkFlagRequired("name")
 
 	rootCmd.PersistentFlags().BoolVarP(&outputJSON, "json", "j", false, "Output in JSON format")

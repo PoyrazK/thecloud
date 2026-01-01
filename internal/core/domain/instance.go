@@ -22,6 +22,7 @@ type Instance struct {
 	Image       string         `json:"image"`
 	ContainerID string         `json:"container_id,omitempty"`
 	Status      InstanceStatus `json:"status"`
+	Ports       string         `json:"ports,omitempty"`
 	Version     int            `json:"version"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`

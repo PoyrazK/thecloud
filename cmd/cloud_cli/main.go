@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"strings"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/go-resty/resty/v2"
 	"github.com/olekukonko/tablewriter"
@@ -118,15 +120,31 @@ func listInstances() {
 	fmt.Print("\033[H\033[2J")
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.Header([]string{"ID", "NAME", "IMAGE", "STATUS"})
+	table.Header([]string{"ID", "NAME", "IMAGE", "STATUS", "ACCESS"})
 
 	for _, inst := range result.Data {
 		id := fmt.Sprintf("%v", inst["id"])
+
+		access := "-"
+		ports := fmt.Sprintf("%v", inst["ports"])
+		if ports != "" && inst["status"] == "RUNNING" {
+			pList := strings.Split(ports, ",")
+			var mappings []string
+			for _, mapping := range pList {
+				parts := strings.Split(mapping, ":")
+				if len(parts) == 2 {
+					mappings = append(mappings, fmt.Sprintf("localhost:%s->%s", parts[0], parts[1]))
+				}
+			}
+			access = strings.Join(mappings, ", ")
+		}
+
 		table.Append([]string{
 			id[:8],
 			fmt.Sprintf("%v", inst["name"]),
 			fmt.Sprintf("%v", inst["image"]),
 			fmt.Sprintf("%v", inst["status"]),
+			access,
 		})
 	}
 	table.Render()
@@ -149,11 +167,19 @@ func launchInstance() {
 				Default: "alpine",
 			},
 		},
+		{
+			Name: "ports",
+			Prompt: &survey.Input{
+				Message: "Port Mappings (host:container, optional):",
+				Help:    "e.g. 8080:80",
+			},
+		},
 	}
 
 	answers := struct {
 		Name  string
 		Image string
+		Ports string
 	}{}
 
 	if err := survey.Ask(qs, &answers); err != nil {
@@ -166,6 +192,7 @@ func launchInstance() {
 		SetBody(map[string]string{
 			"name":  answers.Name,
 			"image": answers.Image,
+			"ports": answers.Ports,
 		}).
 		Post(apiURL + "/instances")
 
