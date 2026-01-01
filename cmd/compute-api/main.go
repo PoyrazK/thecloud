@@ -167,6 +167,7 @@ func main() {
 		dashboardGroup.GET("/summary", dashboardHandler.GetSummary)
 		dashboardGroup.GET("/events", dashboardHandler.GetRecentEvents)
 		dashboardGroup.GET("/stats", dashboardHandler.GetStats)
+		dashboardGroup.GET("/stream", dashboardHandler.StreamEvents)
 	}
 
 	// 6. Server setup

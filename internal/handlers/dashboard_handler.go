@@ -3,6 +3,7 @@ package httphandlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/poyraz/cloud/internal/core/ports"
@@ -59,4 +60,37 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		return
 	}
 	httputil.Success(c, http.StatusOK, stats)
+}
+
+// StreamEvents sends real-time dashboard updates via SSE.
+// GET /api/dashboard/stream
+func (h *DashboardHandler) StreamEvents(c *gin.Context) {
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	// Send initial summary
+	summary, err := h.svc.GetSummary(c.Request.Context())
+	if err == nil {
+		c.SSEvent("summary", summary)
+		c.Writer.Flush()
+	}
+
+	for {
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-ticker.C:
+			summary, err := h.svc.GetSummary(c.Request.Context())
+			if err != nil {
+				continue
+			}
+			c.SSEvent("summary", summary)
+			c.Writer.Flush()
+		}
+	}
 }
