@@ -71,7 +71,7 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports
 		networkID = vpc.NetworkID
 	}
 
-	containerID, err := s.docker.CreateContainer(ctx, dockerName, image, portList, networkID)
+	containerID, err := s.docker.CreateContainer(ctx, dockerName, image, portList, networkID, nil)
 	if err != nil {
 		s.logger.Error("failed to create docker container", "name", dockerName, "image", image, "error", err)
 		inst.Status = domain.StatusError

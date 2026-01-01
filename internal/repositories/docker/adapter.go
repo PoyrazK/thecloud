@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
@@ -27,7 +28,7 @@ func NewDockerAdapter() (*DockerAdapter, error) {
 	return &DockerAdapter{cli: cli}, nil
 }
 
-func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string, ports []string, networkID string) (string, error) {
+func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName string, ports []string, networkID string, volumeBinds []string) (string, error) {
 	// 1. Ensure image exists (pull if not)
 	reader, err := a.cli.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
@@ -43,6 +44,7 @@ func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName str
 	}
 	hostConfig := &container.HostConfig{
 		PortBindings: make(nat.PortMap),
+		Binds:        volumeBinds,
 	}
 	networkingConfig := &network.NetworkingConfig{}
 
@@ -147,6 +149,23 @@ func (a *DockerAdapter) RemoveNetwork(ctx context.Context, networkID string) err
 	err := a.cli.NetworkRemove(ctx, networkID)
 	if err != nil {
 		return fmt.Errorf("failed to remove network %s: %w", networkID, err)
+	}
+	return nil
+}
+
+func (a *DockerAdapter) CreateVolume(ctx context.Context, name string) error {
+	_, err := a.cli.VolumeCreate(ctx, volume.CreateOptions{
+		Name: name,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create volume %s: %w", name, err)
+	}
+	return nil
+}
+
+func (a *DockerAdapter) DeleteVolume(ctx context.Context, name string) error {
+	if err := a.cli.VolumeRemove(ctx, name, true); err != nil {
+		return fmt.Errorf("failed to delete volume %s: %w", name, err)
 	}
 	return nil
 }

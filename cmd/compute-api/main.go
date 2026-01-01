@@ -56,14 +56,17 @@ func main() {
 	instanceRepo := postgres.NewInstanceRepository(db)
 	vpcRepo := postgres.NewVpcRepository(db)
 	eventRepo := postgres.NewEventRepository(db)
+	volumeRepo := postgres.NewVolumeRepository(db)
 
 	vpcSvc := services.NewVpcService(vpcRepo, dockerAdapter, logger)
 	eventSvc := services.NewEventService(eventRepo, logger)
+	volumeSvc := services.NewVolumeService(volumeRepo, dockerAdapter, eventSvc, logger)
 	instanceSvc := services.NewInstanceService(instanceRepo, vpcRepo, dockerAdapter, eventSvc, logger)
 
 	vpcHandler := httphandlers.NewVpcHandler(vpcSvc)
 	instanceHandler := httphandlers.NewInstanceHandler(instanceSvc)
 	eventHandler := httphandlers.NewEventHandler(eventSvc)
+	volumeHandler := httphandlers.NewVolumeHandler(volumeSvc)
 
 	// Storage Service
 	fileStore, err := filesystem.NewLocalFileStore("./miniaws-data/local/storage")
@@ -141,6 +144,16 @@ func main() {
 	eventGroup.Use(httputil.Auth(identitySvc))
 	{
 		eventGroup.GET("", eventHandler.List)
+	}
+
+	// Volume Routes (Protected)
+	volumeGroup := r.Group("/volumes")
+	volumeGroup.Use(httputil.Auth(identitySvc))
+	{
+		volumeGroup.POST("", volumeHandler.Create)
+		volumeGroup.GET("", volumeHandler.List)
+		volumeGroup.GET("/:id", volumeHandler.Get)
+		volumeGroup.DELETE("/:id", volumeHandler.Delete)
 	}
 
 	// 6. Server setup

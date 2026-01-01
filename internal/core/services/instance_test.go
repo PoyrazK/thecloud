@@ -92,8 +92,8 @@ type MockDocker struct {
 	mock.Mock
 }
 
-func (m *MockDocker) CreateContainer(ctx context.Context, name, image string, ports []string, networkID string) (string, error) {
-	args := m.Called(ctx, name, image, ports, networkID)
+func (m *MockDocker) CreateContainer(ctx context.Context, name, image string, ports []string, networkID string, volumeBinds []string) (string, error) {
+	args := m.Called(ctx, name, image, ports, networkID, volumeBinds)
 	return args.String(0), args.Error(1)
 }
 
@@ -147,6 +147,16 @@ func (m *MockDocker) RemoveNetwork(ctx context.Context, networkID string) error 
 	return args.Error(0)
 }
 
+func (m *MockDocker) CreateVolume(ctx context.Context, name string) error {
+	args := m.Called(ctx, name)
+	return args.Error(0)
+}
+
+func (m *MockDocker) DeleteVolume(ctx context.Context, name string) error {
+	args := m.Called(ctx, name)
+	return args.Error(0)
+}
+
 // Tests
 func TestLaunchInstance_Success(t *testing.T) {
 	repo := new(MockRepo)
@@ -162,7 +172,7 @@ func TestLaunchInstance_Success(t *testing.T) {
 	ports := "8080:80"
 
 	repo.On("Create", ctx, mock.AnythingOfType("*domain.Instance")).Return(nil)
-	docker.On("CreateContainer", ctx, mock.Anything, image, []string{"8080:80"}, "").Return("container-123", nil)
+	docker.On("CreateContainer", ctx, mock.Anything, image, []string{"8080:80"}, "", []string(nil)).Return("container-123", nil)
 	repo.On("Update", ctx, mock.AnythingOfType("*domain.Instance")).Return(nil)
 	eventSvc.On("RecordEvent", ctx, "INSTANCE_LAUNCH", mock.Anything, "INSTANCE", mock.Anything).Return(nil)
 
