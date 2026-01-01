@@ -20,7 +20,10 @@ install: build
 	mkdir -p $(HOME)/.local/bin
 	cp bin/cloud $(HOME)/.local/bin/cloud
 	cp bin/cloud_cli $(HOME)/.local/bin/cloud_cli
-	@echo "✅ Installed to ~/.local/bin"
+	@./scripts/setup_path.sh
+
+setup-path:
+	@./scripts/setup_path.sh
 
 migrate:
 	@echo "Running migrations..."
