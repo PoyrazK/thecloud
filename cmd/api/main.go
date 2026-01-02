@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"golang.org/x/time/rate"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/poyrazk/thecloud/docs/swagger"
@@ -26,6 +27,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/repositories/filesystem"
 	"github.com/poyrazk/thecloud/internal/repositories/postgres"
 	"github.com/poyrazk/thecloud/pkg/httputil"
+	"github.com/poyrazk/thecloud/pkg/ratelimit"
 )
 
 // @title The Cloud API
@@ -150,6 +152,13 @@ func main() {
 	r.Use(httputil.Logger(logger))
 	r.Use(httputil.CORS())
 	r.Use(gin.Recovery())
+
+	// Security Middleware
+	r.Use(httputil.SecurityHeadersMiddleware())
+
+	// Rate Limiter (5 req/sec, burst 10)
+	limiter := ratelimit.NewIPRateLimiter(rate.Limit(5), 10, logger)
+	r.Use(ratelimit.Middleware(limiter))
 
 	// 6. Routes
 	r.GET("/health", func(c *gin.Context) {
