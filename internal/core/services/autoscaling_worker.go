@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -190,7 +191,11 @@ func (w *AutoScalingWorker) evaluatePolicies(ctx context.Context, group *domain.
 func (w *AutoScalingWorker) scaleOut(ctx context.Context, group *domain.ScalingGroup, policy *domain.ScalingPolicy) error {
 	// Create instance
 	name := fmt.Sprintf("%s-%d", group.Name, w.clock.Now().UnixNano()) // Unique name
-	inst, err := w.instanceSvc.LaunchInstance(ctx, name, group.Image, group.Ports, &group.VpcID, nil)
+
+	// Use dynamic ports to avoid conflicts on the same host
+	dynamicPorts := toDynamicPorts(group.Ports)
+
+	inst, err := w.instanceSvc.LaunchInstance(ctx, name, group.Image, dynamicPorts, &group.VpcID, nil)
 	if err != nil {
 		return err
 	}
@@ -243,4 +248,22 @@ func (w *AutoScalingWorker) scaleIn(ctx context.Context, group *domain.ScalingGr
 	})
 
 	return nil
+}
+
+func toDynamicPorts(ports string) string {
+	if ports == "" {
+		return ""
+	}
+	// "80:80,443:443" -> "0:80,0:443"
+	parts := strings.Split(ports, ",")
+	var newPorts []string
+	for _, p := range parts {
+		components := strings.Split(p, ":")
+		if len(components) == 2 {
+			newPorts = append(newPorts, fmt.Sprintf("0:%s", components[1]))
+		} else {
+			newPorts = append(newPorts, p)
+		}
+	}
+	return strings.Join(newPorts, ",")
 }
