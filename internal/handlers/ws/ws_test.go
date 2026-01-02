@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -21,17 +23,20 @@ type mockIdentityService struct {
 	mock.Mock
 }
 
-func (m *mockIdentityService) GenerateApiKey(ctx context.Context, name string) (*domain.ApiKey, error) {
-	args := m.Called(ctx, name)
+func (m *mockIdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.ApiKey, error) {
+	args := m.Called(ctx, userID, name)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.ApiKey), args.Error(1)
 }
 
-func (m *mockIdentityService) ValidateApiKey(ctx context.Context, key string) (bool, error) {
+func (m *mockIdentityService) ValidateApiKey(ctx context.Context, key string) (*domain.ApiKey, error) {
 	args := m.Called(ctx, key)
-	return args.Bool(0), args.Error(1)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.ApiKey), args.Error(1)
 }
 
 func TestWebSocket_Lifecycle(t *testing.T) {
@@ -50,7 +55,7 @@ func TestWebSocket_Lifecycle(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?api_key=valid-key"
-	mockId.On("ValidateApiKey", mock.Anything, "valid-key").Return(true, nil)
+	mockId.On("ValidateApiKey", mock.Anything, "valid-key").Return(&domain.ApiKey{Key: "valid-key", UserID: uuid.New()}, nil)
 
 	dialer := websocket.Dialer{}
 	conn, _, err := dialer.Dial(wsURL, nil)
@@ -95,7 +100,7 @@ func TestWebSocket_AuthFailure(t *testing.T) {
 
 	t.Run("Invalid API Key", func(t *testing.T) {
 		wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws?api_key=invalid"
-		mockId.On("ValidateApiKey", mock.Anything, "invalid").Return(false, nil)
+		mockId.On("ValidateApiKey", mock.Anything, "invalid").Return(nil, errors.New(errors.Unauthorized, "invalid key"))
 		dialer := websocket.Dialer{}
 		_, resp, err := dialer.Dial(wsURL, nil)
 		assert.Error(t, err)
