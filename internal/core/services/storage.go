@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 )
@@ -33,6 +34,7 @@ func (s *StorageService) Upload(ctx context.Context, bucket, key string, r io.Re
 	// 2. Prepare metadata
 	obj := &domain.Object{
 		ID:        uuid.New(),
+		UserID:    appcontext.UserIDFromContext(ctx),
 		Bucket:    bucket,
 		Key:       key,
 		SizeBytes: size,
