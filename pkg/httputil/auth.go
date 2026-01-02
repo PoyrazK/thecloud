@@ -2,6 +2,7 @@ package httputil
 
 import (
 	"github.com/gin-gonic/gin"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
 )
@@ -22,7 +23,11 @@ func Auth(svc ports.IdentityService) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("userID", apiKeyObj.UserID)
+		// Wrap the request context with UserID
+		ctx := appcontext.WithUserID(c.Request.Context(), apiKeyObj.UserID)
+		c.Request = c.Request.WithContext(ctx)
+
+		c.Set("userID", apiKeyObj.UserID) // Also keep in Gin context for convenience
 		c.Next()
 	}
 }
