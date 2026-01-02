@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net"
 	"sync"
 	"time"
 
@@ -12,12 +14,14 @@ import (
 
 type LBWorker struct {
 	lbRepo       ports.LBRepository
+	instanceRepo ports.InstanceRepository
 	proxyAdapter ports.LBProxyAdapter
 }
 
-func NewLBWorker(lbRepo ports.LBRepository, proxyAdapter ports.LBProxyAdapter) *LBWorker {
+func NewLBWorker(lbRepo ports.LBRepository, instanceRepo ports.InstanceRepository, proxyAdapter ports.LBProxyAdapter) *LBWorker {
 	return &LBWorker{
 		lbRepo:       lbRepo,
+		instanceRepo: instanceRepo,
 		proxyAdapter: proxyAdapter,
 	}
 }
@@ -37,6 +41,7 @@ func (w *LBWorker) Run(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ticker.C:
 			w.processCreatingLBs(ctx)
 			w.processDeletingLBs(ctx)
+			w.processHealthChecks(ctx)
 		}
 	}
 }
@@ -97,7 +102,6 @@ func (w *LBWorker) cleanupLB(ctx context.Context, lb *domain.LoadBalancer) {
 	err := w.proxyAdapter.RemoveProxy(ctx, lb.ID)
 	if err != nil {
 		log.Printf("Worker: failed to remove proxy for LB %s: %v", lb.ID, err)
-		// We might still want to delete from DB if proxy is gone or error is "not found"
 	}
 
 	if err := w.lbRepo.Delete(ctx, lb.ID); err != nil {
@@ -105,4 +109,126 @@ func (w *LBWorker) cleanupLB(ctx context.Context, lb *domain.LoadBalancer) {
 	} else {
 		log.Printf("Worker: LB %s fully removed", lb.ID)
 	}
+}
+
+func (w *LBWorker) processHealthChecks(ctx context.Context) {
+	lbs, err := w.lbRepo.List(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, lb := range lbs {
+		if lb.Status == domain.LBStatusActive {
+			w.checkLBHealth(ctx, lb)
+		}
+	}
+}
+
+func (w *LBWorker) checkLBHealth(ctx context.Context, lb *domain.LoadBalancer) {
+	targets, err := w.lbRepo.ListTargets(ctx, lb.ID)
+	if err != nil {
+		return
+	}
+
+	changed := false
+	for _, t := range targets {
+		inst, err := w.instanceRepo.GetByID(ctx, t.InstanceID)
+		if err != nil {
+			continue
+		}
+
+		// Simple TCP check to container name (Nginx uses this in the same network)
+		// But here we are outside the network.
+		// Wait, if we use container names, they are only resolvable inside the docker network.
+		// For host-based health check, we'd need to know the host port.
+		// For simplicity, let's assume we can reach the container port if we are on the same bridge or if we use the container IP.
+		// In a real simulator, we might want to "exec" a ping inside the LB container.
+
+		status := "unhealthy"
+		// This is a naive check. In a real system, we'd use the proxy status or internal probes.
+		// For this simulator, we'll try to connect to the mapped host port if available.
+		// (Assuming ports are mapped as "hostPort:containerPort")
+		hostPort := ""
+		if inst.Ports != "" {
+			// Find the port mapping for t.Port
+			mappings := parsePorts(inst.Ports)
+			for h, c := range mappings {
+				if c == t.Port {
+					hostPort = h
+					break
+				}
+			}
+		}
+
+		if hostPort != "" {
+			conn, err := net.DialTimeout("tcp", "localhost:"+hostPort, 2*time.Second)
+			if err == nil {
+				status = "healthy"
+				conn.Close()
+			}
+		}
+
+		if t.Health != status {
+			w.lbRepo.UpdateTargetHealth(ctx, lb.ID, t.InstanceID, status)
+			changed = true
+		}
+	}
+
+	if changed {
+		// If health changed, we might want to update the proxy config if it supports it,
+		// or just let Nginx handle it (Nginx Open Source doesn't have active health checks easily).
+		// For now, we just update the DB so the CLI can show it.
+		log.Printf("Worker: health changed for LB %s", lb.ID)
+		// w.proxyAdapter.UpdateProxyConfig(ctx, lb, targets) // Optional
+	}
+}
+
+func parsePorts(ports string) map[string]int {
+	res := make(map[string]int)
+	pairs := splitCommas(ports)
+	for _, p := range pairs {
+		parts := splitColons(p)
+		if len(parts) == 2 {
+			var hPort string
+			var cPort int
+			fmt.Sscanf(parts[0], "%s", &hPort)
+			fmt.Sscanf(parts[1], "%d", &cPort)
+			res[hPort] = cPort
+		}
+	}
+	return res
+}
+
+func splitCommas(s string) []string {
+	var res []string
+	current := ""
+	for _, r := range s {
+		if r == ',' {
+			res = append(res, current)
+			current = ""
+		} else {
+			current += string(r)
+		}
+	}
+	if current != "" {
+		res = append(res, current)
+	}
+	return res
+}
+
+func splitColons(s string) []string {
+	var res []string
+	current := ""
+	for _, r := range s {
+		if r == ':' {
+			res = append(res, current)
+			current = ""
+		} else {
+			current += string(r)
+		}
+	}
+	if current != "" {
+		res = append(res, current)
+	}
+	return res
 }

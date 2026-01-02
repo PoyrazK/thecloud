@@ -92,7 +92,7 @@ func main() {
 		os.Exit(1)
 	}
 	lbSvc := services.NewLBService(lbRepo, vpcRepo, instanceRepo)
-	lbWorker := services.NewLBWorker(lbRepo, lbProxy)
+	lbWorker := services.NewLBWorker(lbRepo, instanceRepo, lbProxy)
 
 	vpcHandler := httphandlers.NewVpcHandler(vpcSvc)
 	instanceHandler := httphandlers.NewInstanceHandler(instanceSvc)
