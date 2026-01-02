@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -233,6 +234,34 @@ func TestLaunchInstance_Success(t *testing.T) {
 	assert.Equal(t, domain.StatusRunning, inst.Status)
 	repo.AssertExpectations(t)
 	docker.AssertExpectations(t)
+}
+
+func TestLaunchInstance_PropagatesUserID(t *testing.T) {
+	repo := new(MockRepo)
+	vpcRepo := new(MockVpcRepo)
+	volumeRepo := new(MockVolumeRepo)
+	docker := new(MockDocker)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	svc := NewInstanceService(repo, vpcRepo, volumeRepo, docker, eventSvc, logger)
+
+	expectedUserID := uuid.New()
+	ctx := appcontext.WithUserID(context.Background(), expectedUserID)
+	name := "test-inst-user"
+	image := "alpine"
+
+	repo.On("Create", ctx, mock.MatchedBy(func(inst *domain.Instance) bool {
+		return inst.UserID == expectedUserID
+	})).Return(nil)
+	docker.On("CreateContainer", ctx, mock.Anything, image, []string(nil), "", []string(nil)).Return("container-456", nil)
+	repo.On("Update", ctx, mock.AnythingOfType("*domain.Instance")).Return(nil)
+	eventSvc.On("RecordEvent", ctx, "INSTANCE_LAUNCH", mock.Anything, "INSTANCE", mock.Anything).Return(nil)
+
+	inst, err := svc.LaunchInstance(ctx, name, image, "", nil, nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedUserID, inst.UserID)
+	repo.AssertExpectations(t)
 }
 
 func TestTerminateInstance_Success(t *testing.T) {

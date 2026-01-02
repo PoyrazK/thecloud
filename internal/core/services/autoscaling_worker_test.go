@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/stretchr/testify/mock"
@@ -37,18 +38,28 @@ func TestAutoScalingWorker_Logic(t *testing.T) {
 
 		instances := []uuid.UUID{uuid.New()}
 
-		asgRepo.On("ListGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
+		asgRepo.On("ListAllGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
 		asgRepo.On("GetAllScalingGroupInstances", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instances}, nil).Once()
 		asgRepo.On("GetAllPolicies", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {}}, nil).Once()
 
 		clock.On("Now").Return(now).Maybe()
 
 		newInstID := uuid.New()
-		instSvc.On("LaunchInstance", ctx, mock.Anything, "nginx", "0:80", &vpcID, []domain.VolumeAttachment(nil)).Return(&domain.Instance{ID: newInstID}, nil).Once()
-		asgRepo.On("AddInstanceToGroup", ctx, groupID, newInstID).Return(nil).Once()
-		lbSvc.On("AddTarget", ctx, lbID, newInstID, 80, 1).Return(nil).Once()
-		eventSvc.On("RecordEvent", ctx, "AUTOSCALING_SCALE_OUT", groupID.String(), "SCALING_GROUP", mock.Anything).Return(nil).Once()
-		asgRepo.On("UpdateGroup", ctx, mock.Anything).Return(nil).Maybe() // reset failures
+		instSvc.On("LaunchInstance", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), mock.Anything, "nginx", "0:80", &vpcID, []domain.VolumeAttachment(nil)).Return(&domain.Instance{ID: newInstID}, nil).Once()
+		asgRepo.On("AddInstanceToGroup", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), groupID, newInstID).Return(nil).Once()
+		lbSvc.On("AddTarget", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), lbID, newInstID, 80, 1).Return(nil).Once()
+		eventSvc.On("RecordEvent", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), "AUTOSCALING_SCALE_OUT", groupID.String(), "SCALING_GROUP", mock.Anything).Return(nil).Once()
+		asgRepo.On("UpdateGroup", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), mock.Anything).Return(nil).Maybe() // reset failures
 
 		worker.Evaluate(ctx)
 
@@ -76,14 +87,22 @@ func TestAutoScalingWorker_Logic(t *testing.T) {
 
 		instances := []uuid.UUID{instID1, instID2}
 
-		asgRepo.On("ListGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
+		asgRepo.On("ListAllGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
 		asgRepo.On("GetAllScalingGroupInstances", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instances}, nil).Once()
 		asgRepo.On("GetAllPolicies", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {}}, nil).Once()
 
-		lbSvc.On("RemoveTarget", ctx, lbID, instID2).Return(nil).Once()
-		asgRepo.On("RemoveInstanceFromGroup", ctx, groupID, instID2).Return(nil).Once()
-		instSvc.On("TerminateInstance", ctx, instID2.String()).Return(nil).Once()
-		eventSvc.On("RecordEvent", ctx, "AUTOSCALING_SCALE_IN", groupID.String(), "SCALING_GROUP", mock.Anything).Return(nil).Once()
+		lbSvc.On("RemoveTarget", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), lbID, instID2).Return(nil).Once()
+		asgRepo.On("RemoveInstanceFromGroup", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), groupID, instID2).Return(nil).Once()
+		instSvc.On("TerminateInstance", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), instID2.String()).Return(nil).Once()
+		eventSvc.On("RecordEvent", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), "AUTOSCALING_SCALE_IN", groupID.String(), "SCALING_GROUP", mock.Anything).Return(nil).Once()
 
 		worker.Evaluate(ctx)
 
@@ -113,17 +132,23 @@ func TestAutoScalingWorker_Logic(t *testing.T) {
 			CooldownSec:  300,
 		}
 
-		asgRepo.On("ListGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
-		asgRepo.On("GetAllScalingGroupInstances", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instanceIDs}, nil).Once()
-		asgRepo.On("GetAllPolicies", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {policy}}, nil).Once()
+		asgRepo.On("ListAllGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
+		asgRepo.On("GetAllScalingGroupInstances", mock.Anything, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instanceIDs}, nil).Once()
+		asgRepo.On("GetAllPolicies", mock.Anything, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {policy}}, nil).Once()
 
 		clock.On("Now").Return(now).Maybe()
-		asgRepo.On("GetAverageCPU", ctx, instanceIDs, mock.Anything).Return(80.0, nil).Once()
+		asgRepo.On("GetAverageCPU", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), instanceIDs, mock.Anything).Return(80.0, nil).Once()
 
-		asgRepo.On("UpdateGroup", ctx, mock.MatchedBy(func(g *domain.ScalingGroup) bool {
+		asgRepo.On("UpdateGroup", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), mock.MatchedBy(func(g *domain.ScalingGroup) bool {
 			return g.DesiredCount == 2
 		})).Return(nil).Once()
-		asgRepo.On("UpdatePolicyLastScaled", ctx, policy.ID, mock.Anything).Return(nil).Once()
+		asgRepo.On("UpdatePolicyLastScaled", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), policy.ID, mock.Anything).Return(nil).Once()
 
 		worker.Evaluate(ctx)
 
@@ -150,17 +175,23 @@ func TestAutoScalingWorker_Logic(t *testing.T) {
 			CooldownSec: 300,
 		}
 
-		asgRepo.On("ListGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
-		asgRepo.On("GetAllScalingGroupInstances", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instanceIDs}, nil).Once()
-		asgRepo.On("GetAllPolicies", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {policy}}, nil).Once()
+		asgRepo.On("ListAllGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
+		asgRepo.On("GetAllScalingGroupInstances", mock.Anything, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instanceIDs}, nil).Once()
+		asgRepo.On("GetAllPolicies", mock.Anything, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {policy}}, nil).Once()
 
 		clock.On("Now").Return(now).Maybe()
-		asgRepo.On("GetAverageCPU", ctx, instanceIDs, mock.Anything).Return(40.0, nil).Once()
+		asgRepo.On("GetAverageCPU", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), instanceIDs, mock.Anything).Return(40.0, nil).Once()
 
-		asgRepo.On("UpdateGroup", ctx, mock.MatchedBy(func(g *domain.ScalingGroup) bool {
+		asgRepo.On("UpdateGroup", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), mock.MatchedBy(func(g *domain.ScalingGroup) bool {
 			return g.DesiredCount == 1
 		})).Return(nil).Once()
-		asgRepo.On("UpdatePolicyLastScaled", ctx, policy.ID, mock.Anything).Return(nil).Once()
+		asgRepo.On("UpdatePolicyLastScaled", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), policy.ID, mock.Anything).Return(nil).Once()
 
 		worker.Evaluate(ctx)
 
@@ -189,9 +220,9 @@ func TestAutoScalingWorker_Logic(t *testing.T) {
 			LastScaledAt: &lastScaled,
 		}
 
-		asgRepo.On("ListGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
-		asgRepo.On("GetAllScalingGroupInstances", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instanceIDs}, nil).Once()
-		asgRepo.On("GetAllPolicies", ctx, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {policy}}, nil).Once()
+		asgRepo.On("ListAllGroups", ctx).Return([]*domain.ScalingGroup{group}, nil).Once()
+		asgRepo.On("GetAllScalingGroupInstances", mock.Anything, []uuid.UUID{groupID}).Return(map[uuid.UUID][]uuid.UUID{groupID: instanceIDs}, nil).Once()
+		asgRepo.On("GetAllPolicies", mock.Anything, []uuid.UUID{groupID}).Return(map[uuid.UUID][]*domain.ScalingPolicy{groupID: {policy}}, nil).Once()
 
 		clock.On("Now").Return(now).Maybe()
 		// No GetAverageCPU should be called because cooldown skips it
@@ -201,7 +232,9 @@ func TestAutoScalingWorker_Logic(t *testing.T) {
 		// }
 		// Wait, GetAverageCPU is called BEFORE the loop.
 		// So it WILL be called, but the policy evaluation loop will skip the action.
-		asgRepo.On("GetAverageCPU", ctx, instanceIDs, mock.Anything).Return(80.0, nil).Once()
+		asgRepo.On("GetAverageCPU", mock.MatchedBy(func(ctx context.Context) bool {
+			return appcontext.UserIDFromContext(ctx) == group.UserID
+		}), instanceIDs, mock.Anything).Return(80.0, nil).Once()
 
 		worker.Evaluate(ctx)
 
