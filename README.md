@@ -9,6 +9,8 @@ To build the world's best local-first cloud simulator that teaches cloud concept
 - **Networking**: VPC with isolated Docker networks
 - **Identity**: API Key authentication
 - **Observability**: Real-time CPU/Memory metrics and System Events
+- **Load Balancer**: Layer 7 HTTP traffic distribution
+- **Auto-Scaling**: Dynamic scaling of compute resources based on metrics
 - **Console**: Interactive Next.js Dashboard for visual resource management
 
 ## 🚀 Quick Start (Backend)
@@ -45,7 +47,7 @@ npm run dev
 - **Observability**: Prometheus Metrics & Real-time WebSockets
 - **CLI**: Cobra (command-based) + Survey (interactive)
 
-## � Documentation
+##  Documentation
 
 ### 🎓 Getting Started
 | Doc | Description |
@@ -61,6 +63,14 @@ npm run dev
 | [Backend Guide](docs/backend.md) | Go service implementation |
 | [Database Guide](docs/database.md) | Schema, tables, and migrations |
 | [CLI Reference](docs/cli-reference.md) | All commands and flags |
+
+### 📖 Guides
+| Guide | Description |
+|-------|-------------|
+| [Auto-Scaling](docs/guides/autoscaling.md) | Scalability patterns and usage |
+| [Load Balancer](docs/guides/loadbalancer.md) | Traffic distribution guide |
+| [Networking](docs/guides/networking.md) | VPCs and Network isolation |
+| [Storage](docs/guides/storage.md) | Object and Block storage |
 
 ## �📊 KPIs
 - Time to Hello World: < 5 min
