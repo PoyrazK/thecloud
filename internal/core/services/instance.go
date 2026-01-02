@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
@@ -46,6 +47,7 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports
 	// 2. Create domain entity
 	inst := &domain.Instance{
 		ID:        uuid.New(),
+		UserID:    appcontext.UserIDFromContext(ctx),
 		Name:      name,
 		Image:     image,
 		Status:    domain.StatusStarting,
