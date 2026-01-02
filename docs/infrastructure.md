@@ -28,10 +28,10 @@ The "Compute" service acts as a hypervisor. Instead of launching VMs (KVM/QEMU),
 ### Docker Compose
 We use `docker-compose.yml` to orchestrate the control plane.
 - **Service**: `postgres` (State)
-- **Service**: `compute-api` (Logic)
+- **Service**: `api` (Logic)
 
 ### Mounting the Socket
-To let the `compute-api` container launch *sibling* containers, we mount the host Docker socket:
+To let the `api` container launch *sibling* containers, we mount the host Docker socket:
 ```yaml
 volumes:
   - /var/run/docker.sock:/var/run/docker.sock

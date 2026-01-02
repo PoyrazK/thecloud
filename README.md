@@ -7,7 +7,6 @@ To build the world's best open-source cloud platform that anyone can run, modify
 - **Storage**: S3-compatible object storage (Upload, Download, Delete)
 - **Block Storage**: Persistent volumes that survive instance termination
 - **Networking**: VPC with isolated Docker networks
-- **Networking**: VPC with isolated Docker networks
 - **Identity**: API Key authentication ([Guide](docs/guides/authentication.md))
 - **Observability**: Real-time CPU/Memory metrics and System Events
 - **Load Balancer**: Layer 7 HTTP traffic distribution
@@ -46,7 +45,7 @@ npm run dev
 ```
 
 ## 🏗️ Architecture
-- **Frontend**: Next.js 14, Tailwind CSS, GSAP
+- **Frontend**: Next.js 16, Tailwind CSS, GSAP
 - **Backend**: Go (Clean Architecture, Hexagonal)
 - **Database**: PostgreSQL (pgx)
 - **Infrastructure**: Docker Engine (Containers, Networks, Volumes)
@@ -62,6 +61,12 @@ npm run dev
 | [Roadmap](docs/roadmap.md) | Project phases and progress |
 | [Future Plans & Contributing](docs/future-plans.md) | How to contribute + feature backlog |
 | [Future Vision](docs/vision.md) | Long-term strategy and goals |
+
+### 🤝 Community
+| Doc | Description |
+|-----|-------------|
+| [Contributing Guide](CONTRIBUTING.md) | How to propose changes and run checks |
+| [Security Policy](SECURITY.md) | How to report vulnerabilities |
 
 ### 🏛️ Architecture & Services
 | Doc | Description |
@@ -79,7 +84,7 @@ npm run dev
 | [Networking](docs/guides/networking.md) | VPCs and Network isolation |
 | [Storage](docs/guides/storage.md) | Object and Block storage |
 
-## �📊 KPIs
+## 📊 KPIs
 - Time to Hello World: < 5 min
 - API Latency (P95): < 200ms
 - CLI Success Rate: > 95%

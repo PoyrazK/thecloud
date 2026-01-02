@@ -68,8 +68,32 @@ jobs:
           DATABASE_URL: postgres://cloud:cloud@localhost:5433/thecloud?sslmode=disable
         run: go test -tags=integration -v ./internal/repositories/postgres/...
 
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Lint
+        run: npm run lint
+        working-directory: web
+
+      - name: Build
+        run: npm run build
+        working-directory: web
+
   build:
-    needs: test
+    needs: [test, web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

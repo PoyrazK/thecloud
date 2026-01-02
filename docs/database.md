@@ -108,7 +108,7 @@ CREATE TABLE metrics_history (
 - **Execution**: Migrations run automatically on API startup.
 - **CI/CD / Manual**: Use the `-migrate-only` flag to run migrations and exit:
   ```bash
-  go run cmd/compute-api/main.go -migrate-only
+  go run cmd/api/main.go -migrate-only
   ```
 
 ## Connection Details

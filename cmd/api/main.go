@@ -306,7 +306,7 @@ func main() {
 
 	// 7. Graceful Shutdown
 	go func() {
-		logger.Info("starting compute-api", "port", cfg.Port)
+		logger.Info("starting api", "port", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("failed to start server", "error", err)
 			os.Exit(1)
