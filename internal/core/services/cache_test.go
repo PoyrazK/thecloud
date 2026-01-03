@@ -210,3 +210,99 @@ func TestCreateCache_DockerFailure(t *testing.T) {
 	repo.AssertExpectations(t)
 	docker.AssertExpectations(t)
 }
+
+func TestGetCache_ByID(t *testing.T) {
+	repo := new(MockCacheRepo)
+	docker := new(MockDockerClient)
+	vpcRepo := new(MockVpcRepo)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, logger)
+
+	ctx := context.Background()
+	cacheID := uuid.New()
+	cache := &domain.Cache{ID: cacheID, Name: "my-cache"}
+
+	repo.On("GetByID", ctx, cacheID).Return(cache, nil)
+
+	result, err := svc.GetCache(ctx, cacheID.String())
+
+	assert.NoError(t, err)
+	assert.Equal(t, cacheID, result.ID)
+	repo.AssertExpectations(t)
+}
+
+func TestGetCache_ByName(t *testing.T) {
+	repo := new(MockCacheRepo)
+	docker := new(MockDockerClient)
+	vpcRepo := new(MockVpcRepo)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, logger)
+
+	userID := uuid.New()
+	ctx := appcontext.WithUserID(context.Background(), userID)
+	name := "named-cache"
+	cache := &domain.Cache{ID: uuid.New(), Name: name}
+
+	repo.On("GetByName", ctx, userID, name).Return(cache, nil)
+
+	result, err := svc.GetCache(ctx, name)
+
+	assert.NoError(t, err)
+	assert.Equal(t, name, result.Name)
+	repo.AssertExpectations(t)
+}
+
+func TestListCaches(t *testing.T) {
+	repo := new(MockCacheRepo)
+	docker := new(MockDockerClient)
+	vpcRepo := new(MockVpcRepo)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, logger)
+
+	userID := uuid.New()
+	ctx := appcontext.WithUserID(context.Background(), userID)
+
+	caches := []*domain.Cache{{Name: "cache1"}, {Name: "cache2"}}
+	repo.On("List", ctx, userID).Return(caches, nil)
+
+	result, err := svc.ListCaches(ctx)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+	repo.AssertExpectations(t)
+}
+
+func TestGetCacheConnectionString(t *testing.T) {
+	repo := new(MockCacheRepo)
+	docker := new(MockDockerClient)
+	vpcRepo := new(MockVpcRepo)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, logger)
+
+	ctx := context.Background()
+	cacheID := uuid.New()
+	cache := &domain.Cache{
+		ID:       cacheID,
+		Name:     "conn-cache",
+		Port:     6379,
+		Password: "secret",
+	}
+
+	repo.On("GetByID", ctx, cacheID).Return(cache, nil)
+
+	connStr, err := svc.GetConnectionString(ctx, cacheID.String())
+
+	assert.NoError(t, err)
+	assert.Contains(t, connStr, "redis://")
+	assert.Contains(t, connStr, "secret")
+	assert.Contains(t, connStr, "6379")
+	repo.AssertExpectations(t)
+}
