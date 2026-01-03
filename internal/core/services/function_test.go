@@ -125,3 +125,90 @@ func TestCreateFunction_Success(t *testing.T) {
 	assert.Equal(t, "my-fn", fn.Name)
 	repo.AssertCalled(t, "Create", mock.Anything, mock.Anything)
 }
+
+func TestCreateFunction_InvalidRuntime(t *testing.T) {
+	repo := new(MockFunctionRepo)
+	docker := new(MockDocker)
+	fileStore := new(MockFileStore)
+	logger := slog.Default()
+
+	svc := NewFunctionService(repo, docker, fileStore, logger)
+
+	ctx := appcontext.WithUserID(context.Background(), uuid.New())
+
+	fn, err := svc.CreateFunction(ctx, "my-fn", "unsupported-runtime", "handler", []byte("code"))
+
+	assert.Error(t, err)
+	assert.Nil(t, fn)
+	assert.Contains(t, err.Error(), "unsupported runtime")
+}
+
+func TestListFunctions(t *testing.T) {
+	repo := new(MockFunctionRepo)
+	docker := new(MockDocker)
+	fileStore := new(MockFileStore)
+	logger := slog.Default()
+
+	svc := NewFunctionService(repo, docker, fileStore, logger)
+
+	userID := uuid.New()
+	ctx := appcontext.WithUserID(context.Background(), userID)
+
+	fns := []*domain.Function{{Name: "fn1"}, {Name: "fn2"}}
+	repo.On("List", ctx, userID).Return(fns, nil)
+
+	result, err := svc.ListFunctions(ctx)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+	repo.AssertExpectations(t)
+}
+
+func TestDeleteFunction(t *testing.T) {
+	repo := new(MockFunctionRepo)
+	docker := new(MockDocker)
+	fileStore := new(MockFileStore)
+	logger := slog.Default()
+
+	svc := NewFunctionService(repo, docker, fileStore, logger)
+
+	ctx := context.Background()
+	fnID := uuid.New()
+	fn := &domain.Function{ID: fnID, Name: "to-delete", CodePath: "user/fn/code.zip"}
+
+	repo.On("GetByID", ctx, fnID).Return(fn, nil)
+	repo.On("Delete", ctx, fnID).Return(nil)
+	// The function calls fileStore.Delete in a goroutine with context.Background()
+	fileStore.On("Delete", mock.Anything, "functions", fn.CodePath).Return(nil).Maybe()
+
+	err := svc.DeleteFunction(ctx, fnID) // Pass UUID directly
+
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func TestGetFunctionLogs(t *testing.T) {
+	repo := new(MockFunctionRepo)
+	docker := new(MockDocker)
+	fileStore := new(MockFileStore)
+	logger := slog.Default()
+
+	svc := NewFunctionService(repo, docker, fileStore, logger)
+
+	ctx := context.Background()
+	fnID := uuid.New()
+
+	invocations := []*domain.Invocation{
+		{ID: uuid.New(), Logs: "Log line 1"},
+		{ID: uuid.New(), Logs: "Log line 2"},
+	}
+
+	repo.On("GetInvocations", ctx, fnID, 50).Return(invocations, nil)
+
+	logs, err := svc.GetFunctionLogs(ctx, fnID, 50)
+
+	assert.NoError(t, err)
+	assert.Len(t, logs, 2)
+	assert.Equal(t, "Log line 1", logs[0].Logs)
+	repo.AssertExpectations(t)
+}
