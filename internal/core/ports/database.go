@@ -21,4 +21,5 @@ type DatabaseService interface {
 	ListDatabases(ctx context.Context) ([]*domain.Database, error)
 	DeleteDatabase(ctx context.Context, id uuid.UUID) error
 	GetConnectionString(ctx context.Context, id uuid.UUID) (string, error)
+	GetDatabaseLogs(ctx context.Context, id uuid.UUID) (string, error)
 }

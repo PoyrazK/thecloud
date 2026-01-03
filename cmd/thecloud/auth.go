@@ -15,6 +15,67 @@ var authCmd = &cobra.Command{
 	Short: "Manage authentication",
 }
 
+var listRolesCmd = &cobra.Command{
+	Use:   "roles",
+	Short: "List available roles",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := getClient()
+		roles, err := client.ListRoles()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		for _, role := range roles {
+			fmt.Println(role)
+		}
+	},
+}
+
+var roleCmd = &cobra.Command{
+	Use:   "role",
+	Short: "Inspect or update user roles",
+}
+
+var getRoleCmd = &cobra.Command{
+	Use:   "get [user-id|me]",
+	Short: "Get a user's role (defaults to current user)",
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := getClient()
+		if len(args) == 0 || args[0] == "me" {
+			role, err := client.GetMyRole()
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
+			fmt.Printf("%s %s\n", role.UserID, role.Role)
+			return
+		}
+
+		role, err := client.GetUserRole(args[0])
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Printf("%s %s\n", role.UserID, role.Role)
+	},
+}
+
+var setRoleCmd = &cobra.Command{
+	Use:   "set <user-id> <role>",
+	Short: "Update a user's role",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := getClient()
+		role, err := client.UpdateUserRole(args[0], args[1])
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Printf("%s %s\n", role.UserID, role.Role)
+	},
+}
+
 var createDemoCmd = &cobra.Command{
 	Use:   "create-demo [name]",
 	Short: "Generate a demo API key and save it",
@@ -79,4 +140,8 @@ func loadConfig() string {
 func init() {
 	authCmd.AddCommand(createDemoCmd)
 	authCmd.AddCommand(loginCmd)
+	authCmd.AddCommand(listRolesCmd)
+	authCmd.AddCommand(roleCmd)
+	roleCmd.AddCommand(getRoleCmd)
+	roleCmd.AddCommand(setRoleCmd)
 }

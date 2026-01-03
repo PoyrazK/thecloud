@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -238,4 +239,28 @@ func TestGetConnectionString(t *testing.T) {
 	assert.Contains(t, connStr, "admin:secret")
 	assert.Contains(t, connStr, "5432")
 	repo.AssertExpectations(t)
+}
+
+func TestGetDatabaseLogs(t *testing.T) {
+	repo := new(MockDatabaseRepo)
+	docker := new(MockDockerClient)
+	vpcRepo := new(MockVpcRepo)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc := services.NewDatabaseService(repo, docker, vpcRepo, eventSvc, logger)
+
+	ctx := context.Background()
+	dbID := uuid.New()
+	db := &domain.Database{ID: dbID, ContainerID: "cont-logs"}
+
+	repo.On("GetByID", ctx, dbID).Return(db, nil)
+	docker.On("GetLogs", ctx, "cont-logs").Return(io.NopCloser(strings.NewReader("log line")), nil)
+
+	logs, err := svc.GetDatabaseLogs(ctx, dbID)
+
+	assert.NoError(t, err)
+	assert.Contains(t, logs, "log line")
+	repo.AssertExpectations(t)
+	docker.AssertExpectations(t)
 }

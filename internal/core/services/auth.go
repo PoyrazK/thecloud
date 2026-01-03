@@ -42,7 +42,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, name string
 		Email:        email,
 		PasswordHash: string(hashedPassword),
 		Name:         name,
-		Role:         "user",
+		Role:         domain.RoleUser,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
@@ -81,4 +81,24 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*domai
 
 func (s *AuthService) ValidateUser(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
 	return s.userRepo.GetByID(ctx, userID)
+}
+
+func (s *AuthService) UpdateUserRole(ctx context.Context, userID uuid.UUID, role string) (*domain.User, error) {
+	if !domain.IsValidRole(role) {
+		return nil, errors.New(errors.InvalidInput, "invalid role")
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	user.Role = role
+	user.UpdatedAt = time.Now()
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

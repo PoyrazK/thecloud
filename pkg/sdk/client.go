@@ -84,3 +84,24 @@ func (c *Client) delete(path string, result interface{}) error {
 
 	return nil
 }
+
+func (c *Client) put(path string, body interface{}, result interface{}) error {
+	req := c.resty.R()
+	if body != nil {
+		req.SetBody(body)
+	}
+	if result != nil {
+		req.SetResult(result)
+	}
+
+	resp, err := req.Put(c.apiURL + path)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+
+	if resp.IsError() {
+		return fmt.Errorf("api error: %s", resp.String())
+	}
+
+	return nil
+}

@@ -1,25 +1,41 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Table, Column } from '@/components/ui/Table';
-import { StatusIndicator } from '@/components/ui/StatusIndicator';
 import { Button } from '@/components/ui/Button';
+import { apiGet } from '@/lib/api';
+import { formatDateTime, formatShortID } from '@/lib/format';
 import { Plus, RefreshCw, Network } from 'lucide-react';
 
 interface VPC {
   id: string;
   name: string;
-  cidr: string;
-  status: 'available' | 'pending';
-  subnets: number;
+  network_id: string;
+  created_at: string;
 }
 
-const DUMMY_VPCS: VPC[] = [
-  { id: 'vpc-0x12a', name: 'default-vpc', cidr: '172.31.0.0/16', status: 'available', subnets: 4 },
-  { id: 'vpc-0x44b', name: 'prod-network', cidr: '10.0.0.0/16', status: 'available', subnets: 6 },
-  { id: 'vpc-0x99c', name: 'dev-environment', cidr: '192.168.0.0/16', status: 'pending', subnets: 0 },
-];
-
 export default function NetworkPage() {
+  const [vpcs, setVpcs] = useState<VPC[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadVpcs = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiGet<VPC[]>('/vpcs');
+      setVpcs(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load VPCs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVpcs();
+  }, []);
+
   const columns: Column<VPC>[] = [
     { 
       header: 'Name', 
@@ -30,13 +46,9 @@ export default function NetworkPage() {
         </div>
       ) 
     },
-    { header: 'VPC ID', accessorKey: 'id' },
-    { header: 'IPv4 CIDR', accessorKey: 'cidr' },
-    { 
-      header: 'Status', 
-      cell: (item) => <StatusIndicator status={item.status === 'available' ? 'running' : 'pending'} label={item.status} /> 
-    },
-    { header: 'Subnets', accessorKey: 'subnets' },
+    { header: 'VPC ID', cell: (item) => formatShortID(item.id) },
+    { header: 'Network ID', cell: (item) => formatShortID(item.network_id) },
+    { header: 'Created', cell: (item) => formatDateTime(item.created_at) },
   ];
 
   return (
@@ -52,12 +64,15 @@ export default function NetworkPage() {
            <p style={{ color: 'var(--text-secondary)' }}>Virtual Private Clouds and subnets.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="secondary"><RefreshCw size={16} /></Button>
-          <Button><Plus size={16} style={{ marginRight: '8px' }} /> Create VPC</Button>
+          <Button variant="secondary" onClick={loadVpcs} disabled={loading}><RefreshCw size={16} /></Button>
+          <Button disabled><Plus size={16} style={{ marginRight: '8px' }} /> Create VPC</Button>
         </div>
       </header>
 
-      <Table data={DUMMY_VPCS} columns={columns} />
+      {error ? (
+        <div style={{ marginBottom: '16px', color: 'var(--accent-red)' }}>{error}</div>
+      ) : null}
+      <Table data={vpcs} columns={columns} />
     </div>
   );
 }

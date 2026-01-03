@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -191,4 +192,28 @@ func (s *DatabaseService) GetConnectionString(ctx context.Context, id uuid.UUID)
 	default:
 		return "", errors.New(errors.Internal, "unknown engine")
 	}
+}
+
+func (s *DatabaseService) GetDatabaseLogs(ctx context.Context, id uuid.UUID) (string, error) {
+	db, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+
+	if db.ContainerID == "" {
+		return "", errors.New(errors.NotFound, "database container not found")
+	}
+
+	stream, err := s.docker.GetLogs(ctx, db.ContainerID)
+	if err != nil {
+		return "", err
+	}
+	defer stream.Close()
+
+	bytes, err := io.ReadAll(stream)
+	if err != nil {
+		return "", errors.Wrap(errors.Internal, "failed to read logs", err)
+	}
+
+	return string(bytes), nil
 }

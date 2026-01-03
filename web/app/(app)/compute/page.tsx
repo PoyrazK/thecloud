@@ -1,55 +1,74 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Table, Column } from '@/components/ui/Table';
 import { StatusIndicator } from '@/components/ui/StatusIndicator';
 import { Button } from '@/components/ui/Button';
-import { LaunchInstanceModal } from '@/components/compute/LaunchInstanceModal';
-import { Plus, RefreshCw } from 'lucide-react';
+import { apiGet } from '@/lib/api';
+import { formatDateTime, formatShortID } from '@/lib/format';
+import { RefreshCw } from 'lucide-react';
 
 interface Instance {
   id: string;
   name: string;
-  type: string;
-  status: 'running' | 'stopped' | 'pending' | 'error';
-  ip: string;
+  image: string;
+  status: string;
+  ports?: string;
   created_at: string;
 }
 
-const DUMMY_INSTANCES: Instance[] = [
-  { id: 'i-0x8231', name: 'Web Server 01', type: 't2.micro', status: 'running', ip: '10.0.1.12', created_at: '2025-01-10' },
-  { id: 'i-0x992a', name: 'Worker Node', type: 't3.medium', status: 'running', ip: '10.0.1.15', created_at: '2025-01-11' },
-  { id: 'i-0x11b2', name: 'DB Replica', type: 'm5.large', status: 'stopped', ip: '10.0.2.4', created_at: '2025-01-12' },
-  { id: 'i-0x33c4', name: 'Cache Layer', type: 't2.small', status: 'error', ip: '-', created_at: '2025-01-14' },
-];
+type IndicatorStatus = 'running' | 'stopped' | 'pending' | 'error';
+
+const statusToIndicator = (status: string): IndicatorStatus => {
+  switch (status.toUpperCase()) {
+    case 'RUNNING':
+      return 'running';
+    case 'STOPPED':
+      return 'stopped';
+    case 'ERROR':
+      return 'error';
+    case 'STARTING':
+    default:
+      return 'pending';
+  }
+};
 
 export default function ComputePage() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [instances, setInstances] = useState<Instance[]>(DUMMY_INSTANCES);
+  const [instances, setInstances] = useState<Instance[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const handleLaunch = (data: { name: string }) => {
-    // Simulate instance launch
-    const newInstance: Instance = {
-      id: `i-0x${Math.floor(Math.random() * 10000).toString(16)}`,
-      name: data.name,
-      type: 't2.micro',
-      status: 'pending',
-      ip: '-',
-      created_at: new Date().toISOString().split('T')[0]
-    };
-    setInstances([newInstance, ...instances]);
+  const loadInstances = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiGet<Instance[]>('/instances');
+      setInstances(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load instances');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    loadInstances();
+  }, []);
 
   const columns: Column<Instance>[] = [
     { header: 'Name', accessorKey: 'name', width: '25%' },
-    { header: 'Instance ID', accessorKey: 'id', width: '20%' },
-    { header: 'Type', accessorKey: 'type', width: '15%' },
+    {
+      header: 'Instance ID',
+      cell: (item) => formatShortID(item.id),
+      width: '15%',
+    },
+    { header: 'Image', accessorKey: 'image', width: '20%' },
     { 
       header: 'Status', 
-      cell: (item) => <StatusIndicator status={item.status} label={item.status} /> 
+      cell: (item) => <StatusIndicator status={statusToIndicator(item.status)} label={item.status.toLowerCase()} /> 
     },
-    { header: 'Private IP', accessorKey: 'ip' },
-    { header: 'Created', accessorKey: 'created_at' },
+    { header: 'Ports', cell: (item) => item.ports || '-' },
+    { header: 'Created', cell: (item) => formatDateTime(item.created_at) },
   ];
 
   return (
@@ -65,20 +84,14 @@ export default function ComputePage() {
            <p style={{ color: 'var(--text-secondary)' }}>Manage your virtual machines.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="secondary"><RefreshCw size={16} /></Button>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus size={16} style={{ marginRight: '8px' }} /> Launch Instance
-          </Button>
+          <Button variant="secondary" onClick={loadInstances} disabled={loading}><RefreshCw size={16} /></Button>
         </div>
       </header>
 
+      {error ? (
+        <div style={{ marginBottom: '16px', color: 'var(--accent-red)' }}>{error}</div>
+      ) : null}
       <Table data={instances} columns={columns} />
-
-      <LaunchInstanceModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleLaunch}
-      />
     </div>
   );
 }

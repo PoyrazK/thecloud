@@ -1,42 +1,48 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Table, Column } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
+import { apiGet } from '@/lib/api';
+import { formatDateTime, formatShortID } from '@/lib/format';
 import { Download, RefreshCw } from 'lucide-react';
 
 interface Event {
   id: string;
   action: string;
-  resource: string;
-  user: string;
-  status: 'success' | 'failure';
-  timestamp: string;
+  resource_id: string;
+  resource_type: string;
+  user_id: string;
+  created_at: string;
 }
 
-const DUMMY_EVENTS: Event[] = [
-  { id: 'evt-1001', action: 'RunInstances', resource: 'i-0x8231', user: 'root', status: 'success', timestamp: '2025-01-14 10:42:01' },
-  { id: 'evt-1002', action: 'CreateBucket', resource: 'logs-archive', user: 'admin', status: 'success', timestamp: '2025-01-14 09:15:33' },
-  { id: 'evt-1003', action: 'StopInstances', resource: 'i-0x11b2', user: 'root', status: 'success', timestamp: '2025-01-13 18:20:00' },
-  { id: 'evt-1004', action: 'AttachVolume', resource: 'vol-0x555', user: 'system', status: 'failure', timestamp: '2025-01-13 18:19:45' },
-];
-
 export default function ActivityPage() {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadEvents = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await apiGet<Event[]>('/events');
+      setEvents(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load events');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
   const columns: Column<Event>[] = [
-    { header: 'Event Name', accessorKey: 'action', width: '25%' },
-    { header: 'Resource', accessorKey: 'resource', width: '20%' },
-    { header: 'User', accessorKey: 'user' },
-    { 
-      header: 'Status', 
-      cell: (item) => (
-        <span style={{ 
-          color: item.status === 'success' ? 'var(--accent-green)' : 'var(--accent-red)',
-          fontWeight: 500
-        }}>
-          {item.status.toUpperCase()}
-        </span>
-      )
-    },
-    { header: 'Timestamp', accessorKey: 'timestamp' },
+    { header: 'Action', accessorKey: 'action', width: '25%' },
+    { header: 'Resource', cell: (item) => `${item.resource_type} ${formatShortID(item.resource_id)}`, width: '25%' },
+    { header: 'User', cell: (item) => formatShortID(item.user_id) },
+    { header: 'Timestamp', cell: (item) => formatDateTime(item.created_at) },
   ];
 
   return (
@@ -52,12 +58,15 @@ export default function ActivityPage() {
            <p style={{ color: 'var(--text-secondary)' }}>Audit logs and system events.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Button variant="secondary"><RefreshCw size={16} /></Button>
-          <Button variant="secondary"><Download size={16} style={{ marginRight: '8px' }} /> Export CSV</Button>
+          <Button variant="secondary" onClick={loadEvents} disabled={loading}><RefreshCw size={16} /></Button>
+          <Button variant="secondary" disabled><Download size={16} style={{ marginRight: '8px' }} /> Export CSV</Button>
         </div>
       </header>
 
-      <Table data={DUMMY_EVENTS} columns={columns} />
+      {error ? (
+        <div style={{ marginBottom: '16px', color: 'var(--accent-red)' }}>{error}</div>
+      ) : null}
+      <Table data={events} columns={columns} />
     </div>
   );
 }

@@ -59,6 +59,8 @@ func Error(c *gin.Context, err error) {
 		statusCode = http.StatusBadRequest
 	case errors.Unauthorized:
 		statusCode = http.StatusUnauthorized
+	case errors.Forbidden:
+		statusCode = http.StatusForbidden
 	case errors.Conflict:
 		statusCode = http.StatusConflict
 	case errors.BucketNotFound, errors.ObjectNotFound:

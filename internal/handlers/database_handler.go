@@ -97,3 +97,30 @@ func (h *DatabaseHandler) GetConnectionString(c *gin.Context) {
 
 	httputil.Success(c, http.StatusOK, gin.H{"connection_string": connStr})
 }
+
+// GetLogs returns database logs
+// @Summary Get database logs
+// @Description Gets the console output logs for a database instance
+// @Tags databases
+// @Produce plain
+// @Security ApiKeyAuth
+// @Param id path string true "Database ID"
+// @Success 200 {string} string "Logs content"
+// @Failure 404 {object} httputil.Response
+// @Failure 500 {object} httputil.Response
+// @Router /databases/{id}/logs [get]
+func (h *DatabaseHandler) GetLogs(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid database id"))
+		return
+	}
+
+	logs, err := h.svc.GetDatabaseLogs(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	c.String(http.StatusOK, logs)
+}

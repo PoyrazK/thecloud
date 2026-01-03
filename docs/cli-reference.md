@@ -25,6 +25,26 @@ Save an existing API key.
 cloud auth login sk_abc123...
 ```
 
+### `auth roles`
+List available roles.
+```bash
+cloud auth roles
+```
+
+### `auth role get [user-id|me]`
+Get a user's role (defaults to current user).
+```bash
+cloud auth role get
+cloud auth role get me
+cloud auth role get 550e8400-e29b-41d4-a716-446655440000
+```
+
+### `auth role set <user-id> <role>`
+Update a user's role.
+```bash
+cloud auth role set 550e8400-e29b-41d4-a716-446655440000 admin
+```
+
 ---
 
 ## compute
@@ -331,6 +351,12 @@ cloud db create --name my-db --engine postgres --version 16
 Get database connection string.
 ```bash
 cloud db connection <db-id>
+```
+
+### `db logs <id>`
+Get database logs.
+```bash
+cloud db logs <db-id>
 ```
 
 ### `db show <id>`

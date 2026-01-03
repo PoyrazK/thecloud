@@ -102,6 +102,7 @@ func main() {
 	authSvc := services.NewAuthService(userRepo, identitySvc)
 	identityHandler := httphandlers.NewIdentityHandler(identitySvc)
 	authHandler := httphandlers.NewAuthHandler(authSvc)
+	rbacHandler := httphandlers.NewRBACHandler(authSvc)
 
 	instanceRepo := postgres.NewInstanceRepository(db)
 	vpcRepo := postgres.NewVpcRepository(db)
@@ -217,123 +218,134 @@ func main() {
 	r.POST("/auth/login", authHandler.Login)
 	r.POST("/auth/keys", identityHandler.CreateKey)
 
+	// RBAC Routes (Protected)
+	authGroup := r.Group("/auth")
+	authGroup.Use(httputil.Auth(identitySvc, authSvc))
+	{
+		authGroup.GET("/roles", httputil.RequirePermission("auth", httputil.ActionRead), rbacHandler.ListRoles)
+		authGroup.GET("/me/role", rbacHandler.GetMyRole)
+		authGroup.GET("/users/:id/role", httputil.RequirePermission("auth", httputil.ActionRead), rbacHandler.GetUserRole)
+		authGroup.PUT("/users/:id/role", httputil.RequirePermission("auth", httputil.ActionUpdate), rbacHandler.UpdateUserRole)
+	}
+
 	// Instance Routes (Protected)
 	instanceGroup := r.Group("/instances")
-	instanceGroup.Use(httputil.Auth(identitySvc))
+	instanceGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		instanceGroup.POST("", instanceHandler.Launch)
-		instanceGroup.GET("", instanceHandler.List)
-		instanceGroup.GET("/:id", instanceHandler.Get)
-		instanceGroup.POST("/:id/stop", instanceHandler.Stop)
-		instanceGroup.GET("/:id/logs", instanceHandler.GetLogs)
-		instanceGroup.GET("/:id/stats", instanceHandler.GetStats)
-		instanceGroup.DELETE("/:id", instanceHandler.Terminate)
+		instanceGroup.POST("", httputil.RequirePermission("instances", httputil.ActionCreate), instanceHandler.Launch)
+		instanceGroup.GET("", httputil.RequirePermission("instances", httputil.ActionRead), instanceHandler.List)
+		instanceGroup.GET("/:id", httputil.RequirePermission("instances", httputil.ActionRead), instanceHandler.Get)
+		instanceGroup.POST("/:id/stop", httputil.RequirePermission("instances", httputil.ActionUpdate), instanceHandler.Stop)
+		instanceGroup.GET("/:id/logs", httputil.RequirePermission("instances", httputil.ActionExecute), instanceHandler.GetLogs)
+		instanceGroup.GET("/:id/stats", httputil.RequirePermission("instances", httputil.ActionRead), instanceHandler.GetStats)
+		instanceGroup.DELETE("/:id", httputil.RequirePermission("instances", httputil.ActionDelete), instanceHandler.Terminate)
 	}
 
 	// VPC Routes (Protected)
 	vpcGroup := r.Group("/vpcs")
-	vpcGroup.Use(httputil.Auth(identitySvc))
+	vpcGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		vpcGroup.POST("", vpcHandler.Create)
-		vpcGroup.GET("", vpcHandler.List)
-		vpcGroup.GET("/:id", vpcHandler.Get)
-		vpcGroup.DELETE("/:id", vpcHandler.Delete)
+		vpcGroup.POST("", httputil.RequirePermission("vpcs", httputil.ActionCreate), vpcHandler.Create)
+		vpcGroup.GET("", httputil.RequirePermission("vpcs", httputil.ActionRead), vpcHandler.List)
+		vpcGroup.GET("/:id", httputil.RequirePermission("vpcs", httputil.ActionRead), vpcHandler.Get)
+		vpcGroup.DELETE("/:id", httputil.RequirePermission("vpcs", httputil.ActionDelete), vpcHandler.Delete)
 	}
 
 	// Storage Routes (Protected)
 	storageGroup := r.Group("/storage")
-	storageGroup.Use(httputil.Auth(identitySvc))
+	storageGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		storageGroup.PUT("/:bucket/:key", storageHandler.Upload)
-		storageGroup.GET("/:bucket/:key", storageHandler.Download)
-		storageGroup.GET("/:bucket", storageHandler.List)
-		storageGroup.DELETE("/:bucket/:key", storageHandler.Delete)
+		storageGroup.PUT("/:bucket/:key", httputil.RequirePermission("storage", httputil.ActionCreate), storageHandler.Upload)
+		storageGroup.GET("/:bucket/:key", httputil.RequirePermission("storage", httputil.ActionRead), storageHandler.Download)
+		storageGroup.GET("/:bucket", httputil.RequirePermission("storage", httputil.ActionRead), storageHandler.List)
+		storageGroup.DELETE("/:bucket/:key", httputil.RequirePermission("storage", httputil.ActionDelete), storageHandler.Delete)
 	}
 
 	// Event Routes (Protected)
 	eventGroup := r.Group("/events")
-	eventGroup.Use(httputil.Auth(identitySvc))
+	eventGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		eventGroup.GET("", eventHandler.List)
+		eventGroup.GET("", httputil.RequirePermission("events", httputil.ActionRead), eventHandler.List)
 	}
 
 	// Volume Routes (Protected)
 	volumeGroup := r.Group("/volumes")
-	volumeGroup.Use(httputil.Auth(identitySvc))
+	volumeGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		volumeGroup.POST("", volumeHandler.Create)
-		volumeGroup.GET("", volumeHandler.List)
-		volumeGroup.GET("/:id", volumeHandler.Get)
-		volumeGroup.DELETE("/:id", volumeHandler.Delete)
+		volumeGroup.POST("", httputil.RequirePermission("volumes", httputil.ActionCreate), volumeHandler.Create)
+		volumeGroup.GET("", httputil.RequirePermission("volumes", httputil.ActionRead), volumeHandler.List)
+		volumeGroup.GET("/:id", httputil.RequirePermission("volumes", httputil.ActionRead), volumeHandler.Get)
+		volumeGroup.DELETE("/:id", httputil.RequirePermission("volumes", httputil.ActionDelete), volumeHandler.Delete)
 	}
 
 	// Dashboard Routes (Protected)
 	dashboardGroup := r.Group("/api/dashboard")
-	dashboardGroup.Use(httputil.Auth(identitySvc))
+	dashboardGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		dashboardGroup.GET("/summary", dashboardHandler.GetSummary)
-		dashboardGroup.GET("/events", dashboardHandler.GetRecentEvents)
-		dashboardGroup.GET("/stats", dashboardHandler.GetStats)
-		dashboardGroup.GET("/stream", dashboardHandler.StreamEvents)
+		dashboardGroup.GET("/summary", httputil.RequirePermission("dashboard", httputil.ActionRead), dashboardHandler.GetSummary)
+		dashboardGroup.GET("/events", httputil.RequirePermission("dashboard", httputil.ActionRead), dashboardHandler.GetRecentEvents)
+		dashboardGroup.GET("/stats", httputil.RequirePermission("dashboard", httputil.ActionRead), dashboardHandler.GetStats)
+		dashboardGroup.GET("/stream", httputil.RequirePermission("dashboard", httputil.ActionRead), dashboardHandler.StreamEvents)
 	}
 
 	// Load Balancer Routes (Protected)
 	lbGroup := r.Group("/lb")
-	lbGroup.Use(httputil.Auth(identitySvc))
+	lbGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		lbGroup.POST("", lbHandler.Create)
-		lbGroup.GET("", lbHandler.List)
-		lbGroup.GET("/:id", lbHandler.Get)
-		lbGroup.DELETE("/:id", lbHandler.Delete)
-		lbGroup.POST("/:id/targets", lbHandler.AddTarget)
-		lbGroup.GET("/:id/targets", lbHandler.ListTargets)
-		lbGroup.DELETE("/:id/targets/:instanceId", lbHandler.RemoveTarget)
+		lbGroup.POST("", httputil.RequirePermission("loadbalancers", httputil.ActionCreate), lbHandler.Create)
+		lbGroup.GET("", httputil.RequirePermission("loadbalancers", httputil.ActionRead), lbHandler.List)
+		lbGroup.GET("/:id", httputil.RequirePermission("loadbalancers", httputil.ActionRead), lbHandler.Get)
+		lbGroup.DELETE("/:id", httputil.RequirePermission("loadbalancers", httputil.ActionDelete), lbHandler.Delete)
+		lbGroup.POST("/:id/targets", httputil.RequirePermission("loadbalancers", httputil.ActionUpdate), lbHandler.AddTarget)
+		lbGroup.GET("/:id/targets", httputil.RequirePermission("loadbalancers", httputil.ActionRead), lbHandler.ListTargets)
+		lbGroup.DELETE("/:id/targets/:instanceId", httputil.RequirePermission("loadbalancers", httputil.ActionUpdate), lbHandler.RemoveTarget)
 	}
 
 	// Database Routes (Protected)
 	dbGroup := r.Group("/databases")
-	dbGroup.Use(httputil.Auth(identitySvc))
+	dbGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		dbGroup.POST("", databaseHandler.Create)
-		dbGroup.GET("", databaseHandler.List)
-		dbGroup.GET("/:id", databaseHandler.Get)
-		dbGroup.DELETE("/:id", databaseHandler.Delete)
-		dbGroup.GET("/:id/connection", databaseHandler.GetConnectionString)
+		dbGroup.POST("", httputil.RequirePermission("databases", httputil.ActionCreate), databaseHandler.Create)
+		dbGroup.GET("", httputil.RequirePermission("databases", httputil.ActionRead), databaseHandler.List)
+		dbGroup.GET("/:id", httputil.RequirePermission("databases", httputil.ActionRead), databaseHandler.Get)
+		dbGroup.DELETE("/:id", httputil.RequirePermission("databases", httputil.ActionDelete), databaseHandler.Delete)
+		dbGroup.GET("/:id/connection", httputil.RequirePermission("databases", httputil.ActionRead), databaseHandler.GetConnectionString)
+		dbGroup.GET("/:id/logs", httputil.RequirePermission("databases", httputil.ActionExecute), databaseHandler.GetLogs)
 	}
 
 	// Secret Routes (Protected)
 	secretGroup := r.Group("/secrets")
-	secretGroup.Use(httputil.Auth(identitySvc))
+	secretGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		secretGroup.POST("", secretHandler.Create)
-		secretGroup.GET("", secretHandler.List)
-		secretGroup.GET("/:id", secretHandler.Get)
-		secretGroup.DELETE("/:id", secretHandler.Delete)
+		secretGroup.POST("", httputil.RequirePermission("secrets", httputil.ActionCreate), secretHandler.Create)
+		secretGroup.GET("", httputil.RequirePermission("secrets", httputil.ActionRead), secretHandler.List)
+		secretGroup.GET("/:id", httputil.RequirePermission("secrets", httputil.ActionRead), secretHandler.Get)
+		secretGroup.DELETE("/:id", httputil.RequirePermission("secrets", httputil.ActionDelete), secretHandler.Delete)
 	}
 
 	// Function Routes (Protected)
 	fnGroup := r.Group("/functions")
-	fnGroup.Use(httputil.Auth(identitySvc))
+	fnGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		fnGroup.POST("", fnHandler.Create)
-		fnGroup.GET("", fnHandler.List)
-		fnGroup.GET("/:id", fnHandler.Get)
-		fnGroup.DELETE("/:id", fnHandler.Delete)
-		fnGroup.POST("/:id/invoke", fnHandler.Invoke)
-		fnGroup.GET("/:id/logs", fnHandler.GetLogs)
+		fnGroup.POST("", httputil.RequirePermission("functions", httputil.ActionCreate), fnHandler.Create)
+		fnGroup.GET("", httputil.RequirePermission("functions", httputil.ActionRead), fnHandler.List)
+		fnGroup.GET("/:id", httputil.RequirePermission("functions", httputil.ActionRead), fnHandler.Get)
+		fnGroup.DELETE("/:id", httputil.RequirePermission("functions", httputil.ActionDelete), fnHandler.Delete)
+		fnGroup.POST("/:id/invoke", httputil.RequirePermission("functions", httputil.ActionExecute), fnHandler.Invoke)
+		fnGroup.GET("/:id/logs", httputil.RequirePermission("functions", httputil.ActionRead), fnHandler.GetLogs)
 	}
 
 	// Cache Routes (Protected)
 	cacheGroup := r.Group("/caches")
-	cacheGroup.Use(httputil.Auth(identitySvc))
+	cacheGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		cacheGroup.POST("", cacheHandler.Create)
-		cacheGroup.GET("", cacheHandler.List)
-		cacheGroup.GET("/:id", cacheHandler.Get)
-		cacheGroup.DELETE("/:id", cacheHandler.Delete)
-		cacheGroup.GET("/:id/connection", cacheHandler.GetConnectionString)
-		cacheGroup.POST("/:id/flush", cacheHandler.Flush)
-		cacheGroup.GET("/:id/stats", cacheHandler.GetStats)
+		cacheGroup.POST("", httputil.RequirePermission("caches", httputil.ActionCreate), cacheHandler.Create)
+		cacheGroup.GET("", httputil.RequirePermission("caches", httputil.ActionRead), cacheHandler.List)
+		cacheGroup.GET("/:id", httputil.RequirePermission("caches", httputil.ActionRead), cacheHandler.Get)
+		cacheGroup.DELETE("/:id", httputil.RequirePermission("caches", httputil.ActionDelete), cacheHandler.Delete)
+		cacheGroup.GET("/:id/connection", httputil.RequirePermission("caches", httputil.ActionRead), cacheHandler.GetConnectionString)
+		cacheGroup.POST("/:id/flush", httputil.RequirePermission("caches", httputil.ActionExecute), cacheHandler.Flush)
+		cacheGroup.GET("/:id/stats", httputil.RequirePermission("caches", httputil.ActionRead), cacheHandler.GetStats)
 	}
 
 	// Auto-Scaling Routes (Protected)
@@ -343,14 +355,14 @@ func main() {
 	asgWorker := services.NewAutoScalingWorker(asgRepo, instanceSvc, lbSvc, eventSvc, ports.RealClock{})
 
 	asgGroup := r.Group("/autoscaling")
-	asgGroup.Use(httputil.Auth(identitySvc))
+	asgGroup.Use(httputil.Auth(identitySvc, authSvc))
 	{
-		asgGroup.POST("/groups", asgHandler.CreateGroup)
-		asgGroup.GET("/groups", asgHandler.ListGroups)
-		asgGroup.GET("/groups/:id", asgHandler.GetGroup)
-		asgGroup.DELETE("/groups/:id", asgHandler.DeleteGroup)
-		asgGroup.POST("/groups/:id/policies", asgHandler.CreatePolicy)
-		asgGroup.DELETE("/policies/:id", asgHandler.DeletePolicy)
+		asgGroup.POST("/groups", httputil.RequirePermission("autoscaling", httputil.ActionCreate), asgHandler.CreateGroup)
+		asgGroup.GET("/groups", httputil.RequirePermission("autoscaling", httputil.ActionRead), asgHandler.ListGroups)
+		asgGroup.GET("/groups/:id", httputil.RequirePermission("autoscaling", httputil.ActionRead), asgHandler.GetGroup)
+		asgGroup.DELETE("/groups/:id", httputil.RequirePermission("autoscaling", httputil.ActionDelete), asgHandler.DeleteGroup)
+		asgGroup.POST("/groups/:id/policies", httputil.RequirePermission("autoscaling", httputil.ActionUpdate), asgHandler.CreatePolicy)
+		asgGroup.DELETE("/policies/:id", httputil.RequirePermission("autoscaling", httputil.ActionDelete), asgHandler.DeletePolicy)
 	}
 
 	// 7. Background Workers

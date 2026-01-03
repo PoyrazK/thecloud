@@ -147,12 +147,29 @@ var dbConnCmd = &cobra.Command{
 	},
 }
 
+var dbLogsCmd = &cobra.Command{
+	Use:   "logs [id]",
+	Short: "Get database logs",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		client := getClient()
+		logs, err := client.GetDatabaseLogs(id)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+		fmt.Println(logs)
+	},
+}
+
 func init() {
 	dbCmd.AddCommand(dbListCmd)
 	dbCmd.AddCommand(dbCreateCmd)
 	dbCmd.AddCommand(dbShowCmd)
 	dbCmd.AddCommand(dbRmCmd)
 	dbCmd.AddCommand(dbConnCmd)
+	dbCmd.AddCommand(dbLogsCmd)
 
 	dbCreateCmd.Flags().StringP("name", "n", "", "Name of the database (required)")
 	dbCreateCmd.Flags().StringP("engine", "e", "postgres", "Database engine (postgres/mysql)")

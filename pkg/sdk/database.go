@@ -1,6 +1,9 @@
 package sdk
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Database struct {
 	ID          string    `json:"id"`
@@ -65,4 +68,15 @@ func (c *Client) GetDatabaseConnectionString(id string) (string, error) {
 		return "", err
 	}
 	return resp.Data["connection_string"], nil
+}
+
+func (c *Client) GetDatabaseLogs(id string) (string, error) {
+	resp, err := c.resty.R().Get(c.apiURL + "/databases/" + id + "/logs")
+	if err != nil {
+		return "", err
+	}
+	if resp.IsError() {
+		return "", fmt.Errorf("api error: %s", resp.String())
+	}
+	return string(resp.Body()), nil
 }

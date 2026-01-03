@@ -9,7 +9,7 @@ Prioritized using the **RICE** method (Reach, Impact, Confidence, Effort).
 
 ## ✅ Phase 2: Identity & Security (Complete)
 - [x] API Key Management
-- [ ] RBAC (Role-Based Access Control)
+- [x] RBAC (Role-Based Access Control)
 
 ## ✅ Phase 3: Storage (Complete)
 - [x] Object Storage (S3-compatible API)
@@ -28,5 +28,5 @@ Prioritized using the **RICE** method (Reach, Impact, Confidence, Effort).
 ## ✅ Phase 5: Scalability & Polish (In Progress)
 - [x] Load Balancer (Round Robin, Target Groups)
 - [x] Auto-Scaling (Groups, Policies, Worker)
-- [ ] Next.js Web Dashboard
-- [ ] Database-as-a-Service (RDS)
+- [x] Next.js Web Dashboard (read-only)
+- [x] Database-as-a-Service (RDS)

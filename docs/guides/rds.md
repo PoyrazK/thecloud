@@ -45,7 +45,13 @@ To get a ready-to-use connection string:
 cloud db connection <id>
 ```
 
-### 4. Delete a Database
+### 4. View Logs
+
+```bash
+cloud db logs <id>
+```
+
+### 5. Delete a Database
 
 ```bash
 cloud db rm <id>
