@@ -90,3 +90,46 @@ func TestSecretService_CreateAndGet(t *testing.T) {
 func setupTestUserCtx(userID uuid.UUID) context.Context {
 	return appcontext.WithUserID(context.Background(), userID)
 }
+
+func TestSecretService_Delete(t *testing.T) {
+	repo := new(MockSecretRepo)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	os.Setenv("SECRETS_ENCRYPTION_KEY", "test-key-must-be-32-bytes-long---")
+	svc := services.NewSecretService(repo, eventSvc, logger)
+	ctx := context.Background()
+	secretID := uuid.New()
+
+	repo.On("GetByID", ctx, secretID).Return(&domain.Secret{ID: secretID, Name: "TEST"}, nil)
+	repo.On("Delete", ctx, secretID).Return(nil)
+	eventSvc.On("RecordEvent", ctx, "SECRET_DELETE", secretID.String(), "SECRET", mock.Anything).Return(nil)
+
+	err := svc.DeleteSecret(ctx, secretID)
+
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+	eventSvc.AssertExpectations(t)
+}
+
+func TestSecretService_List(t *testing.T) {
+	repo := new(MockSecretRepo)
+	eventSvc := new(MockEventService)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	os.Setenv("SECRETS_ENCRYPTION_KEY", "test-key-must-be-32-bytes-long---")
+	svc := services.NewSecretService(repo, eventSvc, logger)
+	ctx := context.Background()
+
+	secrets := []*domain.Secret{
+		{ID: uuid.New(), Name: "secret1"},
+		{ID: uuid.New(), Name: "secret2"},
+	}
+	repo.On("List", ctx).Return(secrets, nil)
+
+	result, err := svc.ListSecrets(ctx)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+	repo.AssertExpectations(t)
+}
