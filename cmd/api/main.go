@@ -146,6 +146,10 @@ func main() {
 	databaseSvc := services.NewDatabaseService(databaseRepo, dockerAdapter, vpcRepo, eventSvc, logger)
 	databaseHandler := httphandlers.NewDatabaseHandler(databaseSvc)
 
+	secretRepo := postgres.NewSecretRepository(db)
+	secretSvc := services.NewSecretService(secretRepo, eventSvc, logger)
+	secretHandler := httphandlers.NewSecretHandler(secretSvc)
+
 	// 5. Engine & Middleware
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -287,6 +291,16 @@ func main() {
 		dbGroup.GET("/:id", databaseHandler.Get)
 		dbGroup.DELETE("/:id", databaseHandler.Delete)
 		dbGroup.GET("/:id/connection", databaseHandler.GetConnectionString)
+	}
+
+	// Secret Routes (Protected)
+	secretGroup := r.Group("/secrets")
+	secretGroup.Use(httputil.Auth(identitySvc))
+	{
+		secretGroup.POST("", secretHandler.Create)
+		secretGroup.GET("", secretHandler.List)
+		secretGroup.GET("/:id", secretHandler.Get)
+		secretGroup.DELETE("/:id", secretHandler.Delete)
 	}
 
 	// Auto-Scaling Routes (Protected)
