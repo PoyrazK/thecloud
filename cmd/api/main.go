@@ -150,6 +150,10 @@ func main() {
 	secretSvc := services.NewSecretService(secretRepo, eventSvc, logger)
 	secretHandler := httphandlers.NewSecretHandler(secretSvc)
 
+	fnRepo := postgres.NewFunctionRepository(db)
+	fnSvc := services.NewFunctionService(fnRepo, dockerAdapter, fileStore, logger)
+	fnHandler := httphandlers.NewFunctionHandler(fnSvc)
+
 	// 5. Engine & Middleware
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -301,6 +305,18 @@ func main() {
 		secretGroup.GET("", secretHandler.List)
 		secretGroup.GET("/:id", secretHandler.Get)
 		secretGroup.DELETE("/:id", secretHandler.Delete)
+	}
+
+	// Function Routes (Protected)
+	fnGroup := r.Group("/functions")
+	fnGroup.Use(httputil.Auth(identitySvc))
+	{
+		fnGroup.POST("", fnHandler.Create)
+		fnGroup.GET("", fnHandler.List)
+		fnGroup.GET("/:id", fnHandler.Get)
+		fnGroup.DELETE("/:id", fnHandler.Delete)
+		fnGroup.POST("/:id/invoke", fnHandler.Invoke)
+		fnGroup.GET("/:id/logs", fnHandler.GetLogs)
 	}
 
 	// Auto-Scaling Routes (Protected)
