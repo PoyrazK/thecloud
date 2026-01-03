@@ -21,7 +21,7 @@ This document outlines planned features and how you can contribute to The Cloud.
 | Feature | Branch | Owner | ETA |
 |---------|--------|-------|-----|
 | Web Dashboard | `jack/main` | @jack | Q1 2026 |
-| RDS (Database Service) | TBD | Unassigned | Q1 2026 |
+| RDS (Database Service) | `feature/rds-implementation` | @antigravity | Q1 2026 |
 
 ---
 
