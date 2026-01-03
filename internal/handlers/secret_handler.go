@@ -76,10 +76,16 @@ func (h *SecretHandler) Get(c *gin.Context) {
 }
 
 func (h *SecretHandler) Delete(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		httputil.Error(c, errors.New(errors.InvalidInput, "invalid secret id"))
-		return
+		// Try by name
+		secret, err := h.svc.GetSecretByName(c.Request.Context(), idStr)
+		if err != nil {
+			httputil.Error(c, err)
+			return
+		}
+		id = secret.ID
 	}
 
 	if err := h.svc.DeleteSecret(c.Request.Context(), id); err != nil {
