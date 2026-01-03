@@ -137,7 +137,9 @@ func (s *FunctionService) InvokeFunction(ctx context.Context, id uuid.UUID, payl
 	}
 
 	if async {
-		go s.runInvocation(context.Background(), f, invocation, payload)
+		go func() {
+			_, _ = s.runInvocation(context.Background(), f, invocation, payload)
+		}()
 		return invocation, nil
 	}
 
@@ -157,7 +159,9 @@ func (s *FunctionService) runInvocation(ctx context.Context, f *domain.Function,
 		_ = s.repo.CreateInvocation(context.Background(), i)
 		return i, err
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	// 2. Configure Docker Task
 	opts := ports.RunTaskOptions{
@@ -184,7 +188,9 @@ func (s *FunctionService) runInvocation(ctx context.Context, f *domain.Function,
 		_ = s.repo.CreateInvocation(context.Background(), i)
 		return i, err
 	}
-	defer s.docker.RemoveContainer(context.Background(), containerID)
+	defer func() {
+		_ = s.docker.RemoveContainer(context.Background(), containerID)
+	}()
 
 	// 4. Wait for Completion
 	waitCtx, cancel := context.WithTimeout(ctx, time.Duration(f.Timeout)*time.Second)
@@ -197,7 +203,7 @@ func (s *FunctionService) runInvocation(ctx context.Context, f *domain.Function,
 	if logsReader != nil {
 		logBytes, _ := io.ReadAll(logsReader)
 		i.Logs = string(logBytes)
-		logsReader.Close()
+		_ = logsReader.Close()
 	}
 
 	i.EndedAt = new(time.Time)
@@ -252,9 +258,12 @@ func (s *FunctionService) prepareCode(ctx context.Context, f *domain.Function) (
 	for _, file := range zr.File {
 		path := filepath.Join(tmpDir, file.Name)
 		if file.FileInfo().IsDir() {
-			os.MkdirAll(path, 0755)
+			if err := os.MkdirAll(path, 0755); err != nil {
+				return "", err
+			}
 			continue
 		}
+		// ...
 
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return "", err
