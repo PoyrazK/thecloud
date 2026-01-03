@@ -13,13 +13,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockDocker is duplicated here or should we export it from another test?
-// Since tests can't share code easily without separate package, I'll redefine or update the existing usages.
-// Actually, `function_test.go` uses `MockDocker` but it is NOT defined in this file.
-// It relies on `MockDocker` being defined in `instance_test.go` (same package `services`).
-// So I don't need to add it here, I just need to make sure `instance_test.go` MockDocker has Exec.
-// Which I already did.
-
 type MockFunctionRepo struct {
 	mock.Mock
 }
