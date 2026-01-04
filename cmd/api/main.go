@@ -166,6 +166,11 @@ func main() {
 	notifySvc := services.NewNotifyService(notifyRepo, queueSvc, eventSvc)
 	notifyHandler := httphandlers.NewNotifyHandler(notifySvc)
 
+	cronRepo := postgres.NewPostgresCronRepository(db)
+	cronSvc := services.NewCronService(cronRepo, eventSvc)
+	cronHandler := httphandlers.NewCronHandler(cronSvc)
+	cronWorker := services.NewCronWorker(cronRepo)
+
 	// 5. Engine & Middleware
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -369,6 +374,17 @@ func main() {
 		notifyGroup.POST("/topics/:id/publish", notifyHandler.Publish)
 	}
 
+	cronGroup := r.Group("/cron")
+	cronGroup.Use(httputil.Auth(identitySvc))
+	{
+		cronGroup.POST("/jobs", cronHandler.CreateJob)
+		cronGroup.GET("/jobs", cronHandler.ListJobs)
+		cronGroup.GET("/jobs/:id", cronHandler.GetJob)
+		cronGroup.DELETE("/jobs/:id", cronHandler.DeleteJob)
+		cronGroup.POST("/jobs/:id/pause", cronHandler.PauseJob)
+		cronGroup.POST("/jobs/:id/resume", cronHandler.ResumeJob)
+	}
+
 	// Auto-Scaling Routes (Protected)
 	asgRepo := postgres.NewAutoScalingRepo(db)
 	asgSvc := services.NewAutoScalingService(asgRepo, vpcRepo)
@@ -389,9 +405,10 @@ func main() {
 	// 7. Background Workers
 	wg := &sync.WaitGroup{}
 	workerCtx, workerCancel := context.WithCancel(context.Background())
-	wg.Add(2)
+	wg.Add(3)
 	go lbWorker.Run(workerCtx, wg)
 	go asgWorker.Run(workerCtx, wg)
+	go cronWorker.Run(workerCtx, wg)
 
 	// 8. Server setup
 	srv := &http.Server{

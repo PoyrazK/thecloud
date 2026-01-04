@@ -447,3 +447,42 @@ Publish a message to all subscribers.
 ```bash
 cloud notify publish <topic-id> "System update complete"
 ```
+
+---
+
+## cron
+Manage CloudCron (Scheduled Tasks).
+
+### `cron create <name> <schedule> <url>`
+Create a new scheduled task.
+```bash
+cloud cron create cleanup "0 0 * * *" https://api.example.com/cleanup -X POST -d '{"force": true}'
+```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-X, --method` | `POST` | HTTP method |
+| `-d, --payload` | | Request payload |
+
+### `cron list`
+List all scheduled tasks.
+```bash
+cloud cron list
+```
+
+### `cron pause <id>`
+Pause a scheduled task.
+```bash
+cloud cron pause <job-id>
+```
+
+### `cron resume <id>`
+Resume a paused scheduled task.
+```bash
+cloud cron resume <job-id>
+```
+
+### `cron rm <id>`
+Delete a scheduled task.
+```bash
+cloud cron rm <job-id>
+```
