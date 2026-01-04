@@ -525,3 +525,44 @@ func (m *MockNotifyRepo) SaveMessage(ctx context.Context, msg *domain.NotifyMess
 	args := m.Called(ctx, msg)
 	return args.Error(0)
 }
+
+// MockCronRepo
+type MockCronRepo struct{ mock.Mock }
+
+func (m *MockCronRepo) CreateJob(ctx context.Context, job *domain.CronJob) error {
+	args := m.Called(ctx, job)
+	return args.Error(0)
+}
+func (m *MockCronRepo) GetJobByID(ctx context.Context, id, userID uuid.UUID) (*domain.CronJob, error) {
+	args := m.Called(ctx, id, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.CronJob), args.Error(1)
+}
+func (m *MockCronRepo) ListJobs(ctx context.Context, userID uuid.UUID) ([]*domain.CronJob, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.CronJob), args.Error(1)
+}
+func (m *MockCronRepo) UpdateJob(ctx context.Context, job *domain.CronJob) error {
+	args := m.Called(ctx, job)
+	return args.Error(0)
+}
+func (m *MockCronRepo) DeleteJob(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+func (m *MockCronRepo) GetNextJobsToRun(ctx context.Context) ([]*domain.CronJob, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.CronJob), args.Error(1)
+}
+func (m *MockCronRepo) SaveJobRun(ctx context.Context, run *domain.CronJobRun) error {
+	args := m.Called(ctx, run)
+	return args.Error(0)
+}
