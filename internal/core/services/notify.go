@@ -213,6 +213,6 @@ func (s *NotifyService) deliver(ctx context.Context, sub *domain.Subscription, b
 			fmt.Printf("Failed to deliver to webhook %s: %v\n", sub.Endpoint, err)
 			return
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 }

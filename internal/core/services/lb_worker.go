@@ -190,7 +190,7 @@ func (w *LBWorker) checkLBHealth(ctx context.Context, lb *domain.LoadBalancer) {
 			conn, err := net.DialTimeout("tcp", "localhost:"+hostPort, 2*time.Second)
 			if err == nil {
 				status = "healthy"
-				conn.Close()
+				_ = conn.Close()
 			}
 		}
 

@@ -49,7 +49,7 @@ func (a *LBProxyAdapter) DeployProxy(ctx context.Context, lb *domain.LoadBalance
 		return "", err
 	}
 	_, _ = io.Copy(io.Discard, reader)
-	reader.Close()
+	_ = reader.Close()
 
 	// 2. Generate config
 	config, err := a.generateNginxConfig(ctx, lb, targets)
@@ -129,7 +129,7 @@ func (a *LBProxyAdapter) RemoveProxy(ctx context.Context, lbID uuid.UUID) error 
 
 	// Cleanup config file
 	configPath := filepath.Join("/tmp", "thecloud", "lb", lbID.String())
-	os.RemoveAll(configPath)
+	_ = os.RemoveAll(configPath)
 
 	return nil
 }

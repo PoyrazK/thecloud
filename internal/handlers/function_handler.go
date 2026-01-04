@@ -43,7 +43,7 @@ func (h *FunctionHandler) Create(c *gin.Context) {
 		httputil.Error(c, errors.Wrap(errors.Internal, "failed to open code file", err))
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	code, err := io.ReadAll(f)
 	if err != nil {

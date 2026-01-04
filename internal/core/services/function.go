@@ -236,7 +236,7 @@ func (s *FunctionService) prepareCode(ctx context.Context, f *domain.Function) (
 	if err != nil {
 		return "", err
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	tmpDir, err := os.MkdirTemp("", "fn-"+f.ID.String())
 	if err != nil {
@@ -276,13 +276,13 @@ func (s *FunctionService) prepareCode(ctx context.Context, f *domain.Function) (
 
 		src, err := file.Open()
 		if err != nil {
-			dst.Close()
+			_ = dst.Close()
 			return "", err
 		}
 
 		_, err = io.Copy(dst, src)
-		src.Close()
-		dst.Close()
+		_ = src.Close()
+		_ = dst.Close()
 		if err != nil {
 			return "", err
 		}

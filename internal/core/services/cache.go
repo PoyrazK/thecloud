@@ -227,7 +227,7 @@ func (s *CacheService) GetCacheStats(ctx context.Context, idOrName string) (*por
 	if err != nil {
 		return nil, err
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	// Parse Docker Stats (standard JSON)
 	var dockerStats struct {

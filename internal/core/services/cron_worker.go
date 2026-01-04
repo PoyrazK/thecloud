@@ -74,7 +74,7 @@ func (w *CronWorker) runJob(ctx context.Context, job *domain.CronJob) {
 		w.recordRun(ctx, job, "FAILED", 0, err.Error(), duration)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	status := "SUCCESS"
 	if resp.StatusCode >= 400 {

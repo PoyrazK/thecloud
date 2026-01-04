@@ -61,7 +61,7 @@ func TestDashboardHandler_GetSummary(t *testing.T) {
 	var wrapper struct {
 		Data domain.ResourceSummary `json:"data"`
 	}
-	json.Unmarshal(w.Body.Bytes(), &wrapper)
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
 	assert.Equal(t, 5, wrapper.Data.TotalInstances)
 }
 
@@ -83,7 +83,7 @@ func TestDashboardHandler_GetRecentEvents(t *testing.T) {
 	var wrapper struct {
 		Data []*domain.Event `json:"data"`
 	}
-	json.Unmarshal(w.Body.Bytes(), &wrapper)
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
 	assert.Len(t, wrapper.Data, 1)
 }
 
@@ -107,7 +107,6 @@ func TestDashboardHandler_GetStats(t *testing.T) {
 	var wrapper struct {
 		Data domain.DashboardStats `json:"data"`
 	}
-	json.Unmarshal(w.Body.Bytes(), &wrapper)
 	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &wrapper))
 	assert.Len(t, wrapper.Data.CPUHistory, 1)
 	assert.Equal(t, 10.1, wrapper.Data.CPUHistory[0].Value)

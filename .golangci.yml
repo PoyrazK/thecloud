@@ -21,19 +21,19 @@ linters:
   settings:
     errcheck:
       exclude-functions:
-        - (*github.com/olekukonko/tablewriter.Table).Append
-        - (*github.com/olekukonko/tablewriter.Table).Render
-        - (net/http.ResponseWriter).Write
-        - (*github.com/spf13/cobra.Command).MarkFlagRequired
+        # CLI output functions - stdout rarely fails
         - fmt.Fprintln
         - fmt.Fprintf
+        - fmt.Printf
+        - fmt.Println
+        # Tablewriter - output wrappers
+        - (*github.com/olekukonko/tablewriter.Table).Append
+        - (*github.com/olekukonko/tablewriter.Table).Render
         - (*text/tabwriter.Writer).Flush
-        - (*os.File).Close
-        - (io.ReadCloser).Close
-        - (io.Closer).Close
-        - json.Unmarshal
-        - os.Setenv
-        - os.RemoveAll
+        # HTTP response writes - error is returned via other mechanisms
+        - (net/http.ResponseWriter).Write
+        # Cobra flag marking - panics on error anyway
+        - (*github.com/spf13/cobra.Command).MarkFlagRequired
     staticcheck:
       checks:
         - all

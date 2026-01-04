@@ -67,7 +67,7 @@ var storageUploadCmd = &cobra.Command{
 			fmt.Printf("Error opening file: %v\n", err)
 			return
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 
 		client := getClient()
 		if err := client.UploadObject(bucket, key, f); err != nil {
@@ -94,14 +94,14 @@ var storageDownloadCmd = &cobra.Command{
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
-		defer body.Close()
+		defer func() { _ = body.Close() }()
 
 		out, err := os.Create(dest)
 		if err != nil {
 			fmt.Printf("Error creating destination file: %v\n", err)
 			return
 		}
-		defer out.Close()
+		defer func() { _ = out.Close() }()
 
 		_, err = io.Copy(out, body)
 		if err != nil {

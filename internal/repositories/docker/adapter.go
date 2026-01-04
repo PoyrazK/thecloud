@@ -56,7 +56,7 @@ func (a *DockerAdapter) CreateContainer(ctx context.Context, name, imageName str
 	if err != nil {
 		return "", fmt.Errorf("failed to pull image: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	_, _ = io.Copy(io.Discard, reader)
 
 	// 2. Configure container
@@ -144,8 +144,8 @@ func (a *DockerAdapter) GetLogs(ctx context.Context, containerID string) (io.Rea
 	// Use a pipe to clean the stream asynchronously
 	r, w := io.Pipe()
 	go func() {
-		defer w.Close()
-		defer src.Close()
+		defer func() { _ = w.Close() }()
+		defer func() { _ = src.Close() }()
 		// stdcopy demultiplexes docker stream into plain text
 		_, _ = stdcopy.StdCopy(w, w, src)
 	}()
@@ -227,7 +227,7 @@ func (a *DockerAdapter) RunTask(ctx context.Context, opts ports.RunTaskOptions) 
 	if err != nil {
 		return "", fmt.Errorf("failed to pull image: %w", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	_, _ = io.Copy(io.Discard, reader)
 
 	// 2. Configure container with security defaults

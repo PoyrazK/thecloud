@@ -233,7 +233,7 @@ func (s *InstanceService) GetInstanceLogs(ctx context.Context, idOrName string) 
 	if err != nil {
 		return "", err
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	bytes, err := io.ReadAll(stream)
 	if err != nil {
@@ -322,7 +322,7 @@ func (s *InstanceService) GetInstanceStats(ctx context.Context, idOrName string)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to get stats stream", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	// Parse JSON
 	var stats struct {

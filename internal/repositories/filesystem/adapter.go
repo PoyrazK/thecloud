@@ -36,7 +36,7 @@ func (s *LocalFileStore) Write(ctx context.Context, bucket, key string, r io.Rea
 	if err != nil {
 		return 0, errors.Wrap(errors.Internal, "failed to create file", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	n, err := io.Copy(f, r)
 	if err != nil {
