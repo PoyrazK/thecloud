@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  domain.ApiKey:
+  domain.APIKey:
     properties:
       created_at:
         type: string
@@ -527,7 +527,7 @@ paths:
               $ref: '#/definitions/domain.Event'
             type: array
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get recent events
       tags:
       - dashboard
@@ -542,7 +542,7 @@ paths:
           schema:
             $ref: '#/definitions/domain.DashboardStats'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get detailed dashboard stats
       tags:
       - dashboard
@@ -553,7 +553,7 @@ paths:
       - text/event-stream
       responses: {}
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Stream dashboard updates (SSE)
       tags:
       - dashboard
@@ -568,7 +568,7 @@ paths:
           schema:
             $ref: '#/definitions/domain.ResourceSummary'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get dashboard summary
       tags:
       - dashboard
@@ -590,7 +590,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/domain.ApiKey'
+            $ref: '#/definitions/domain.APIKey'
         "400":
           description: Bad Request
           schema:
@@ -665,7 +665,7 @@ paths:
               $ref: '#/definitions/domain.ScalingGroup'
             type: array
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: List all scaling groups
       tags:
       - autoscaling
@@ -696,7 +696,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Create a new scaling group
       tags:
       - autoscaling
@@ -719,7 +719,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Delete a scaling group
       tags:
       - autoscaling
@@ -743,7 +743,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get scaling group details
       tags:
       - autoscaling
@@ -776,7 +776,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Create a new scaling policy
       tags:
       - autoscaling
@@ -799,7 +799,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Delete a scaling policy
       tags:
       - autoscaling
@@ -820,7 +820,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: List all instances
       tags:
       - instances
@@ -852,7 +852,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Launch a new instance
       tags:
       - instances
@@ -881,7 +881,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Terminate an instance
       tags:
       - instances
@@ -909,7 +909,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get instance details
       tags:
       - instances
@@ -938,7 +938,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get instance logs
       tags:
       - instances
@@ -967,7 +967,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get instance stats
       tags:
       - instances
@@ -996,7 +996,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Stop an instance
       tags:
       - instances
@@ -1013,7 +1013,7 @@ paths:
               $ref: '#/definitions/domain.LoadBalancer'
             type: array
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: List all load balancers
       tags:
       - loadbalancers
@@ -1044,7 +1044,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Create a new load balancer
       tags:
       - loadbalancers
@@ -1069,7 +1069,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Delete a load balancer
       tags:
       - loadbalancers
@@ -1093,7 +1093,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get load balancer details
       tags:
       - loadbalancers
@@ -1116,7 +1116,7 @@ paths:
               $ref: '#/definitions/domain.LBTarget'
             type: array
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: List all targets for a load balancer
       tags:
       - loadbalancers
@@ -1148,7 +1148,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Add a target to a load balancer
       tags:
       - loadbalancers
@@ -1178,7 +1178,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Remove a target from a load balancer
       tags:
       - loadbalancers
@@ -1205,7 +1205,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: List objects in a bucket
       tags:
       - storage
@@ -1233,7 +1233,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Delete an object
       tags:
       - storage
@@ -1262,7 +1262,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Download an object
       tags:
       - storage
@@ -1298,7 +1298,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Upload an object
       tags:
       - storage
@@ -1319,7 +1319,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: List all volumes
       tags:
       - volumes
@@ -1350,7 +1350,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Create a new volume
       tags:
       - volumes
@@ -1379,7 +1379,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Delete a volume
       tags:
       - volumes
@@ -1407,7 +1407,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get volume details
       tags:
       - volumes
@@ -1428,7 +1428,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: List all VPCs
       tags:
       - vpcs
@@ -1462,7 +1462,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Create a new VPC
       tags:
       - vpcs
@@ -1491,7 +1491,7 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Delete a VPC
       tags:
       - vpcs
@@ -1519,12 +1519,12 @@ paths:
           schema:
             $ref: '#/definitions/httputil.Response'
       security:
-      - ApiKeyAuth: []
+      - APIKeyAuth: []
       summary: Get VPC details
       tags:
       - vpcs
 securityDefinitions:
-  ApiKeyAuth:
+  APIKeyAuth:
     in: header
     name: X-API-Key
     type: apiKey

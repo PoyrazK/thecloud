@@ -28,7 +28,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of the latest audit/status events",
@@ -65,7 +65,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets comprehensive counts and aggregated resource information",
@@ -90,7 +90,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Real-time stream of dashboard summary updates via Server-Sent Events",
@@ -108,7 +108,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets counts for instances, volumes, vpcs, and events",
@@ -265,7 +265,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of all auto-scaling groups",
@@ -291,7 +291,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Creates an auto-scaling group for instances",
@@ -342,7 +342,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets detailed information about a specific auto-scaling group",
@@ -380,7 +380,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Removes an auto-scaling group",
@@ -417,7 +417,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Adds a scaling policy to an auto-scaling group",
@@ -469,7 +469,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Removes a scaling policy",
@@ -506,7 +506,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of all compute instances",
@@ -538,7 +538,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Creates and starts a new compute instance with optional volumes and VPC",
@@ -589,7 +589,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets detailed information about a specific compute instance",
@@ -633,7 +633,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Deletes a compute instance and its associated resources",
@@ -679,7 +679,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets the console output logs for a compute instance",
@@ -725,7 +725,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets real-time CPU and Memory usage for a compute instance",
@@ -771,7 +771,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Initiates a graceful shutdown of a compute instance",
@@ -817,7 +817,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of all load balancers",
@@ -843,7 +843,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Creates a new load balancer in a VPC",
@@ -894,7 +894,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets detailed information about a specific load balancer",
@@ -932,7 +932,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Removes a load balancer and stops associated proxy",
@@ -972,7 +972,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of targets for a load balancer",
@@ -1007,7 +1007,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Registers a compute instance to receive traffic from the load balancer",
@@ -1059,7 +1059,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Deregisters a compute instance from the load balancer",
@@ -1106,7 +1106,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of all objects within a specific bucket",
@@ -1149,7 +1149,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Streams the specified object as an attachment",
@@ -1194,7 +1194,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Uploads a file/object to the specified bucket and key",
@@ -1249,7 +1249,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Removes an object from the specified bucket",
@@ -1293,7 +1293,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of all existing block storage volumes",
@@ -1325,7 +1325,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Creates a new block storage volume",
@@ -1376,7 +1376,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets detailed information about a specific block storage volume",
@@ -1420,7 +1420,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Removes a block storage volume",
@@ -1466,7 +1466,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets a list of all existing VPCs",
@@ -1498,7 +1498,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Creates a new virtual private cloud network",
@@ -1554,7 +1554,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Gets detailed information about a specific VPC",
@@ -1598,7 +1598,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "APIKeyAuth": []
                     }
                 ],
                 "description": "Removes a VPC network (must be empty of instances)",
@@ -2373,7 +2373,7 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
-        "ApiKeyAuth": {
+        "APIKeyAuth": {
             "type": "apiKey",
             "name": "X-API-Key",
             "in": "header"
