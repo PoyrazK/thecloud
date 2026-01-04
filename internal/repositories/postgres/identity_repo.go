@@ -18,7 +18,7 @@ func NewIdentityRepository(db *pgxpool.Pool) *IdentityRepository {
 	return &IdentityRepository{db: db}
 }
 
-func (r *IdentityRepository) CreateApiKey(ctx context.Context, key *domain.ApiKey) error {
+func (r *IdentityRepository) CreateAPIKey(ctx context.Context, key *domain.APIKey) error {
 	query := `
 		INSERT INTO api_keys (id, user_id, key, name, created_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -30,13 +30,13 @@ func (r *IdentityRepository) CreateApiKey(ctx context.Context, key *domain.ApiKe
 	return nil
 }
 
-func (r *IdentityRepository) GetApiKeyByKey(ctx context.Context, keyStr string) (*domain.ApiKey, error) {
+func (r *IdentityRepository) GetAPIKeyByKey(ctx context.Context, keyStr string) (*domain.APIKey, error) {
 	query := `
 		SELECT id, user_id, key, name, created_at, last_used
 		FROM api_keys
 		WHERE key = $1
 	`
-	var key domain.ApiKey
+	var key domain.APIKey
 	var lastUsed *time.Time
 	err := r.db.QueryRow(ctx, query, keyStr).Scan(
 		&key.ID, &key.UserID, &key.Key, &key.Name, &key.CreatedAt, &lastUsed,

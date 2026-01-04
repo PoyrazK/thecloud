@@ -75,7 +75,7 @@ func (a *LBProxyAdapter) DeployProxy(ctx context.Context, lb *domain.LoadBalance
 
 	cPort := nat.Port(fmt.Sprintf("%d/tcp", lb.Port))
 
-	config_opt := &container.Config{
+	configOpt := &container.Config{
 		Image: NginxImage,
 		ExposedPorts: nat.PortSet{
 			cPort: struct{}{},
@@ -108,7 +108,7 @@ func (a *LBProxyAdapter) DeployProxy(ctx context.Context, lb *domain.LoadBalance
 		},
 	}
 
-	resp, err := a.cli.ContainerCreate(ctx, config_opt, hostConfig, networkingConfig, nil, containerName)
+	resp, err := a.cli.ContainerCreate(ctx, configOpt, hostConfig, networkingConfig, nil, containerName)
 	if err != nil {
 		return "", err
 	}

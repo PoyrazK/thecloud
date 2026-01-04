@@ -29,7 +29,7 @@ type LoginRequest struct {
 }
 
 type AuthResponse struct {
-	ApiKey string `json:"api_key"`
+	APIKey string `json:"api_key"`
 }
 
 type ResponseWrapper struct {
@@ -125,7 +125,7 @@ func registerAndLogin(t *testing.T, client *http.Client, email, name string) str
 
 	var authResp ResponseWrapper
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&authResp))
-	return authResp.Data.ApiKey
+	return authResp.Data.APIKey
 }
 
 func createInstance(t *testing.T, client *http.Client, token, name string) Instance {

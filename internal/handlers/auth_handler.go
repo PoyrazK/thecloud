@@ -32,7 +32,7 @@ type LoginRequest struct {
 
 type LoginResponse struct {
 	User   interface{} `json:"user"`
-	ApiKey string      `json:"api_key"`
+	APIKey string      `json:"api_key"`
 }
 
 // Register godoc
@@ -84,6 +84,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	httputil.Success(c, http.StatusOK, LoginResponse{
 		User:   user,
-		ApiKey: apiKey,
+		APIKey: apiKey,
 	})
 }

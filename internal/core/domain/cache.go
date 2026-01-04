@@ -1,3 +1,4 @@
+// Package domain contains the core domain models for the cloud platform.
 package domain
 
 import (

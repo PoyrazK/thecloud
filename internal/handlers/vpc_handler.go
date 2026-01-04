@@ -22,7 +22,7 @@ func NewVpcHandler(svc ports.VpcService) *VpcHandler {
 // @Tags vpcs
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param request body object{name=string} true "VPC creation request"
 // @Success 201 {object} domain.VPC
 // @Failure 400 {object} httputil.Response
@@ -52,7 +52,7 @@ func (h *VpcHandler) Create(c *gin.Context) {
 // @Description Gets a list of all existing VPCs
 // @Tags vpcs
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Success 200 {array} domain.VPC
 // @Failure 500 {object} httputil.Response
 // @Router /vpcs [get]
@@ -71,7 +71,7 @@ func (h *VpcHandler) List(c *gin.Context) {
 // @Description Gets detailed information about a specific VPC
 // @Tags vpcs
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "VPC ID or Name"
 // @Success 200 {object} domain.VPC
 // @Failure 404 {object} httputil.Response
@@ -93,7 +93,7 @@ func (h *VpcHandler) Get(c *gin.Context) {
 // @Description Removes a VPC network (must be empty of instances)
 // @Tags vpcs
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "VPC ID or Name"
 // @Success 200 {object} httputil.Response
 // @Failure 404 {object} httputil.Response

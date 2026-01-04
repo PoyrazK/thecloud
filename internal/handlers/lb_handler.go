@@ -37,7 +37,7 @@ type AddTargetRequest struct {
 // @Tags loadbalancers
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param request body CreateLBRequest true "LB creation request"
 // @Param Idempotency-Key header string false "Idempotency key"
 // @Success 202 {object} domain.LoadBalancer
@@ -72,7 +72,7 @@ func (h *LBHandler) Create(c *gin.Context) {
 // @Description Gets a list of all load balancers
 // @Tags loadbalancers
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Success 200 {array} domain.LoadBalancer
 // @Router /lb [get]
 func (h *LBHandler) List(c *gin.Context) {
@@ -89,7 +89,7 @@ func (h *LBHandler) List(c *gin.Context) {
 // @Description Gets detailed information about a specific load balancer
 // @Tags loadbalancers
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "LB ID"
 // @Success 200 {object} domain.LoadBalancer
 // @Failure 404 {object} httputil.Response
@@ -115,7 +115,7 @@ func (h *LBHandler) Get(c *gin.Context) {
 // @Description Removes a load balancer and stops associated proxy
 // @Tags loadbalancers
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "LB ID"
 // @Success 200 {object} httputil.Response
 // @Failure 404 {object} httputil.Response
@@ -141,7 +141,7 @@ func (h *LBHandler) Delete(c *gin.Context) {
 // @Tags loadbalancers
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "LB ID"
 // @Param request body AddTargetRequest true "Target details"
 // @Success 201 {object} httputil.Response
@@ -180,7 +180,7 @@ func (h *LBHandler) AddTarget(c *gin.Context) {
 // @Description Deregisters a compute instance from the load balancer
 // @Tags loadbalancers
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "LB ID"
 // @Param instanceId path string true "Instance ID"
 // @Success 200 {object} httputil.Response
@@ -214,7 +214,7 @@ func (h *LBHandler) RemoveTarget(c *gin.Context) {
 // @Description Gets a list of targets for a load balancer
 // @Tags loadbalancers
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "LB ID"
 // @Success 200 {array} domain.LBTarget
 // @Router /lb/{id}/targets [get]

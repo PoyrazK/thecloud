@@ -35,7 +35,7 @@ type CreateGroupRequest struct {
 // @Tags autoscaling
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param request body CreateGroupRequest true "ASG creation request"
 // @Param Idempotency-Key header string false "Idempotency key"
 // @Success 201 {object} domain.ScalingGroup
@@ -64,7 +64,7 @@ func (h *AutoScalingHandler) CreateGroup(c *gin.Context) {
 // @Description Gets a list of all auto-scaling groups
 // @Tags autoscaling
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Success 200 {array} domain.ScalingGroup
 // @Router /autoscaling/groups [get]
 func (h *AutoScalingHandler) ListGroups(c *gin.Context) {
@@ -81,7 +81,7 @@ func (h *AutoScalingHandler) ListGroups(c *gin.Context) {
 // @Description Gets detailed information about a specific auto-scaling group
 // @Tags autoscaling
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "ASG ID"
 // @Success 200 {object} domain.ScalingGroup
 // @Failure 404 {object} httputil.Response
@@ -107,7 +107,7 @@ func (h *AutoScalingHandler) GetGroup(c *gin.Context) {
 // @Description Removes an auto-scaling group
 // @Tags autoscaling
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "ASG ID"
 // @Success 204
 // @Failure 404 {object} httputil.Response
@@ -142,7 +142,7 @@ type CreateASPolicyRequest struct {
 // @Tags autoscaling
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "ASG ID"
 // @Param request body CreateASPolicyRequest true "Policy creation request"
 // @Success 201 {object} domain.ScalingPolicy
@@ -175,7 +175,7 @@ func (h *AutoScalingHandler) CreatePolicy(c *gin.Context) {
 // @Description Removes a scaling policy
 // @Tags autoscaling
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Policy ID"
 // @Success 204
 // @Failure 404 {object} httputil.Response

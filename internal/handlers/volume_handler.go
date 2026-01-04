@@ -27,7 +27,7 @@ type CreateVolumeRequest struct {
 // @Tags volumes
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param request body CreateVolumeRequest true "Volume creation request"
 // @Success 201 {object} domain.Volume
 // @Failure 400 {object} httputil.Response
@@ -58,7 +58,7 @@ func (h *VolumeHandler) Create(c *gin.Context) {
 // @Description Gets a list of all existing block storage volumes
 // @Tags volumes
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Success 200 {array} domain.Volume
 // @Failure 500 {object} httputil.Response
 // @Router /volumes [get]
@@ -77,7 +77,7 @@ func (h *VolumeHandler) List(c *gin.Context) {
 // @Description Gets detailed information about a specific block storage volume
 // @Tags volumes
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Volume ID"
 // @Success 200 {object} domain.Volume
 // @Failure 404 {object} httputil.Response
@@ -99,7 +99,7 @@ func (h *VolumeHandler) Get(c *gin.Context) {
 // @Description Removes a block storage volume
 // @Tags volumes
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Volume ID"
 // @Success 200 {object} httputil.Response
 // @Failure 404 {object} httputil.Response

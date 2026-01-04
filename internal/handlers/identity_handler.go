@@ -28,7 +28,7 @@ type CreateKeyRequest struct {
 // @Accept json
 // @Produce json
 // @Param request body CreateKeyRequest true "Key creation request"
-// @Success 201 {object} domain.ApiKey
+// @Success 201 {object} domain.APIKey
 // @Failure 400 {object} httputil.Response
 // @Router /auth/keys [post]
 func (h *IdentityHandler) CreateKey(c *gin.Context) {

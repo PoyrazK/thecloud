@@ -157,7 +157,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/domain.ApiKey"
+                            "$ref": "#/definitions/domain.APIKey"
                         }
                     },
                     "400": {
@@ -1642,7 +1642,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "domain.ApiKey": {
+        "domain.APIKey": {
             "type": "object",
             "properties": {
                 "created_at": {

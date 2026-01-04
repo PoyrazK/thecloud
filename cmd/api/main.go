@@ -45,7 +45,7 @@ import (
 // @host localhost:8080
 // @BasePath /
 
-// @securityDefinitions.apikey ApiKeyAuth
+// @securityDefinitions.apikey APIKeyAuth
 // @in header
 // @name X-API-Key
 

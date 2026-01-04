@@ -43,7 +43,7 @@ func (h *Handler) ServeWS(c *gin.Context) {
 		return
 	}
 
-	_, err := h.identitySvc.ValidateApiKey(c.Request.Context(), apiKey)
+	_, err := h.identitySvc.ValidateAPIKey(c.Request.Context(), apiKey)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid api_key"})
 		return

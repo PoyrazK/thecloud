@@ -16,7 +16,7 @@ func Auth(svc ports.IdentityService) gin.HandlerFunc {
 			return
 		}
 
-		apiKeyObj, err := svc.ValidateApiKey(c.Request.Context(), apiKey)
+		apiKeyObj, err := svc.ValidateAPIKey(c.Request.Context(), apiKey)
 		if err != nil {
 			Error(c, errors.New(errors.Unauthorized, "invalid API key"))
 			c.Abort()

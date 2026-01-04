@@ -94,7 +94,7 @@ func isValidResourceName(name string) bool {
 // @Tags instances
 // @Accept json
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param request body LaunchRequest true "Launch request"
 // @Success 201 {object} domain.Instance
 // @Failure 400 {object} httputil.Response
@@ -146,7 +146,7 @@ func (h *InstanceHandler) Launch(c *gin.Context) {
 // @Description Gets a list of all compute instances
 // @Tags instances
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Success 200 {array} domain.Instance
 // @Failure 500 {object} httputil.Response
 // @Router /instances [get]
@@ -165,7 +165,7 @@ func (h *InstanceHandler) List(c *gin.Context) {
 // @Description Initiates a graceful shutdown of a compute instance
 // @Tags instances
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Instance ID"
 // @Success 200 {object} httputil.Response
 // @Failure 404 {object} httputil.Response
@@ -187,7 +187,7 @@ func (h *InstanceHandler) Stop(c *gin.Context) {
 // @Description Gets the console output logs for a compute instance
 // @Tags instances
 // @Produce plain
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Instance ID"
 // @Success 200 {string} string "Logs content"
 // @Failure 404 {object} httputil.Response
@@ -210,7 +210,7 @@ func (h *InstanceHandler) GetLogs(c *gin.Context) {
 // @Description Gets detailed information about a specific compute instance
 // @Tags instances
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Instance ID"
 // @Success 200 {object} domain.Instance
 // @Failure 404 {object} httputil.Response
@@ -232,7 +232,7 @@ func (h *InstanceHandler) Get(c *gin.Context) {
 // @Description Deletes a compute instance and its associated resources
 // @Tags instances
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Instance ID"
 // @Success 200 {object} httputil.Response
 // @Failure 404 {object} httputil.Response
@@ -254,7 +254,7 @@ func (h *InstanceHandler) Terminate(c *gin.Context) {
 // @Description Gets real-time CPU and Memory usage for a compute instance
 // @Tags instances
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param id path string true "Instance ID"
 // @Success 200 {object} domain.InstanceStats
 // @Failure 404 {object} httputil.Response

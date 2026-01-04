@@ -46,19 +46,19 @@ type MockIdentityService struct {
 	mock.Mock
 }
 
-func (m *MockIdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.ApiKey, error) {
+func (m *MockIdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.APIKey, error) {
 	args := m.Called(ctx, userID, name)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.ApiKey), args.Error(1)
+	return args.Get(0).(*domain.APIKey), args.Error(1)
 }
-func (m *MockIdentityService) ValidateApiKey(ctx context.Context, key string) (*domain.ApiKey, error) {
+func (m *MockIdentityService) ValidateAPIKey(ctx context.Context, key string) (*domain.APIKey, error) {
 	args := m.Called(ctx, key)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*domain.ApiKey), args.Error(1)
+	return args.Get(0).(*domain.APIKey), args.Error(1)
 }
 
 func TestAuthService_Register_Success(t *testing.T) {
@@ -120,7 +120,7 @@ func TestAuthService_Login_Success(t *testing.T) {
 	user := &domain.User{ID: userID, Email: email, PasswordHash: string(hashedPassword)}
 
 	userRepo.On("GetByEmail", ctx, email).Return(user, nil)
-	identitySvc.On("CreateKey", ctx, userID, "Default Key").Return(&domain.ApiKey{
+	identitySvc.On("CreateKey", ctx, userID, "Default Key").Return(&domain.APIKey{
 		Key:       "sk_test_123",
 		UserID:    userID,
 		CreatedAt: time.Now(),

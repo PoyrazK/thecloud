@@ -27,7 +27,7 @@ func NewStorageHandler(svc ports.StorageService) *StorageHandler {
 // @Tags storage
 // @Accept octet-stream
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param bucket path string true "Bucket name"
 // @Param key path string true "Object key"
 // @Param file formData file true "File to upload"
@@ -58,7 +58,7 @@ func (h *StorageHandler) Upload(c *gin.Context) {
 // @Description Streams the specified object as an attachment
 // @Tags storage
 // @Produce octet-stream
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param bucket path string true "Bucket name"
 // @Param key path string true "Object key"
 // @Success 200 {file} file "Object content"
@@ -73,7 +73,7 @@ func (h *StorageHandler) Download(c *gin.Context) {
 		httputil.Error(c, err)
 		return
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Set headers
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", key))
@@ -89,7 +89,7 @@ func (h *StorageHandler) Download(c *gin.Context) {
 // @Description Gets a list of all objects within a specific bucket
 // @Tags storage
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param bucket path string true "Bucket name"
 // @Success 200 {array} domain.Object
 // @Failure 404 {object} httputil.Response
@@ -111,7 +111,7 @@ func (h *StorageHandler) List(c *gin.Context) {
 // @Description Removes an object from the specified bucket
 // @Tags storage
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param bucket path string true "Bucket name"
 // @Param key path string true "Object key"
 // @Success 204

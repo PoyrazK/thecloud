@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type ApiKey struct {
+type APIKey struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"user_id"`
 	Key       string    `json:"key"` // Transparently: the actual secret

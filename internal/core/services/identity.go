@@ -20,7 +20,7 @@ func NewIdentityService(repo ports.IdentityRepository) *IdentityService {
 	return &IdentityService{repo: repo}
 }
 
-func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.ApiKey, error) {
+func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.APIKey, error) {
 	// Generate a secure random key
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -28,7 +28,7 @@ func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name 
 	}
 	keyStr := "thecloud_" + hex.EncodeToString(b)
 
-	apiKey := &domain.ApiKey{
+	apiKey := &domain.APIKey{
 		ID:        uuid.New(),
 		UserID:    userID,
 		Key:       keyStr,
@@ -36,15 +36,15 @@ func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name 
 		CreatedAt: time.Now(),
 	}
 
-	if err := s.repo.CreateApiKey(ctx, apiKey); err != nil {
+	if err := s.repo.CreateAPIKey(ctx, apiKey); err != nil {
 		return nil, err
 	}
 
 	return apiKey, nil
 }
 
-func (s *IdentityService) ValidateApiKey(ctx context.Context, key string) (*domain.ApiKey, error) {
-	apiKey, err := s.repo.GetApiKeyByKey(ctx, key)
+func (s *IdentityService) ValidateAPIKey(ctx context.Context, key string) (*domain.APIKey, error) {
+	apiKey, err := s.repo.GetAPIKeyByKey(ctx, key)
 	if err != nil {
 		return nil, err
 	}

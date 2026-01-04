@@ -27,7 +27,7 @@ func NewDashboardHandler(svc ports.DashboardService) *DashboardHandler {
 // @Description Gets counts for instances, volumes, vpcs, and events
 // @Tags dashboard
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Success 200 {object} domain.ResourceSummary
 // @Router /api/dashboard/summary [get]
 func (h *DashboardHandler) GetSummary(c *gin.Context) {
@@ -46,7 +46,7 @@ func (h *DashboardHandler) GetSummary(c *gin.Context) {
 // @Description Gets a list of the latest audit/status events
 // @Tags dashboard
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Param limit query int false "Number of events to return" default(10)
 // @Success 200 {array} domain.Event
 // @Router /api/dashboard/events [get]
@@ -75,7 +75,7 @@ func (h *DashboardHandler) GetRecentEvents(c *gin.Context) {
 // @Description Gets comprehensive counts and aggregated resource information
 // @Tags dashboard
 // @Produce json
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Success 200 {object} domain.DashboardStats
 // @Router /api/dashboard/stats [get]
 func (h *DashboardHandler) GetStats(c *gin.Context) {
@@ -94,7 +94,7 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 // @Description Real-time stream of dashboard summary updates via Server-Sent Events
 // @Tags dashboard
 // @Produce text/event-stream
-// @Security ApiKeyAuth
+// @Security APIKeyAuth
 // @Router /api/dashboard/stream [get]
 func (h *DashboardHandler) StreamEvents(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
