@@ -162,6 +162,10 @@ func main() {
 	queueSvc := services.NewQueueService(queueRepo, eventSvc)
 	queueHandler := httphandlers.NewQueueHandler(queueSvc)
 
+	notifyRepo := postgres.NewPostgresNotifyRepository(db)
+	notifySvc := services.NewNotifyService(notifyRepo, queueSvc, eventSvc)
+	notifyHandler := httphandlers.NewNotifyHandler(notifySvc)
+
 	// 5. Engine & Middleware
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -351,6 +355,18 @@ func main() {
 		queueGroup.GET("/:id/messages", queueHandler.ReceiveMessages)
 		queueGroup.DELETE("/:id/messages/:handle", queueHandler.DeleteMessage)
 		queueGroup.POST("/:id/purge", queueHandler.Purge) // Changed from DELETE to POST to avoid ambiguity
+	}
+
+	notifyGroup := r.Group("/notify")
+	notifyGroup.Use(httputil.Auth(identitySvc))
+	{
+		notifyGroup.POST("/topics", notifyHandler.CreateTopic)
+		notifyGroup.GET("/topics", notifyHandler.ListTopics)
+		notifyGroup.DELETE("/topics/:id", notifyHandler.DeleteTopic)
+		notifyGroup.POST("/topics/:id/subscriptions", notifyHandler.Subscribe)
+		notifyGroup.GET("/topics/:id/subscriptions", notifyHandler.ListSubscriptions)
+		notifyGroup.DELETE("/subscriptions/:id", notifyHandler.Unsubscribe)
+		notifyGroup.POST("/topics/:id/publish", notifyHandler.Publish)
 	}
 
 	// Auto-Scaling Routes (Protected)
