@@ -171,6 +171,10 @@ func main() {
 	cronHandler := httphandlers.NewCronHandler(cronSvc)
 	cronWorker := services.NewCronWorker(cronRepo)
 
+	gwRepo := postgres.NewPostgresGatewayRepository(db)
+	gwSvc := services.NewGatewayService(gwRepo)
+	gwHandler := httphandlers.NewGatewayHandler(gwSvc)
+
 	// 5. Engine & Middleware
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -384,6 +388,17 @@ func main() {
 		cronGroup.POST("/jobs/:id/pause", cronHandler.PauseJob)
 		cronGroup.POST("/jobs/:id/resume", cronHandler.ResumeJob)
 	}
+
+	gatewayGroup := r.Group("/gateway")
+	gatewayGroup.Use(httputil.Auth(identitySvc))
+	{
+		gatewayGroup.POST("/routes", gwHandler.CreateRoute)
+		gatewayGroup.GET("/routes", gwHandler.ListRoutes)
+		gatewayGroup.DELETE("/routes/:id", gwHandler.DeleteRoute)
+	}
+
+	// The actual Gateway Proxy (Public)
+	r.Any("/gw/*proxy", gwHandler.Proxy)
 
 	// Auto-Scaling Routes (Protected)
 	asgRepo := postgres.NewAutoScalingRepo(db)

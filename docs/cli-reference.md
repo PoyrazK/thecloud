@@ -486,3 +486,36 @@ Delete a scheduled task.
 ```bash
 cloud cron rm <job-id>
 ```
+
+---
+
+## gateway
+Manage CloudGateway (API Gateway routes).
+
+### `gateway create-route <name> <prefix> <target>`
+Create a new API gateway route.
+```bash
+cloud gateway create-route my-api /v1 http://my-instance:8080 --strip
+```
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--strip` | `true` | Strip the prefix from the request before forwarding |
+| `--rate-limit` | `100` | Allowed requests per second |
+
+### `gateway list-routes`
+List all registered discovery routes.
+```bash
+cloud gateway list-routes
+```
+
+### `gateway rm-route <id>`
+Remove an API gateway route.
+```bash
+cloud gateway rm-route <route-id>
+```
+
+---
+
+**Public Proxy Access**:
+Routes are accessible via `http://<api-host>/gw/<prefix>/...`
+Example: `http://localhost:8080/gw/v1/users` will proxy to `http://my-instance:8080/users` if `--strip` is enabled.
