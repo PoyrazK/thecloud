@@ -194,6 +194,11 @@ func (m *MockDocker) Exec(ctx context.Context, containerID string, cmd []string)
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockDocker) Ping(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 type MockVolumeRepo struct {
 	mock.Mock
 }
