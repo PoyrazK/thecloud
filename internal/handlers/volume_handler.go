@@ -17,8 +17,8 @@ func NewVolumeHandler(svc ports.VolumeService) *VolumeHandler {
 }
 
 type CreateVolumeRequest struct {
-	Name   string `json:"name" binding:"required"`
-	SizeGB int    `json:"size_gb"`
+	Name   string `json:"name" binding:"required,min=3,max=64"`
+	SizeGB int    `json:"size_gb" binding:"required,min=1,max=16000"`
 }
 
 // Create creates a new volume
@@ -38,10 +38,6 @@ func (h *VolumeHandler) Create(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httputil.Error(c, err)
 		return
-	}
-
-	if req.SizeGB <= 0 {
-		req.SizeGB = 1 // Default 1GB
 	}
 
 	vol, err := h.svc.CreateVolume(c.Request.Context(), req.Name, req.SizeGB)
