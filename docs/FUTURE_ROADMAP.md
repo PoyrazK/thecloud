@@ -3,34 +3,29 @@
 This document provides a detailed technical roadmap for the remaining phases of the The Cloud project.
 
 ## 🏁 Current State
-- **Phase 5 (Console)**: Backend foundation is complete.
-  - Resource aggregation service implemented.
-  - Real-time streaming (SSE & WebSockets) ready.
-  - Dashboard API verified with 100% test coverage.
-  - Infrastructure: Postgres moved to port 5433, Auto-migrations added.
+- **Phase 1-6 (Core & Services)**: ✅ Completed.
+  - Compute, Networking, Storage, LB, Auto-Scaling.
+  - Managed Services: RDS, Cache, Queue, Notify, Cron, Gateway.
+- **Phase 7 (Console)**: 🚧 In Progress.
+  - Backend foundation is complete (Resource aggregation, Streaming).
+  - **Frontend**: Next.js dashboard needs implementation.
 
 ---
 
 ## 📅 Upcoming Sprints
 
-### Phase 5: The Console (Sprint 3)
+### Phase 7: The Console (Sprint 3)
 **Objective**: Build the visual interface.
 - [ ] **Frontend**: Initialize Next.js 14 in `/frontend`.
 - [ ] **Components**: Build `ResourceCard`, `ActivityFeed`, and `RealtimeChart` (using Chart.js or Recharts).
 - [ ] **Streaming**: Connect frontend to `/api/dashboard/stream` (SSE) and WebSocket events.
 - [ ] **CLI**: Add `cloud dashboard open` to launch the local web server.
 
-### Phase 6: The Elastic Cloud (Sprints 4-6)
-**Objective**: Load Balancing and Auto-Scaling.
-- **Sprint 4 (LB Core)**: Implement HAProxy-based load balancer service.
-- **Sprint 5 (Health Checks)**: Background workers for monitoring target health.
-- **Sprint 6 (Auto-Scaling)**: Dynamic instance spawning based on CPU usage metrics fetched from Docker stats.
-
-### Phase 7: The Managed Cloud (Sprints 7-9)
-**Objective**: Managed DBs, Caching, and Queues.
-- **Sprint 7 (RDS-lite)**: Pre-configured Postgres/MySQL containers with automated backup logic.
-- **Sprint 8 (Snapshots)**: Volume snapshotting and point-in-time recovery.
-- **Sprint 9 (Managed Services)**: **CloudCache** (Redis) and **CloudQueue** (NATS/RabbitMQ).
+### Phase 8: The Marketplace (Sprints 8-10)
+**Objective**: One-click deployments and templates.
+- **Sprint 8 (Templates)**: YAML-based CloudFormation-like definitions for stacks (e.g., WordPress = Instance + RDS).
+- **Sprint 9 (Registry)**: A public/private registry for sharing templates.
+- **Sprint 10 (Billing)**: Simulated billing metrics and usage reports.
 
 ---
 

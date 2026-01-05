@@ -43,10 +43,10 @@ Prioritized using the **RICE** method (Reach, Impact, Confidence, Effort).
 
 ## 🚧 Phase 7: Console &amp; Polish (In Progress)
 - [ ] Next.js Web Dashboard
-- [ ] RBAC Implementation
-- [ ] Volume Snapshots
 
 ## 📋 Future Phases
+- [ ] RBAC Implementation
+- [ ] Volume Snapshots
 - [ ] CloudFormation Templates (IaC)
 - [ ] Multi-region Support
 - [ ] Marketplace Templates

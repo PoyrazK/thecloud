@@ -133,6 +133,156 @@ Create an ASG.
 
 ---
 
+## Cloud Gateway
+
+**Headers Required:** `X-API-Key: <your-api-key>`
+
+### GET /routes
+List all registered routes.
+
+### POST /routes
+Register a new route.
+```json
+{
+  "name": "auth-service",
+  "prefix": "/auth",
+  "target": "http://auth-service:8080",
+  "strip_prefix": true
+}
+```
+
+### DELETE /routes/:id
+Remove a route.
+
+---
+
+## Cloud Functions
+
+**Headers Required:** `X-API-Key: <your-api-key>`
+
+### GET /functions
+List all deployed functions.
+
+### POST /functions
+Create a new function.
+```json
+{
+  "name": "hello-world",
+  "runtime": "nodejs20",
+  "code_zip": "<base64>"
+}
+```
+
+### POST /functions/:id/invoke
+Invoke a function.
+```json
+{
+  "payload": { "foo": "bar" },
+  "async": false
+}
+```
+
+### GET /functions/:id/logs
+Get execution logs.
+
+---
+
+## Cloud Cache (Redis)
+
+**Headers Required:** `X-API-Key: <your-api-key>`
+
+### GET /caches
+List all cache instances.
+
+### POST /caches
+Provision a new Redis cache.
+```json
+{
+  "name": "my-cache",
+  "memory_mb": 256
+}
+```
+
+### DELETE /caches/:id
+Terminate a cache instance.
+
+---
+
+## Cloud Queue
+
+**Headers Required:** `X-API-Key: <your-api-key>`
+
+### GET /queues
+List all queues.
+
+### POST /queues
+Create a new message queue.
+```json
+{
+  "name": "task-queue",
+  "visibility_timeout": 30
+}
+```
+
+### POST /queues/:id/messages
+Send a message.
+```json
+{
+  "body": "payload-data"
+}
+```
+
+### GET /queues/:id/messages
+Receive messages.
+Query params: `?count=1`
+
+---
+
+## Cloud Notify (Pub/Sub)
+
+**Headers Required:** `X-API-Key: <your-api-key>`
+
+### GET /topics
+List topics.
+
+### POST /topics
+Create a new topic.
+
+### POST /subscriptions
+Subscribe to a topic.
+```json
+{
+  "topic_id": "uuid",
+  "protocol": "webhook",
+  "endpoint": "http://my-api/hook"
+}
+```
+
+---
+
+## Cloud Cron
+
+**Headers Required:** `X-API-Key: <your-api-key>`
+
+### GET /cron
+List scheduled jobs.
+
+### POST /cron
+Create a scheduled job.
+```json
+{
+  "name": "daily-cleanup",
+  "schedule": "0 0 * * *",
+  "target_url": "http://my-service/cleanup"
+}
+```
+
+### POST /cron/:id/pause
+Pause a job.
+
+### POST /cron/:id/resume
+Resume a job.
+
 ## Error Codes
 
 | Status Code | Description |

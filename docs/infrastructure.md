@@ -12,8 +12,7 @@ The "Compute" service acts as a hypervisor. Instead of launching VMs (KVM/QEMU),
 3.  **Start**: Uses `client.ContainerStart`.
 
 ### Current Limitations
-- **Networking**: All instances are currently attached to the default bridge. In the future, every "Account" will ideally have its own Docker Network (VPC simulation).
-- **Isolation**: No CPU/Memory limits are enforced yet. This will be added in the `Scaling` phase.
+- **Isolation**: No CPU/Memory limits are enforced yet for standard instances (though CloudFunctions do enforce them). This will be added in a future update.
 
 ## Environment Variables
 
