@@ -573,10 +573,26 @@ paths:
       tags:
       - dashboard
   /auth/keys:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.APIKey'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: List API keys
+      tags:
+      - identity
     post:
       consumes:
       - application/json
-      description: Bootstraps access by generating an API key for a given name
       parameters:
       - description: Key creation request
         in: body
@@ -591,11 +607,57 @@ paths:
           description: Created
           schema:
             $ref: '#/definitions/domain.APIKey'
-        "400":
-          description: Bad Request
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/httputil.Response'
       summary: Create a new API key
+      tags:
+      - identity
+  /auth/keys/{id}:
+    delete:
+      parameters:
+      - description: Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: Revoke an API key
+      tags:
+      - identity
+  /auth/keys/{id}/rotate:
+    post:
+      parameters:
+      - description: Key ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.APIKey'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: Rotate an API key
       tags:
       - identity
   /auth/login:
