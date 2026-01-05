@@ -107,14 +107,14 @@ internal/
 
 ---
 
-## 📊 Current Test Coverage Goals
+## 📊 Current Test Coverage
 
 | Package | Current | Target |
 |---------|---------|--------|
-| `services/` | 19% | **60%** |
-| `handlers/` | 12% | **50%** |
-| `repositories/postgres/` | 66% | **40%** |
-| `pkg/sdk/` | 51% | **50%** |
+| `services/` | **54.6%** | 60% |
+| `handlers/` | **57.0%** | 60% |
+| `handlers/ws/` | **81.6%** | 80% ✅ |
+| `pkg/sdk/` | 26% | 50% |
 
 ---
 
