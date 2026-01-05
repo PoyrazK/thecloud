@@ -22,6 +22,16 @@ To build the world's best open-source cloud platform that anyone can run, modify
 - **CloudContainers**: Managed container deployments with replication and auto-healing ([Guide](docs/services/cloud-containers.md))
 - **Console**: Interactive Next.js Dashboard for visual resource management
 
+## 🔐 Authentication
+The Cloud uses API Key authentication.
+1. **Register**: `POST /auth/register` to create an account.
+2. **Login**: `POST /auth/login` to receive your API Key.
+3. **Authenticate**: Send `X-API-Key: <your-key>` header with all requests.
+
+## 🩺 System Health
+- **Liveness**: `GET /health/live` (Returns 200 OK)
+- **Readiness**: `GET /health/ready` (Returns 200 if DB/Docker connected, 503 if not)
+
 ## 🚀 Quick Start (Backend)
 ```bash
 # 1. Clone & Setup
@@ -35,16 +45,11 @@ curl -X POST http://localhost:8080/auth/register \
 
 curl -X POST http://localhost:8080/auth/login \
   -d '{"email":"user@example.com", "password":"password"}'
-# Copy the "token" (API Key) from the response
+# Copy the "api_key" from the response
 
 # 3. Test Access
 # All protected endpoints require the X-API-Key header
 curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8080/instances
-
-For more details, see the guides:
-- [Authentication & API Keys](docs/guides/authentication.md)
-- [Deployment Guide](docs/guides/deployment.md)
-- [Compute (Instances)](docs/guides/autoscaling.md)
 ```
 
 ## 🎮 Quick Start (Console - Frontend)

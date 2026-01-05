@@ -2,6 +2,8 @@
 
 ## Authentication
 
+> **Rate Limiting**: Auth endpoints are rate-limited to 5 requests per minute per IP to prevent brute-force attacks.
+
 ### POST /auth/register
 Register a new user account.
 
@@ -33,11 +35,33 @@ Login to obtain an API Key.
 }
 ```
 
-**Response:**
+  "expires_in": 86400
+}
+```
+
+---
+
+## System Health
+
+### GET /health/live
+Liveness probe. Returns 200 OK if the process is running.
+**Response:** `{"status": "ok"}`
+
+### GET /health/ready
+Readiness probe. Checks connections to Database and Docker daemon.
+**Response (200 OK):**
 ```json
 {
-  "token": "api_key...",
-  "expires_in": 86400
+  "status": "UP",
+  "checks": { "database": "CONNECTED", "docker": "CONNECTED" },
+  "time": "..."
+}
+```
+**Response (503 Service Unavailable):**
+```json
+{
+  "status": "DEGRADED",
+  "checks": { "database": "DISCONNECTED", ... }
 }
 ```
 
@@ -292,4 +316,5 @@ Resume a job.
 | 401 | Unauthorized (Missing/Invalid API Key) |
 | 403 | Forbidden (Access denied to resource) |
 | 404 | Not Found |
+| 429 | Too Many Requests (Rate limit exceeded) |
 | 500 | Internal Server Error |
