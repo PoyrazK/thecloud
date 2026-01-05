@@ -1,13 +1,18 @@
-// Package ports defines the interfaces for the core services and repositories.
 package ports
 
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 )
 
-// AuditLogger interface for logging security events
-type AuditLogger interface {
-	Log(ctx context.Context, entry *domain.AuditLog) error
+type AuditRepository interface {
+	Create(ctx context.Context, log *domain.AuditLog) error
+	ListByUserID(ctx context.Context, userID uuid.UUID, limit int) ([]*domain.AuditLog, error)
+}
+
+type AuditService interface {
+	Log(ctx context.Context, userID uuid.UUID, action, resourceType, resourceID string, details map[string]interface{}) error
+	ListLogs(ctx context.Context, userID uuid.UUID, limit int) ([]*domain.AuditLog, error)
 }
