@@ -96,15 +96,19 @@ func main() {
 	}
 
 	// 4. Layers (Repo -> Service -> Handler)
+	auditRepo := postgres.NewAuditRepository(db)
 	userRepo := postgres.NewUserRepo(db)
 	identityRepo := postgres.NewIdentityRepository(db)
-	auditRepo := postgres.NewAuditRepository(db)
+	pwdResetRepo := postgres.NewPasswordResetRepository(db)
+
 	auditSvc := services.NewAuditService(auditRepo)
 	identitySvc := services.NewIdentityService(identityRepo, auditSvc)
 	authSvc := services.NewAuthService(userRepo, identitySvc, auditSvc)
+	pwdResetSvc := services.NewPasswordResetService(pwdResetRepo, userRepo)
+
 	auditHandler := httphandlers.NewAuditHandler(auditSvc)
 	identityHandler := httphandlers.NewIdentityHandler(identitySvc)
-	authHandler := httphandlers.NewAuthHandler(authSvc)
+	authHandler := httphandlers.NewAuthHandler(authSvc, pwdResetSvc)
 
 	instanceRepo := postgres.NewInstanceRepository(db)
 	vpcRepo := postgres.NewVpcRepository(db)
@@ -220,6 +224,8 @@ func main() {
 	// Identity Routes
 	r.POST("/auth/register", authMiddleware, authHandler.Register)
 	r.POST("/auth/login", authMiddleware, authHandler.Login)
+	r.POST("/auth/forgot-password", authMiddleware, authHandler.ForgotPassword)
+	r.POST("/auth/reset-password", authMiddleware, authHandler.ResetPassword)
 
 	keyGroup := r.Group("/auth/keys")
 	keyGroup.Use(httputil.Auth(identitySvc))

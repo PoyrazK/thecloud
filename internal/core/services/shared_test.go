@@ -857,3 +857,18 @@ func (m *MockDockerClient) Ping(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
 }
+
+// MockPasswordResetService
+type MockPasswordResetService struct {
+	mock.Mock
+}
+
+func (m *MockPasswordResetService) RequestReset(ctx context.Context, email string) error {
+	args := m.Called(ctx, email)
+	return args.Error(0)
+}
+
+func (m *MockPasswordResetService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	args := m.Called(ctx, token, newPassword)
+	return args.Error(0)
+}

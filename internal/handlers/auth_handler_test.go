@@ -43,10 +43,25 @@ func (m *mockAuthService) ValidateUser(ctx context.Context, userID uuid.UUID) (*
 	return args.Get(0).(*domain.User), args.Error(1)
 }
 
+type mockPasswordResetService struct {
+	mock.Mock
+}
+
+func (m *mockPasswordResetService) RequestReset(ctx context.Context, email string) error {
+	args := m.Called(ctx, email)
+	return args.Error(0)
+}
+
+func (m *mockPasswordResetService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	args := m.Called(ctx, token, newPassword)
+	return args.Error(0)
+}
+
 func TestAuthHandler_Register(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockAuthService)
-	handler := NewAuthHandler(svc)
+	pwdSvc := new(mockPasswordResetService)
+	handler := NewAuthHandler(svc, pwdSvc)
 
 	r := gin.New()
 	r.POST("/auth/register", handler.Register)
@@ -69,7 +84,8 @@ func TestAuthHandler_Register(t *testing.T) {
 func TestAuthHandler_Login(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockAuthService)
-	handler := NewAuthHandler(svc)
+	pwdSvc := new(mockPasswordResetService)
+	handler := NewAuthHandler(svc, pwdSvc)
 
 	r := gin.New()
 	r.POST("/auth/login", handler.Login)
