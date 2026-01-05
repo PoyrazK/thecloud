@@ -87,3 +87,141 @@ func TestInstanceHandler_LaunchRejectsEmptyImage(t *testing.T) {
 	assert.Equal(t, "INVALID_INPUT", wrapper.Error.Type)
 	mockSvc.AssertNotCalled(t, "LaunchInstance", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestInstanceHandler_Launch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.POST("/instances", handler.Launch)
+
+	inst := &domain.Instance{ID: uuid.New(), Name: "test-inst"}
+	mockSvc.On("LaunchInstance", mock.Anything, "test-inst", "alpine", "", (*uuid.UUID)(nil), []domain.VolumeAttachment(nil)).Return(inst, nil)
+
+	body := `{"name":"test-inst","image":"alpine"}`
+	req := httptest.NewRequest(http.MethodPost, "/instances", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInstanceHandler_List(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.GET("/instances", handler.List)
+
+	instances := []*domain.Instance{{ID: uuid.New(), Name: "test-inst"}}
+	mockSvc.On("ListInstances", mock.Anything).Return(instances, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/instances", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInstanceHandler_Get(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.GET("/instances/:id", handler.Get)
+
+	id := uuid.New().String()
+	inst := &domain.Instance{ID: uuid.MustParse(id), Name: "test-inst"}
+	mockSvc.On("GetInstance", mock.Anything, id).Return(inst, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/instances/"+id, nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInstanceHandler_Stop(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.POST("/instances/:id/stop", handler.Stop)
+
+	id := uuid.New().String()
+	mockSvc.On("StopInstance", mock.Anything, id).Return(nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/instances/"+id+"/stop", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInstanceHandler_Terminate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.DELETE("/instances/:id", handler.Terminate)
+
+	id := uuid.New().String()
+	mockSvc.On("TerminateInstance", mock.Anything, id).Return(nil)
+
+	req := httptest.NewRequest(http.MethodDelete, "/instances/"+id, nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInstanceHandler_GetLogs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.GET("/instances/:id/logs", handler.GetLogs)
+
+	id := uuid.New().String()
+	mockSvc.On("GetInstanceLogs", mock.Anything, id).Return("logs content", nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/instances/"+id+"/logs", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "logs content", w.Body.String())
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInstanceHandler_GetStats(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.GET("/instances/:id/stats", handler.GetStats)
+
+	id := uuid.New().String()
+	stats := &domain.InstanceStats{CPUPercentage: 10.5, MemoryUsageBytes: 128}
+	mockSvc.On("GetInstanceStats", mock.Anything, id).Return(stats, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/instances/"+id+"/stats", nil)
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}

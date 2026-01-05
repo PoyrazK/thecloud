@@ -36,7 +36,7 @@ This document provides a comprehensive overview of every feature currently imple
 **What it is**: Store and retrieve files (blobs) via API.
 **Tech Stack**: Go (IO/FS), Local Filesystem.
 **Implementation**:
-- **Storage Backend**: Files are stored in a dedicated local directory (`miniaws-data/storage`).
+- **Storage Backend**: Files are stored in a dedicated local directory (`thecloud-data/storage`).
 - **API**: Implements standard HTTP PUT/GET methods.
 - **Streaming**: Uses `io.Reader/Writer` to stream data efficiently without loading entire files into RAM.
 

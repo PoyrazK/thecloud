@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"net/http/httputil"
 
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
@@ -22,4 +23,5 @@ type GatewayService interface {
 	ListRoutes(ctx context.Context) ([]*domain.GatewayRoute, error)
 	DeleteRoute(ctx context.Context, id uuid.UUID) error
 	RefreshRoutes(ctx context.Context) error
+	GetProxy(path string) (*httputil.ReverseProxy, bool)
 }

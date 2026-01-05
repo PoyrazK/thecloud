@@ -6,16 +6,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/poyrazk/thecloud/internal/core/services"
+	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/httputil"
 )
 
 type GatewayHandler struct {
-	svc *services.GatewayService
+	svc ports.GatewayService
 }
 
-func NewGatewayHandler(svc *services.GatewayService) *GatewayHandler {
+func NewGatewayHandler(svc ports.GatewayService) *GatewayHandler {
 	return &GatewayHandler{svc: svc}
 }
 

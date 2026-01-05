@@ -41,12 +41,12 @@ func (w *CronWorker) Run(ctx context.Context, wg *sync.WaitGroup) {
 			log.Println("CloudCron Worker stopping")
 			return
 		case <-ticker.C:
-			w.processJobs(ctx)
+			w.ProcessJobs(ctx)
 		}
 	}
 }
 
-func (w *CronWorker) processJobs(ctx context.Context) {
+func (w *CronWorker) ProcessJobs(ctx context.Context) {
 	jobs, err := w.repo.GetNextJobsToRun(ctx)
 	if err != nil {
 		log.Printf("CronWorker: failed to fetch jobs: %v", err)
