@@ -17,11 +17,12 @@ import (
 type SecretService struct {
 	repo      ports.SecretRepository
 	eventSvc  ports.EventService
+	auditSvc  ports.AuditService
 	logger    *slog.Logger
 	masterKey []byte
 }
 
-func NewSecretService(repo ports.SecretRepository, eventSvc ports.EventService, logger *slog.Logger, masterKey string, environment string) *SecretService {
+func NewSecretService(repo ports.SecretRepository, eventSvc ports.EventService, auditSvc ports.AuditService, logger *slog.Logger, masterKey string, environment string) *SecretService {
 	if masterKey == "" {
 		if environment == "production" {
 			// In production, we MUST have a key
@@ -40,6 +41,7 @@ func NewSecretService(repo ports.SecretRepository, eventSvc ports.EventService, 
 	return &SecretService{
 		repo:      repo,
 		eventSvc:  eventSvc,
+		auditSvc:  auditSvc,
 		logger:    logger,
 		masterKey: []byte(masterKey),
 	}
@@ -80,8 +82,11 @@ func (s *SecretService) CreateSecret(ctx context.Context, name, value, descripti
 		"name": name,
 	})
 
+	_ = s.auditSvc.Log(ctx, userID, "secret.create", "secret", secret.ID.String(), map[string]interface{}{
+		"name": name,
+	})
+
 	// Redact value for response if needed, but here domain object has it.
-	// Usually we return the object without the value or encrypted value in some contexts.
 	return secret, nil
 }
 
@@ -110,6 +115,10 @@ func (s *SecretService) GetSecret(ctx context.Context, id uuid.UUID) (*domain.Se
 		"name": secret.Name,
 	})
 
+	_ = s.auditSvc.Log(ctx, secret.UserID, "secret.access", "secret", secret.ID.String(), map[string]interface{}{
+		"name": secret.Name,
+	})
+
 	secret.EncryptedValue = string(decrypted) // Re-use field for plaintext in response
 	return secret, nil
 }
@@ -135,6 +144,10 @@ func (s *SecretService) GetSecretByName(ctx context.Context, name string) (*doma
 	_ = s.repo.Update(ctx, secret)
 
 	_ = s.eventSvc.RecordEvent(ctx, "SECRET_ACCESS", secret.ID.String(), "SECRET", map[string]interface{}{
+		"name": secret.Name,
+	})
+
+	_ = s.auditSvc.Log(ctx, secret.UserID, "secret.access", "secret", secret.ID.String(), map[string]interface{}{
 		"name": secret.Name,
 	})
 
@@ -167,6 +180,10 @@ func (s *SecretService) DeleteSecret(ctx context.Context, id uuid.UUID) error {
 	}
 
 	_ = s.eventSvc.RecordEvent(ctx, "SECRET_DELETE", id.String(), "SECRET", map[string]interface{}{
+		"name": secret.Name,
+	})
+
+	_ = s.auditSvc.Log(ctx, secret.UserID, "secret.delete", "secret", id.String(), map[string]interface{}{
 		"name": secret.Name,
 	})
 

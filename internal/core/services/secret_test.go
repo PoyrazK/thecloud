@@ -53,10 +53,11 @@ func (m *MockSecretRepo) Delete(ctx context.Context, id uuid.UUID) error {
 func TestSecretService_CreateAndGet(t *testing.T) {
 	repo := new(MockSecretRepo)
 	eventSvc := new(MockEventService)
+	auditSvc := new(MockAuditService)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	key := "test-key-must-be-32-bytes-long---"
-	svc := services.NewSecretService(repo, eventSvc, logger, key, "development")
+	svc := services.NewSecretService(repo, eventSvc, auditSvc, logger, key, "development")
 	userID := uuid.New()
 	ctxWithUser := setupTestUserCtx(userID) // Helper needed or inline
 
@@ -93,10 +94,11 @@ func setupTestUserCtx(userID uuid.UUID) context.Context {
 func TestSecretService_Delete(t *testing.T) {
 	repo := new(MockSecretRepo)
 	eventSvc := new(MockEventService)
+	auditSvc := new(MockAuditService)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	key := "test-key-must-be-32-bytes-long---"
-	svc := services.NewSecretService(repo, eventSvc, logger, key, "development")
+	svc := services.NewSecretService(repo, eventSvc, auditSvc, logger, key, "development")
 	ctx := context.Background()
 	secretID := uuid.New()
 
@@ -114,10 +116,11 @@ func TestSecretService_Delete(t *testing.T) {
 func TestSecretService_List(t *testing.T) {
 	repo := new(MockSecretRepo)
 	eventSvc := new(MockEventService)
+	auditSvc := new(MockAuditService)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	key := "test-key-must-be-32-bytes-long---"
-	svc := services.NewSecretService(repo, eventSvc, logger, key, "development")
+	svc := services.NewSecretService(repo, eventSvc, auditSvc, logger, key, "development")
 	ctx := context.Background()
 
 	secrets := []*domain.Secret{

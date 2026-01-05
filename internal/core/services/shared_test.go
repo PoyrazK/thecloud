@@ -651,3 +651,33 @@ func (m *MockContainerRepo) ListAllDeployments(ctx context.Context) ([]*domain.D
 	}
 	return args.Get(0).([]*domain.Deployment), args.Error(1)
 }
+
+// MockAuditRepo
+type MockAuditRepo struct{ mock.Mock }
+
+func (m *MockAuditRepo) Create(ctx context.Context, log *domain.AuditLog) error {
+	args := m.Called(ctx, log)
+	return args.Error(0)
+}
+func (m *MockAuditRepo) ListByUserID(ctx context.Context, userID uuid.UUID, limit int) ([]*domain.AuditLog, error) {
+	args := m.Called(ctx, userID, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.AuditLog), args.Error(1)
+}
+
+// MockAuditService
+type MockAuditService struct{ mock.Mock }
+
+func (m *MockAuditService) Log(ctx context.Context, userID uuid.UUID, action, resourceType, resourceID string, details map[string]interface{}) error {
+	args := m.Called(ctx, userID, action, resourceType, resourceID, details)
+	return args.Error(0)
+}
+func (m *MockAuditService) ListLogs(ctx context.Context, userID uuid.UUID, limit int) ([]*domain.AuditLog, error) {
+	args := m.Called(ctx, userID, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.AuditLog), args.Error(1)
+}

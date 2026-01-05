@@ -48,7 +48,8 @@ func (m *MockIdentityRepo) DeleteAPIKey(ctx context.Context, id uuid.UUID) error
 
 func TestIdentityService_CreateKey_Success(t *testing.T) {
 	repo := new(MockIdentityRepo)
-	svc := services.NewIdentityService(repo)
+	audit := new(MockAuditService)
+	svc := services.NewIdentityService(repo, audit)
 	ctx := context.Background()
 	userID := uuid.New()
 
@@ -67,7 +68,8 @@ func TestIdentityService_CreateKey_Success(t *testing.T) {
 
 func TestIdentityService_ValidateAPIKey_Success(t *testing.T) {
 	repo := new(MockIdentityRepo)
-	svc := services.NewIdentityService(repo)
+	audit := new(MockAuditService)
+	svc := services.NewIdentityService(repo, audit)
 	ctx := context.Background()
 
 	keyStr := "thecloud_abc123"
@@ -86,7 +88,8 @@ func TestIdentityService_ValidateAPIKey_Success(t *testing.T) {
 
 func TestIdentityService_ValidateAPIKey_NotFound(t *testing.T) {
 	repo := new(MockIdentityRepo)
-	svc := services.NewIdentityService(repo)
+	audit := new(MockAuditService)
+	svc := services.NewIdentityService(repo, audit)
 	ctx := context.Background()
 
 	repo.On("GetAPIKeyByKey", ctx, "invalid-key").Return(nil, assert.AnError)

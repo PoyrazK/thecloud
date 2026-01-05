@@ -98,8 +98,11 @@ func main() {
 	// 4. Layers (Repo -> Service -> Handler)
 	userRepo := postgres.NewUserRepo(db)
 	identityRepo := postgres.NewIdentityRepository(db)
-	identitySvc := services.NewIdentityService(identityRepo)
+	auditRepo := postgres.NewAuditRepository(db)
+	auditSvc := services.NewAuditService(auditRepo)
+	identitySvc := services.NewIdentityService(identityRepo, auditSvc)
 	authSvc := services.NewAuthService(userRepo, identitySvc)
+	auditHandler := httphandlers.NewAuditHandler(auditSvc)
 	identityHandler := httphandlers.NewIdentityHandler(identitySvc)
 	authHandler := httphandlers.NewAuthHandler(authSvc)
 
@@ -147,7 +150,7 @@ func main() {
 	databaseHandler := httphandlers.NewDatabaseHandler(databaseSvc)
 
 	secretRepo := postgres.NewSecretRepository(db)
-	secretSvc := services.NewSecretService(secretRepo, eventSvc, logger, cfg.SecretsEncryptionKey, cfg.Environment)
+	secretSvc := services.NewSecretService(secretRepo, eventSvc, auditSvc, logger, cfg.SecretsEncryptionKey, cfg.Environment)
 	secretHandler := httphandlers.NewSecretHandler(secretSvc)
 
 	fnRepo := postgres.NewFunctionRepository(db)
@@ -285,6 +288,13 @@ func main() {
 	eventGroup.Use(httputil.Auth(identitySvc))
 	{
 		eventGroup.GET("", eventHandler.List)
+	}
+
+	// Audit Routes (Protected)
+	auditGroup := r.Group("/audit")
+	auditGroup.Use(httputil.Auth(identitySvc))
+	{
+		auditGroup.GET("", auditHandler.ListLogs)
 	}
 
 	// Volume Routes (Protected)

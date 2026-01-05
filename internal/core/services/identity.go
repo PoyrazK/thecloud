@@ -13,11 +13,12 @@ import (
 )
 
 type IdentityService struct {
-	repo ports.IdentityRepository
+	repo     ports.IdentityRepository
+	auditSvc ports.AuditService
 }
 
-func NewIdentityService(repo ports.IdentityRepository) *IdentityService {
-	return &IdentityService{repo: repo}
+func NewIdentityService(repo ports.IdentityRepository, auditSvc ports.AuditService) *IdentityService {
+	return &IdentityService{repo: repo, auditSvc: auditSvc}
 }
 
 func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.APIKey, error) {
@@ -28,19 +29,24 @@ func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name 
 	}
 	keyStr := "thecloud_" + hex.EncodeToString(b)
 
-	apiKey := &domain.APIKey{
+	key := &domain.APIKey{
 		ID:        uuid.New(),
 		UserID:    userID,
-		Key:       keyStr,
 		Name:      name,
+		Key:       keyStr,
 		CreatedAt: time.Now(),
 	}
 
-	if err := s.repo.CreateAPIKey(ctx, apiKey); err != nil {
+	if err := s.repo.CreateAPIKey(ctx, key); err != nil {
 		return nil, err
 	}
 
-	return apiKey, nil
+	// Log audit event
+	_ = s.auditSvc.Log(ctx, userID, "api_key.create", "api_key", key.ID.String(), map[string]interface{}{
+		"name": name,
+	})
+
+	return key, nil
 }
 
 func (s *IdentityService) ValidateAPIKey(ctx context.Context, key string) (*domain.APIKey, error) {
@@ -65,7 +71,16 @@ func (s *IdentityService) RevokeKey(ctx context.Context, userID uuid.UUID, id uu
 		return errors.New(errors.Forbidden, "cannot revoke key owned by another user")
 	}
 
-	return s.repo.DeleteAPIKey(ctx, id)
+	if err := s.repo.DeleteAPIKey(ctx, id); err != nil {
+		return err
+	}
+
+	// Log audit event
+	_ = s.auditSvc.Log(ctx, userID, "api_key.revoke", "api_key", id.String(), map[string]interface{}{
+		"name": key.Name,
+	})
+
+	return nil
 }
 
 func (s *IdentityService) RotateKey(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*domain.APIKey, error) {
@@ -89,6 +104,12 @@ func (s *IdentityService) RotateKey(ctx context.Context, userID uuid.UUID, id uu
 		// Log error but we already have a new key
 		return newKey, nil
 	}
+
+	// Log audit event
+	_ = s.auditSvc.Log(ctx, userID, "api_key.rotate", "api_key", id.String(), map[string]interface{}{
+		"name":   key.Name,
+		"new_id": newKey.ID.String(),
+	})
 
 	return newKey, nil
 }
