@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: thecloud-api-pdb
+  namespace: thecloud
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: thecloud-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-pdb
+  namespace: thecloud
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: postgres

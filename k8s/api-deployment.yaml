@@ -1,54 +1,98 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-deployment
+  name: thecloud-api
   namespace: thecloud
+  labels:
+    app: thecloud-api
+    tier: backend
+    version: v1
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
-      app: api
+      app: thecloud-api
   template:
     metadata:
       labels:
-        app: api
+        app: thecloud-api
+        tier: backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: thecloud-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
       containers:
-      - name: api
-        image: thecloud:latest
-        ports:
-        - containerPort: 8080
-        envFrom:
-        - configMapRef:
-            name: api-config
-        env:
-        - name: SECRETS_ENCRYPTION_KEY
-          valueFrom:
-            secretKeyRef:
-              name: api-secrets
-              key: SECRETS_ENCRYPTION_KEY
-        volumeMounts:
-        - name: docker-sock
-          mountPath: /var/run/docker.sock
-        - name: data
-          mountPath: /app/thecloud-data
+        - name: api
+          image: ghcr.io/poyrazk/thecloud:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: api-config
+          env:
+            - name: SECRETS_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: SECRETS_ENCRYPTION_KEY
+            - name: PORT
+              value: "8080"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: docker-sock
+              mountPath: /var/run/docker.sock
+            - name: data
+              mountPath: /app/thecloud-data
       volumes:
-      - name: docker-sock
-        hostPath:
-          path: /var/run/docker.sock
-      - name: data
-        emptyDir: {}
+        - name: docker-sock
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+        - name: data
+          emptyDir:
+            sizeLimit: 10Gi
 ---
 apiVersion: v1
-kind: Service
+kind: ServiceAccount
 metadata:
-  name: api-service
+  name: thecloud-api
   namespace: thecloud
-spec:
-  selector:
-    app: api
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 8080
-  type: LoadBalancer
+  labels:
+    app: thecloud-api

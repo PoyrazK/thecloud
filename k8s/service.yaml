@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: thecloud-api
+  namespace: thecloud
+  labels:
+    app: thecloud-api
+    tier: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: thecloud-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: thecloud
+  labels:
+    app: postgres
+    tier: database
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+  clusterIP: None  # Headless service for StatefulSet
