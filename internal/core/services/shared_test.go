@@ -11,6 +11,72 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// MockUserRepo
+type MockUserRepo struct {
+	mock.Mock
+}
+
+func (m *MockUserRepo) Create(ctx context.Context, user *domain.User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+func (m *MockUserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+func (m *MockUserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	args := m.Called(ctx, email)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.User), args.Error(1)
+}
+func (m *MockUserRepo) Update(ctx context.Context, user *domain.User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
+// MockIdentityService
+type MockIdentityService struct {
+	mock.Mock
+}
+
+func (m *MockIdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.APIKey, error) {
+	args := m.Called(ctx, userID, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.APIKey), args.Error(1)
+}
+func (m *MockIdentityService) ValidateAPIKey(ctx context.Context, key string) (*domain.APIKey, error) {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.APIKey), args.Error(1)
+}
+func (m *MockIdentityService) ListKeys(ctx context.Context, userID uuid.UUID) ([]*domain.APIKey, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.APIKey), args.Error(1)
+}
+func (m *MockIdentityService) RevokeKey(ctx context.Context, userID, id uuid.UUID) error {
+	args := m.Called(ctx, userID, id)
+	return args.Error(0)
+}
+func (m *MockIdentityService) RotateKey(ctx context.Context, userID, id uuid.UUID) (*domain.APIKey, error) {
+	args := m.Called(ctx, userID, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.APIKey), args.Error(1)
+}
+
 // MockAutoScalingRepo
 type MockAutoScalingRepo struct{ mock.Mock }
 
