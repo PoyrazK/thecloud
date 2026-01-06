@@ -11,6 +11,8 @@ CREATE TABLE stacks (
     UNIQUE(user_id, name)
 );
 
+CREATE INDEX idx_stacks_status ON stacks(status);
+
 CREATE TABLE stack_resources (
     id UUID PRIMARY KEY,
     stack_id UUID NOT NULL REFERENCES stacks(id) ON DELETE CASCADE,

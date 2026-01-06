@@ -160,8 +160,6 @@ Resources:
 		return s.Status == domain.StackStatusRollbackInProgress
 	})).Return(nil)
 
-	// stackID unused
-
 	// Mock ListResources for rollback (simulating DB state)
 	// Since we mock AddResource, the repo doesn't actually store it. We have to mock ListResources to return what would have been there.
 	repo.On("ListResources", mock.Anything, mock.Anything).Return([]domain.StackResource{

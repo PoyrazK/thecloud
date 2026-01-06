@@ -53,7 +53,11 @@ type ResourceDefinition struct {
 func (s *stackService) CreateStack(ctx context.Context, name, templateStr string, parameters map[string]string) (*domain.Stack, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 
-	paramsJSON, _ := json.Marshal(parameters)
+	paramsJSON, err := json.Marshal(parameters)
+	if err != nil {
+		s.logger.Error("failed to marshal stack parameters to JSON", "stackName", name, "error", err)
+		return nil, fmt.Errorf("create stack: marshal parameters: %w", err)
+	}
 	stack := &domain.Stack{
 		ID:         uuid.New(),
 		UserID:     userID,
@@ -66,20 +70,22 @@ func (s *stackService) CreateStack(ctx context.Context, name, templateStr string
 	}
 
 	if err := s.repo.Create(ctx, stack); err != nil {
+		if err == domain.ErrStackNameAlreadyExists {
+			return nil, fmt.Errorf("stack with name '%s' already exists", name)
+		}
 		return nil, err
 	}
 
-	// Process in background
-	// Process in background
-	// Create a copy for the goroutine to avoid data race with the returned stack
+	// Process in background with a detached context to prevent request cancellation
+	// from interrupting resource provisioning, but with a reasonable timeout
 	stackCopy := *stack
-	go s.processStack(&stackCopy)
+	go s.processStack(context.Background(), &stackCopy)
 
 	return stack, nil
 }
 
-func (s *stackService) processStack(stack *domain.Stack) {
-	ctx := context.Background()
+func (s *stackService) processStack(ctx context.Context, stack *domain.Stack) {
+	// Attach user ID to the context for authorization checks
 	ctx = appcontext.WithUserID(ctx, stack.UserID)
 
 	var t Template
@@ -168,25 +174,29 @@ func (s *stackService) rollbackStack(ctx context.Context, stackID uuid.UUID) err
 	// Delete resources in reverse creation order
 	for i := len(resources) - 1; i >= 0; i-- {
 		res := resources[i]
-		s.deletePhysicalResource(ctx, res.ResourceType, res.PhysicalID)
+		if err := s.deletePhysicalResource(ctx, res.ResourceType, res.PhysicalID); err != nil {
+			s.logger.Error("failed to delete resource during rollback", "resourceType", res.ResourceType, "physicalID", res.PhysicalID, "error", err)
+		}
 	}
 
 	return s.repo.DeleteResources(ctx, stackID)
 }
 
-func (s *stackService) deletePhysicalResource(ctx context.Context, resourceType, physicalID string) {
+func (s *stackService) deletePhysicalResource(ctx context.Context, resourceType, physicalID string) error {
 	switch resourceType {
 	case "Instance":
-		_ = s.instanceSvc.TerminateInstance(ctx, physicalID)
+		return s.instanceSvc.TerminateInstance(ctx, physicalID)
 	case "VPC":
-		_ = s.vpcSvc.DeleteVPC(ctx, physicalID)
+		return s.vpcSvc.DeleteVPC(ctx, physicalID)
 	case "Volume":
-		_ = s.volumeSvc.DeleteVolume(ctx, physicalID)
+		return s.volumeSvc.DeleteVolume(ctx, physicalID)
 	case "Snapshot":
 		if physID, err := uuid.Parse(physicalID); err == nil {
-			_ = s.snapshotSvc.DeleteSnapshot(ctx, physID)
+			return s.snapshotSvc.DeleteSnapshot(ctx, physID)
 		}
+		return fmt.Errorf("invalid snapshot physical ID: %s", physicalID)
 	}
+	return nil
 }
 
 func (s *stackService) resolveRefs(props map[string]interface{}, refs map[string]uuid.UUID) map[string]interface{} {
@@ -218,7 +228,7 @@ func (s *stackService) createVPC(ctx context.Context, stackID uuid.UUID, logical
 		return uuid.Nil, err
 	}
 
-	_ = s.repo.AddResource(ctx, &domain.StackResource{
+	if err := s.repo.AddResource(ctx, &domain.StackResource{
 		ID:           uuid.New(),
 		StackID:      stackID,
 		LogicalID:    logicalID,
@@ -226,14 +236,31 @@ func (s *stackService) createVPC(ctx context.Context, stackID uuid.UUID, logical
 		ResourceType: "VPC",
 		Status:       "CREATE_COMPLETE",
 		CreatedAt:    time.Now(),
-	})
+	}); err != nil {
+		s.logger.Error("failed to add VPC resource to stack", "stackID", stackID, "logicalID", logicalID, "error", err)
+		return uuid.Nil, fmt.Errorf("add VPC resource: %w", err)
+	}
 
 	return vpc.ID, nil
 }
 
 func (s *stackService) createVolume(ctx context.Context, stackID uuid.UUID, logicalID string, props map[string]interface{}) (uuid.UUID, error) {
 	name, _ := props["Name"].(string)
-	size, _ := props["Size"].(int)
+	size := 0
+	if rawSize, ok := props["Size"]; ok {
+		switch v := rawSize.(type) {
+		case int:
+			size = v
+		case int64:
+			size = int(v)
+		case float64:
+			size = int(v)
+		case uint:
+			size = int(v)
+		case uint64:
+			size = int(v)
+		}
+	}
 	if size == 0 {
 		size = 10
 	}
@@ -247,7 +274,7 @@ func (s *stackService) createVolume(ctx context.Context, stackID uuid.UUID, logi
 		return uuid.Nil, err
 	}
 
-	_ = s.repo.AddResource(ctx, &domain.StackResource{
+	if err := s.repo.AddResource(ctx, &domain.StackResource{
 		ID:           uuid.New(),
 		StackID:      stackID,
 		LogicalID:    logicalID,
@@ -255,7 +282,10 @@ func (s *stackService) createVolume(ctx context.Context, stackID uuid.UUID, logi
 		ResourceType: "Volume",
 		Status:       "CREATE_COMPLETE",
 		CreatedAt:    time.Now(),
-	})
+	}); err != nil {
+		s.logger.Error("failed to add Volume resource to stack", "stackID", stackID, "logicalID", logicalID, "error", err)
+		return uuid.Nil, fmt.Errorf("add Volume resource: %w", err)
+	}
 
 	return vol.ID, nil
 }
@@ -276,7 +306,7 @@ func (s *stackService) createSnapshot(ctx context.Context, stackID uuid.UUID, lo
 		return uuid.Nil, err
 	}
 
-	_ = s.repo.AddResource(ctx, &domain.StackResource{
+	if err := s.repo.AddResource(ctx, &domain.StackResource{
 		ID:           uuid.New(),
 		StackID:      stackID,
 		LogicalID:    logicalID,
@@ -284,7 +314,10 @@ func (s *stackService) createSnapshot(ctx context.Context, stackID uuid.UUID, lo
 		ResourceType: "Snapshot",
 		Status:       "CREATE_IN_PROGRESS",
 		CreatedAt:    time.Now(),
-	})
+	}); err != nil {
+		s.logger.Error("failed to add Snapshot resource to stack", "stackID", stackID, "logicalID", logicalID, "error", err)
+		return uuid.Nil, fmt.Errorf("add Snapshot resource: %w", err)
+	}
 
 	return snap.ID, nil
 }
@@ -304,12 +337,17 @@ func (s *stackService) createInstance(ctx context.Context, stackID uuid.UUID, lo
 		vpcIDPtr = &vpcID
 	}
 
-	inst, err := s.instanceSvc.LaunchInstance(ctx, name, image, "80", vpcIDPtr, nil)
+	port := "80"
+	if p, ok := props["Port"].(string); ok && p != "" {
+		port = p
+	}
+
+	inst, err := s.instanceSvc.LaunchInstance(ctx, name, image, port, vpcIDPtr, nil)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	_ = s.repo.AddResource(ctx, &domain.StackResource{
+	if err := s.repo.AddResource(ctx, &domain.StackResource{
 		ID:           uuid.New(),
 		StackID:      stackID,
 		LogicalID:    logicalID,
@@ -317,7 +355,10 @@ func (s *stackService) createInstance(ctx context.Context, stackID uuid.UUID, lo
 		ResourceType: "Instance",
 		Status:       "CREATE_COMPLETE",
 		CreatedAt:    time.Now(),
-	})
+	}); err != nil {
+		s.logger.Error("failed to add Instance resource to stack", "stackID", stackID, "logicalID", logicalID, "error", err)
+		return uuid.Nil, fmt.Errorf("add Instance resource: %w", err)
+	}
 
 	return inst.ID, nil
 }
@@ -326,11 +367,25 @@ func (s *stackService) updateStackStatus(ctx context.Context, stack *domain.Stac
 	stack.Status = status
 	stack.StatusReason = reason
 	stack.UpdatedAt = time.Now()
-	_ = s.repo.Update(ctx, stack)
+	if err := s.repo.Update(ctx, stack); err != nil {
+		slog.ErrorContext(ctx, "failed to update stack status", "stack_id", stack.ID, "status", status, "reason", reason, "error", err)
+	}
 }
 
 func (s *stackService) GetStack(ctx context.Context, id uuid.UUID) (*domain.Stack, error) {
-	return s.repo.GetByID(ctx, id)
+	userID := appcontext.UserIDFromContext(ctx)
+
+	stack, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if stack.UserID != userID {
+		// Do not reveal existence of stacks owned by other users
+		return nil, fmt.Errorf("stack not found")
+	}
+
+	return stack, nil
 }
 
 func (s *stackService) ListStacks(ctx context.Context) ([]*domain.Stack, error) {
@@ -345,19 +400,46 @@ func (s *stackService) DeleteStack(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	// 2. Perform background deletion
-	go func() {
-		bgCtx := context.Background()
-		bgCtx = appcontext.WithUserID(bgCtx, stack.UserID)
+	// 2. Authorization: ensure the requesting user owns the stack
+	userID := appcontext.UserIDFromContext(ctx)
+	if userID != stack.UserID {
+		return fmt.Errorf("user not authorized to delete this stack")
+	}
 
-		resources, _ := s.repo.ListResources(bgCtx, id)
+	// 3. Perform background deletion with detached context
+	// Use background context to ensure cleanup completes even if request is cancelled
+	go func() {
+		deleteCtx := context.Background()
+		deleteCtx = appcontext.WithUserID(deleteCtx, stack.UserID)
+
+		resources, err := s.repo.ListResources(deleteCtx, id)
+		if err != nil {
+			s.logger.Error("failed to list stack resources for deletion",
+				"stackID", id,
+				"error", err,
+			)
+			return
+		}
 
 		// Delete resources in reverse order (naive)
 		for i := len(resources) - 1; i >= 0; i-- {
-			s.deletePhysicalResource(bgCtx, resources[i].ResourceType, resources[i].PhysicalID)
+			resource := resources[i]
+			if err := s.deletePhysicalResource(deleteCtx, resource.ResourceType, resource.PhysicalID); err != nil {
+				s.logger.Error("failed to delete physical resource",
+					"stackID", id,
+					"resourceType", resource.ResourceType,
+					"physicalID", resource.PhysicalID,
+					"error", err,
+				)
+			}
 		}
 
-		_ = s.repo.Delete(bgCtx, id)
+		if err := s.repo.Delete(deleteCtx, id); err != nil {
+			s.logger.Error("failed to delete stack record",
+				"stackID", id,
+				"error", err,
+			)
+		}
 	}()
 
 	return nil

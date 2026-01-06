@@ -2,9 +2,14 @@ package domain
 
 import (
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrStackNameAlreadyExists = errors.New("stack with this name already exists")
 )
 
 type StackStatus string

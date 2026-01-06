@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 )
@@ -20,6 +22,16 @@ func (r *stackRepository) Create(ctx context.Context, s *domain.Stack) error {
 	_, err := r.db.Exec(ctx,
 		"INSERT INTO stacks (id, user_id, name, template, parameters, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
 		s.ID, s.UserID, s.Name, s.Template, s.Parameters, s.Status, s.CreatedAt, s.UpdatedAt)
+	
+	// Check for unique constraint violation on (user_id, name)
+	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			// Unique constraint violation
+			if strings.Contains(pgErr.ConstraintName, "user_id") || strings.Contains(pgErr.ConstraintName, "name") {
+				return domain.ErrStackNameAlreadyExists
+			}
+		}
+	}
 	return err
 }
 
@@ -68,6 +80,9 @@ func (r *stackRepository) ListByUserID(ctx context.Context, userID uuid.UUID) ([
 		}
 		stacks = append(stacks, s)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return stacks, nil
 }
 
@@ -106,6 +121,9 @@ func (r *stackRepository) ListResources(ctx context.Context, stackID uuid.UUID) 
 			return nil, err
 		}
 		resources = append(resources, res)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return resources, nil
 }
