@@ -872,3 +872,47 @@ func (m *MockPasswordResetService) ResetPassword(ctx context.Context, token, new
 	args := m.Called(ctx, token, newPassword)
 	return args.Error(0)
 }
+
+// MockSnapshotRepo
+type MockSnapshotRepo struct {
+	mock.Mock
+}
+
+func (m *MockSnapshotRepo) Create(ctx context.Context, s *domain.Snapshot) error {
+	args := m.Called(ctx, s)
+	return args.Error(0)
+}
+
+func (m *MockSnapshotRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Snapshot, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Snapshot), args.Error(1)
+}
+
+func (m *MockSnapshotRepo) ListByVolumeID(ctx context.Context, volumeID uuid.UUID) ([]*domain.Snapshot, error) {
+	args := m.Called(ctx, volumeID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Snapshot), args.Error(1)
+}
+
+func (m *MockSnapshotRepo) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.Snapshot, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Snapshot), args.Error(1)
+}
+
+func (m *MockSnapshotRepo) Update(ctx context.Context, s *domain.Snapshot) error {
+	args := m.Called(ctx, s)
+	return args.Error(0)
+}
+
+func (m *MockSnapshotRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
