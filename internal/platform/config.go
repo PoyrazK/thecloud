@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL          string
 	Environment          string
 	SecretsEncryptionKey string
+	ComputeBackend       string
 }
 
 func NewConfig() (*Config, error) {
@@ -22,6 +23,7 @@ func NewConfig() (*Config, error) {
 		DatabaseURL:          getEnv("DATABASE_URL", "postgres://cloud:cloud@localhost:5433/thecloud"),
 		Environment:          getEnv("APP_ENV", "development"),
 		SecretsEncryptionKey: os.Getenv("SECRETS_ENCRYPTION_KEY"),
+		ComputeBackend:       getEnv("COMPUTE_BACKEND", "docker"),
 	}, nil
 }
 

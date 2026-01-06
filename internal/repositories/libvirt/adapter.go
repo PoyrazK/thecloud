@@ -63,14 +63,7 @@ func (a *LibvirtAdapter) CreateInstance(ctx context.Context, name, imageName str
 
 	// Create root disk for the VM
 	// For simplicity, we just create an empty 10GB qcows if image not found, or clone if we knew how (omitted for brevity)
-	volXML := fmt.Sprintf(`
-<volume>
-  <name>%s-root</name>
-  <capacity unit="G">10</capacity>
-  <target>
-    <format type='qcow2'/>
-  </target>
-</volume>`, name)
+	volXML := generateVolumeXML(name+"-root", 10)
 
 	vol, err := a.conn.StorageVolCreateXML(pool, volXML, 0)
 	if err != nil {
@@ -93,33 +86,7 @@ func (a *LibvirtAdapter) CreateInstance(ctx context.Context, name, imageName str
 		networkID = "default"
 	}
 
-	domainXML := fmt.Sprintf(`
-<domain type='kvm'>
-  <name>%s</name>
-  <memory unit='KiB'>524288</memory>
-  <vcpu placement='static'>1</vcpu>
-  <os>
-    <type arch='x86_64' machine='pc-q35-4.2'>hvm</type>
-    <boot dev='hd'/>
-  </os>
-  <devices>
-    <disk type='file' device='disk'>
-      <driver name='qemu' type='qcow2'/>
-      <source file='%s'/>
-      <target dev='vda' bus='virtio'/>
-    </disk>
-    <interface type='network'>
-      <source network='%s'/>
-      <model type='virtio'/>
-    </interface>
-    <serial type='pty'>
-      <target port='0'/>
-    </serial>
-    <console type='pty'>
-      <target type='serial' port='0'/>
-    </console>
-  </devices>
-</domain>`, name, diskPath, networkID)
+	domainXML := generateDomainXML(name, diskPath, networkID, 512, 1)
 
 	dom, err := a.conn.DomainDefineXML(domainXML)
 	if err != nil {
@@ -241,17 +208,7 @@ func (a *LibvirtAdapter) WaitTask(ctx context.Context, id string) (int64, error)
 
 func (a *LibvirtAdapter) CreateNetwork(ctx context.Context, name string) (string, error) {
 	// Simple NAT network
-	xml := fmt.Sprintf(`
-<network>
-  <name>%s</name>
-  <forward mode='nat'/>
-  <bridge name='virbr-%s' stp='on' delay='0'/>
-  <ip address='192.168.123.1' netmask='255.255.255.0'>
-    <dhcp>
-      <range start='192.168.123.2' end='192.168.123.254'/>
-    </dhcp>
-  </ip>
-</network>`, name, name)
+	xml := generateNetworkXML(name, "virbr-"+name, "192.168.123.1", "192.168.123.2", "192.168.123.254")
 
 	net, err := a.conn.NetworkDefineXML(xml)
 	if err != nil {
@@ -287,14 +244,7 @@ func (a *LibvirtAdapter) CreateVolume(ctx context.Context, name string) error {
 	}
 
 	// 10GB default
-	xml := fmt.Sprintf(`
-<volume>
-  <name>%s</name>
-  <capacity unit="G">10</capacity>
-  <target>
-    <format type='qcow2'/>
-  </target>
-</volume>`, name)
+	xml := generateVolumeXML(name, 10)
 
 	// Refresh pool first
 	if err := a.conn.StoragePoolRefresh(pool, 0); err != nil {

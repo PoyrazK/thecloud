@@ -26,6 +26,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/platform"
 	"github.com/poyrazk/thecloud/internal/repositories/docker"
 	"github.com/poyrazk/thecloud/internal/repositories/filesystem"
+	"github.com/poyrazk/thecloud/internal/repositories/libvirt"
 	"github.com/poyrazk/thecloud/internal/repositories/postgres"
 	"github.com/poyrazk/thecloud/pkg/httputil"
 	"github.com/poyrazk/thecloud/pkg/ratelimit"
@@ -90,10 +91,21 @@ func main() {
 		return
 	}
 
-	dockerAdapter, err := docker.NewDockerAdapter()
-	if err != nil {
-		logger.Error("failed to initialize docker adapter", "error", err)
-		os.Exit(1)
+	var computeBackend ports.ComputeBackend
+	if cfg.ComputeBackend == "libvirt" {
+		logger.Info("using libvirt compute backend")
+		computeBackend, err = libvirt.NewLibvirtAdapter(logger, "") // Use default URI or from config if added
+		if err != nil {
+			logger.Error("failed to initialize libvirt adapter", "error", err)
+			os.Exit(1)
+		}
+	} else {
+		logger.Info("using docker compute backend")
+		computeBackend, err = docker.NewDockerAdapter()
+		if err != nil {
+			logger.Error("failed to initialize docker adapter", "error", err)
+			os.Exit(1)
+		}
 	}
 
 	// 4. Layers (Repo -> Service -> Handler)
@@ -118,17 +130,24 @@ func main() {
 	eventRepo := postgres.NewEventRepository(db)
 	volumeRepo := postgres.NewVolumeRepository(db)
 
-	vpcSvc := services.NewVpcService(vpcRepo, dockerAdapter, auditSvc, logger)
+	vpcSvc := services.NewVpcService(vpcRepo, computeBackend, auditSvc, logger)
 	eventSvc := services.NewEventService(eventRepo, logger)
-	volumeSvc := services.NewVolumeService(volumeRepo, dockerAdapter, eventSvc, auditSvc, logger)
-	instanceSvc := services.NewInstanceService(instanceRepo, vpcRepo, volumeRepo, dockerAdapter, eventSvc, auditSvc, logger)
+	volumeSvc := services.NewVolumeService(volumeRepo, computeBackend, eventSvc, auditSvc, logger)
+	instanceSvc := services.NewInstanceService(instanceRepo, vpcRepo, volumeRepo, computeBackend, eventSvc, auditSvc, logger)
 
 	lbRepo := postgres.NewLBRepository(db)
-	lbProxy, err := docker.NewLBProxyAdapter(instanceRepo, vpcRepo)
-	if err != nil {
-		logger.Error("failed to initialize load balancer proxy adapter", "error", err)
-		os.Exit(1)
+	var lbProxy ports.LBProxyAdapter
+
+	if cfg.ComputeBackend == "libvirt" {
+		lbProxy = libvirt.NewLBProxyAdapter()
+	} else {
+		lbProxy, err = docker.NewLBProxyAdapter(instanceRepo, vpcRepo)
+		if err != nil {
+			logger.Error("failed to initialize load balancer proxy adapter", "error", err)
+			os.Exit(1)
+		}
 	}
+
 	lbSvc := services.NewLBService(lbRepo, vpcRepo, instanceRepo, auditSvc)
 	lbWorker := services.NewLBWorker(lbRepo, instanceRepo, lbProxy)
 
@@ -144,7 +163,7 @@ func main() {
 
 	// Snapshot Service
 	snapshotRepo := postgres.NewSnapshotRepository(db)
-	snapshotSvc := services.NewSnapshotService(snapshotRepo, volumeRepo, dockerAdapter, eventSvc, auditSvc, logger)
+	snapshotSvc := services.NewSnapshotService(snapshotRepo, volumeRepo, computeBackend, eventSvc, auditSvc, logger)
 	snapshotHandler := httphandlers.NewSnapshotHandler(snapshotSvc)
 
 	// IaC Service
@@ -163,7 +182,7 @@ func main() {
 	storageHandler := httphandlers.NewStorageHandler(storageSvc)
 
 	databaseRepo := postgres.NewDatabaseRepository(db)
-	databaseSvc := services.NewDatabaseService(databaseRepo, dockerAdapter, vpcRepo, eventSvc, auditSvc, logger)
+	databaseSvc := services.NewDatabaseService(databaseRepo, computeBackend, vpcRepo, eventSvc, auditSvc, logger)
 	databaseHandler := httphandlers.NewDatabaseHandler(databaseSvc)
 
 	secretRepo := postgres.NewSecretRepository(db)
@@ -171,11 +190,11 @@ func main() {
 	secretHandler := httphandlers.NewSecretHandler(secretSvc)
 
 	fnRepo := postgres.NewFunctionRepository(db)
-	fnSvc := services.NewFunctionService(fnRepo, dockerAdapter, fileStore, auditSvc, logger)
+	fnSvc := services.NewFunctionService(fnRepo, computeBackend, fileStore, auditSvc, logger)
 	fnHandler := httphandlers.NewFunctionHandler(fnSvc)
 
 	cacheRepo := postgres.NewCacheRepository(db)
-	cacheSvc := services.NewCacheService(cacheRepo, dockerAdapter, vpcRepo, eventSvc, auditSvc, logger)
+	cacheSvc := services.NewCacheService(cacheRepo, computeBackend, vpcRepo, eventSvc, auditSvc, logger)
 	cacheHandler := httphandlers.NewCacheHandler(cacheSvc)
 
 	queueRepo := postgres.NewPostgresQueueRepository(db)
@@ -201,7 +220,7 @@ func main() {
 	containerWorker := services.NewContainerWorker(containerRepo, instanceSvc, eventSvc)
 
 	// Health Service
-	healthSvc := services.NewHealthServiceImpl(db, dockerAdapter)
+	healthSvc := services.NewHealthServiceImpl(db, computeBackend)
 	healthHandler := httphandlers.NewHealthHandler(healthSvc)
 
 	// 5. Engine & Middleware
