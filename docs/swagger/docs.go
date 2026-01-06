@@ -781,6 +781,145 @@ const docTemplate = `{
                 }
             }
         },
+        "/iac/stacks": {
+            "get": {
+                "description": "Returns all stacks for the user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IaC"
+                ],
+                "summary": "List stacks",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Stack"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a stack from a YAML/JSON template",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IaC"
+                ],
+                "summary": "Create a new stack",
+                "parameters": [
+                    {
+                        "description": "Stack details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.CreateStackRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Stack"
+                        }
+                    }
+                }
+            }
+        },
+        "/iac/stacks/{id}": {
+            "get": {
+                "description": "Returns a single stack by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IaC"
+                ],
+                "summary": "Get stack details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Stack ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Stack"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a stack and all its resources",
+                "tags": [
+                    "IaC"
+                ],
+                "summary": "Delete stack",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Stack ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/iac/validate": {
+            "post": {
+                "description": "Validates an IaC template without creating a stack",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "IaC"
+                ],
+                "summary": "Validate template",
+                "parameters": [
+                    {
+                        "description": "Template content",
+                        "name": "template",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.TemplateValidateResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/instances": {
             "get": {
                 "security": [
@@ -2634,6 +2773,119 @@ const docTemplate = `{
                 "SnapshotStatusError"
             ]
         },
+        "domain.Stack": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "string"
+                },
+                "resources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.StackResource"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.StackStatus"
+                },
+                "status_reason": {
+                    "type": "string"
+                },
+                "template": {
+                    "description": "Raw YAML or JSON",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.StackResource": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "logical_id": {
+                    "description": "ID in template",
+                    "type": "string"
+                },
+                "physical_id": {
+                    "description": "ID in The Cloud (UUID)",
+                    "type": "string"
+                },
+                "resource_type": {
+                    "description": "e.g. \"Instance\", \"VPC\"",
+                    "type": "string"
+                },
+                "stack_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.StackStatus": {
+            "type": "string",
+            "enum": [
+                "CREATE_IN_PROGRESS",
+                "CREATE_COMPLETE",
+                "CREATE_FAILED",
+                "DELETE_IN_PROGRESS",
+                "DELETE_COMPLETE",
+                "DELETE_FAILED",
+                "ROLLBACK_IN_PROGRESS",
+                "ROLLBACK_COMPLETE",
+                "ROLLBACK_FAILED"
+            ],
+            "x-enum-varnames": [
+                "StackStatusCreateInProgress",
+                "StackStatusCreateComplete",
+                "StackStatusCreateFailed",
+                "StackStatusDeleteInProgress",
+                "StackStatusDeleteComplete",
+                "StackStatusDeleteFailed",
+                "StackStatusRollbackInProgress",
+                "StackStatusRollbackComplete",
+                "StackStatusRollbackFailed"
+            ]
+        },
+        "domain.TemplateValidateResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
         "domain.User": {
             "type": "object",
             "properties": {
@@ -2851,6 +3103,27 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "volume_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "httphandlers.CreateStackRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "template"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "template": {
                     "type": "string"
                 }
             }

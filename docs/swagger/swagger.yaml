@@ -328,6 +328,87 @@ definitions:
     - SnapshotStatusAvailable
     - SnapshotStatusDeleting
     - SnapshotStatusError
+  domain.Stack:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      parameters:
+        type: string
+      resources:
+        items:
+          $ref: '#/definitions/domain.StackResource'
+        type: array
+      status:
+        $ref: '#/definitions/domain.StackStatus'
+      status_reason:
+        type: string
+      template:
+        description: Raw YAML or JSON
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  domain.StackResource:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      logical_id:
+        description: ID in template
+        type: string
+      physical_id:
+        description: ID in The Cloud (UUID)
+        type: string
+      resource_type:
+        description: e.g. "Instance", "VPC"
+        type: string
+      stack_id:
+        type: string
+      status:
+        type: string
+    type: object
+  domain.StackStatus:
+    enum:
+    - CREATE_IN_PROGRESS
+    - CREATE_COMPLETE
+    - CREATE_FAILED
+    - DELETE_IN_PROGRESS
+    - DELETE_COMPLETE
+    - DELETE_FAILED
+    - ROLLBACK_IN_PROGRESS
+    - ROLLBACK_COMPLETE
+    - ROLLBACK_FAILED
+    type: string
+    x-enum-varnames:
+    - StackStatusCreateInProgress
+    - StackStatusCreateComplete
+    - StackStatusCreateFailed
+    - StackStatusDeleteInProgress
+    - StackStatusDeleteComplete
+    - StackStatusDeleteFailed
+    - StackStatusRollbackInProgress
+    - StackStatusRollbackComplete
+    - StackStatusRollbackFailed
+  domain.TemplateValidateResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      parameters:
+        items:
+          type: string
+        type: array
+      valid:
+        type: boolean
+    type: object
   domain.User:
     properties:
       created_at:
@@ -477,6 +558,20 @@ definitions:
         type: string
     required:
     - volume_id
+    type: object
+  httphandlers.CreateStackRequest:
+    properties:
+      name:
+        type: string
+      parameters:
+        additionalProperties:
+          type: string
+        type: object
+      template:
+        type: string
+    required:
+    - name
+    - template
     type: object
   httphandlers.CreateVolumeRequest:
     properties:
@@ -1084,6 +1179,97 @@ paths:
       summary: Readiness check
       tags:
       - health
+  /iac/stacks:
+    get:
+      description: Returns all stacks for the user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Stack'
+            type: array
+      summary: List stacks
+      tags:
+      - IaC
+    post:
+      consumes:
+      - application/json
+      description: Creates a stack from a YAML/JSON template
+      parameters:
+      - description: Stack details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.CreateStackRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Stack'
+      summary: Create a new stack
+      tags:
+      - IaC
+  /iac/stacks/{id}:
+    delete:
+      description: Deletes a stack and all its resources
+      parameters:
+      - description: Stack ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete stack
+      tags:
+      - IaC
+    get:
+      description: Returns a single stack by ID
+      parameters:
+      - description: Stack ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Stack'
+      summary: Get stack details
+      tags:
+      - IaC
+  /iac/validate:
+    post:
+      consumes:
+      - application/json
+      description: Validates an IaC template without creating a stack
+      parameters:
+      - description: Template content
+        in: body
+        name: template
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.TemplateValidateResponse'
+      summary: Validate template
+      tags:
+      - IaC
   /instances:
     get:
       description: Gets a list of all compute instances
