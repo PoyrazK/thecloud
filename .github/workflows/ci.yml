@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/libvirt-adapter]
     tags: ['v*']
   pull_request:
     branches: [main]
@@ -77,8 +77,101 @@ jobs:
           DATABASE_URL: postgres://cloud:cloud@localhost:5433/thecloud?sslmode=disable
         run: go test -tags=integration -v ./internal/repositories/postgres/...
 
+  test-libvirt:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cloud
+          POSTGRES_PASSWORD: cloud
+          POSTGRES_DB: thecloud
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v6
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Install Libvirt Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            qemu-kvm \
+            libvirt-daemon-system \
+            libvirt-clients \
+            genisoimage \
+            qemu-utils
+          
+          # Start libvirtd
+          sudo systemctl start libvirtd
+          sudo systemctl status libvirtd
+          
+          # Add runner to libvirt group
+          sudo usermod -aG libvirt $USER
+          sudo chmod 666 /var/run/libvirt/libvirt-sock
+
+      - name: Setup Libvirt Storage and Network
+        run: |
+          # Create default storage pool
+          sudo virsh pool-define-as default dir --target /tmp/libvirt-images
+          sudo virsh pool-start default
+          sudo virsh pool-autostart default
+          
+          # Create default network
+          cat > /tmp/default-net.xml << 'EOF'
+          <network>
+            <name>default</name>
+            <forward mode='nat'/>
+            <bridge name='virbr0' stp='on' delay='0'/>
+            <ip address='192.168.122.1' netmask='255.255.255.0'>
+              <dhcp>
+                <range start='192.168.122.2' end='192.168.122.254'/>
+              </dhcp>
+            </ip>
+          </network>
+          EOF
+          sudo virsh net-define /tmp/default-net.xml
+          sudo virsh net-start default
+          sudo virsh net-autostart default
+          
+          # Verify setup
+          sudo virsh pool-list
+          sudo virsh net-list
+
+      - name: Install Dependencies
+        run: go mod download
+
+      - name: Run Libvirt Unit Tests
+        run: go test -v ./internal/repositories/libvirt/...
+
+      - name: Run Libvirt Integration Test
+        run: go run scripts/test_libvirt.go
+
+      - name: Test Backend Switching
+        env:
+          DATABASE_URL: postgres://cloud:cloud@localhost:5433/thecloud?sslmode=disable
+        run: |
+          # Test with Docker backend (default)
+          export COMPUTE_BACKEND=docker
+          go test -v -run TestInstanceService ./internal/core/services/...
+          
+          # Test with Libvirt backend
+          export COMPUTE_BACKEND=libvirt
+          go test -v -run TestInstanceService ./internal/core/services/...
+
   build:
-    needs: test
+    needs: [test, test-libvirt]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
