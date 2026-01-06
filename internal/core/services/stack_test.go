@@ -179,7 +179,8 @@ Resources:
 		return s.Status == domain.StackStatusRollbackComplete
 	})).Return(nil)
 
-	svc.CreateStack(ctx, "test-stack-rb", template, nil)
+	_, err := svc.CreateStack(ctx, "test-stack-rb", template, nil)
+	assert.NoError(t, err)
 
 	// Wait for background processing
 	time.Sleep(150 * time.Millisecond)
