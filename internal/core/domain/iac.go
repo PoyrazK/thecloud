@@ -10,12 +10,15 @@ import (
 type StackStatus string
 
 const (
-	StackStatusCreateInProgress StackStatus = "CREATE_IN_PROGRESS"
-	StackStatusCreateComplete   StackStatus = "CREATE_COMPLETE"
-	StackStatusCreateFailed     StackStatus = "CREATE_FAILED"
-	StackStatusDeleteInProgress StackStatus = "DELETE_IN_PROGRESS"
-	StackStatusDeleteComplete   StackStatus = "DELETE_COMPLETE"
-	StackStatusDeleteFailed     StackStatus = "DELETE_FAILED"
+	StackStatusCreateInProgress   StackStatus = "CREATE_IN_PROGRESS"
+	StackStatusCreateComplete     StackStatus = "CREATE_COMPLETE"
+	StackStatusCreateFailed       StackStatus = "CREATE_FAILED"
+	StackStatusDeleteInProgress   StackStatus = "DELETE_IN_PROGRESS"
+	StackStatusDeleteComplete     StackStatus = "DELETE_COMPLETE"
+	StackStatusDeleteFailed       StackStatus = "DELETE_FAILED"
+	StackStatusRollbackInProgress StackStatus = "ROLLBACK_IN_PROGRESS"
+	StackStatusRollbackComplete   StackStatus = "ROLLBACK_COMPLETE"
+	StackStatusRollbackFailed     StackStatus = "ROLLBACK_FAILED"
 )
 
 type Stack struct {

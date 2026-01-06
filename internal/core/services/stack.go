@@ -95,7 +95,8 @@ func (s *stackService) processStack(stack *domain.Stack) {
 		if res.Type == "VPC" {
 			id, err := s.createVPC(ctx, stack.ID, logicalID, res.Properties)
 			if err != nil {
-				s.updateStackStatus(ctx, stack, domain.StackStatusCreateFailed, fmt.Sprintf("Failed to create VPC %s: %v", logicalID, err))
+				s.logger.Error("VPC creation failed, rolling back", "error", err)
+				s.startRollback(ctx, stack, fmt.Sprintf("Failed to create VPC %s: %v", logicalID, err))
 				return
 			}
 			logicalToPhysical[logicalID] = id
@@ -107,7 +108,8 @@ func (s *stackService) processStack(stack *domain.Stack) {
 		if res.Type == "Volume" {
 			id, err := s.createVolume(ctx, stack.ID, logicalID, res.Properties)
 			if err != nil {
-				s.updateStackStatus(ctx, stack, domain.StackStatusCreateFailed, fmt.Sprintf("Failed to create Volume %s: %v", logicalID, err))
+				s.logger.Error("Volume creation failed, rolling back", "error", err)
+				s.startRollback(ctx, stack, fmt.Sprintf("Failed to create Volume %s: %v", logicalID, err))
 				return
 			}
 			logicalToPhysical[logicalID] = id
@@ -119,7 +121,8 @@ func (s *stackService) processStack(stack *domain.Stack) {
 		if res.Type == "Instance" {
 			id, err := s.createInstance(ctx, stack.ID, logicalID, s.resolveRefs(res.Properties, logicalToPhysical))
 			if err != nil {
-				s.updateStackStatus(ctx, stack, domain.StackStatusCreateFailed, fmt.Sprintf("Failed to create Instance %s: %v", logicalID, err))
+				s.logger.Error("Instance creation failed, rolling back", "error", err)
+				s.startRollback(ctx, stack, fmt.Sprintf("Failed to create Instance %s: %v", logicalID, err))
 				return
 			}
 			logicalToPhysical[logicalID] = id
@@ -131,13 +134,56 @@ func (s *stackService) processStack(stack *domain.Stack) {
 		if res.Type == "Snapshot" {
 			_, err := s.createSnapshot(ctx, stack.ID, logicalID, s.resolveRefs(res.Properties, logicalToPhysical))
 			if err != nil {
-				s.updateStackStatus(ctx, stack, domain.StackStatusCreateFailed, fmt.Sprintf("Failed to create Snapshot %s: %v", logicalID, err))
+				s.logger.Error("Snapshot creation failed, rolling back", "error", err)
+				s.startRollback(ctx, stack, fmt.Sprintf("Failed to create Snapshot %s: %v", logicalID, err))
 				return
 			}
 		}
 	}
 
 	s.updateStackStatus(ctx, stack, domain.StackStatusCreateComplete, "")
+}
+
+func (s *stackService) startRollback(ctx context.Context, stack *domain.Stack, reason string) {
+	s.updateStackStatus(ctx, stack, domain.StackStatusRollbackInProgress, reason)
+
+	if err := s.rollbackStack(ctx, stack.ID); err != nil {
+		s.logger.Error("Rollback failed", "stack_id", stack.ID, "error", err)
+		s.updateStackStatus(ctx, stack, domain.StackStatusRollbackFailed, fmt.Sprintf("Rollback failed: %v", err))
+		return
+	}
+
+	s.updateStackStatus(ctx, stack, domain.StackStatusRollbackComplete, reason)
+}
+
+func (s *stackService) rollbackStack(ctx context.Context, stackID uuid.UUID) error {
+	resources, err := s.repo.ListResources(ctx, stackID)
+	if err != nil {
+		return err
+	}
+
+	// Delete resources in reverse creation order
+	for i := len(resources) - 1; i >= 0; i-- {
+		res := resources[i]
+		s.deletePhysicalResource(ctx, res.ResourceType, res.PhysicalID)
+	}
+
+	return s.repo.DeleteResources(ctx, stackID)
+}
+
+func (s *stackService) deletePhysicalResource(ctx context.Context, resourceType, physicalID string) {
+	switch resourceType {
+	case "Instance":
+		_ = s.instanceSvc.TerminateInstance(ctx, physicalID)
+	case "VPC":
+		_ = s.vpcSvc.DeleteVPC(ctx, physicalID)
+	case "Volume":
+		_ = s.volumeSvc.DeleteVolume(ctx, physicalID)
+	case "Snapshot":
+		if physID, err := uuid.Parse(physicalID); err == nil {
+			_ = s.snapshotSvc.DeleteSnapshot(ctx, physID)
+		}
+	}
 }
 
 func (s *stackService) resolveRefs(props map[string]interface{}, refs map[string]uuid.UUID) map[string]interface{} {
@@ -305,20 +351,7 @@ func (s *stackService) DeleteStack(ctx context.Context, id uuid.UUID) error {
 
 		// Delete resources in reverse order (naive)
 		for i := len(resources) - 1; i >= 0; i-- {
-			res := resources[i]
-			physID := res.PhysicalID
-
-			switch res.ResourceType {
-			case "Instance":
-				_ = s.instanceSvc.TerminateInstance(bgCtx, physID)
-			case "VPC":
-				_ = s.vpcSvc.DeleteVPC(bgCtx, physID)
-			case "Volume":
-				_ = s.volumeSvc.DeleteVolume(bgCtx, physID)
-			case "Snapshot":
-				snapID, _ := uuid.Parse(physID)
-				_ = s.snapshotSvc.DeleteSnapshot(bgCtx, snapID)
-			}
+			s.deletePhysicalResource(bgCtx, resources[i].ResourceType, resources[i].PhysicalID)
 		}
 
 		_ = s.repo.Delete(bgCtx, id)
