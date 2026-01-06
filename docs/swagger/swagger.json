@@ -1375,6 +1375,237 @@
                 }
             }
         },
+        "/snapshots": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Gets a list of all existing snapshots for the user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "snapshots"
+                ],
+                "summary": "List all snapshots",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Snapshot"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Creates a point-in-time snapshot of an existing volume",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "snapshots"
+                ],
+                "summary": "Create a new snapshot",
+                "parameters": [
+                    {
+                        "description": "Snapshot creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.CreateSnapshotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Snapshot"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/snapshots/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Gets detailed information about a specific snapshot",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "snapshots"
+                ],
+                "summary": "Get snapshot details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Snapshot ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Snapshot"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Removes a snapshot and its stored data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "snapshots"
+                ],
+                "summary": "Delete a snapshot",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Snapshot ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/snapshots/{id}/restore": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Creates a new volume using data from a snapshot",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "snapshots"
+                ],
+                "summary": "Restore snapshot to volume",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Snapshot ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Restore request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.RestoreSnapshotRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Volume"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/storage/{bucket}": {
             "get": {
                 "security": [
@@ -2353,6 +2584,50 @@
                 }
             }
         },
+        "domain.Snapshot": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "size_gb": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.SnapshotStatus"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "volume_id": {
+                    "type": "string"
+                },
+                "volume_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SnapshotStatus": {
+            "type": "string",
+            "enum": [
+                "CREATING",
+                "AVAILABLE",
+                "DELETING",
+                "ERROR"
+            ],
+            "x-enum-varnames": [
+                "SnapshotStatusCreating",
+                "SnapshotStatusAvailable",
+                "SnapshotStatusDeleting",
+                "SnapshotStatusError"
+            ]
+        },
         "domain.User": {
             "type": "object",
             "properties": {
@@ -2560,6 +2835,20 @@
                 }
             }
         },
+        "httphandlers.CreateSnapshotRequest": {
+            "type": "object",
+            "required": [
+                "volume_id"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "volume_id": {
+                    "type": "string"
+                }
+            }
+        },
         "httphandlers.CreateVolumeRequest": {
             "type": "object",
             "required": [
@@ -2681,6 +2970,19 @@
                 },
                 "token": {
                     "type": "string"
+                }
+            }
+        },
+        "httphandlers.RestoreSnapshotRequest": {
+            "type": "object",
+            "required": [
+                "new_volume_name"
+            ],
+            "properties": {
+                "new_volume_name": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 3
                 }
             }
         },

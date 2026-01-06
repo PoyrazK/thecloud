@@ -297,6 +297,37 @@ definitions:
       target_value:
         type: number
     type: object
+  domain.Snapshot:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      size_gb:
+        type: integer
+      status:
+        $ref: '#/definitions/domain.SnapshotStatus'
+      user_id:
+        type: string
+      volume_id:
+        type: string
+      volume_name:
+        type: string
+    type: object
+  domain.SnapshotStatus:
+    enum:
+    - CREATING
+    - AVAILABLE
+    - DELETING
+    - ERROR
+    type: string
+    x-enum-varnames:
+    - SnapshotStatusCreating
+    - SnapshotStatusAvailable
+    - SnapshotStatusDeleting
+    - SnapshotStatusError
   domain.User:
     properties:
       created_at:
@@ -438,6 +469,15 @@ definitions:
     - port
     - vpc_id
     type: object
+  httphandlers.CreateSnapshotRequest:
+    properties:
+      description:
+        type: string
+      volume_id:
+        type: string
+    required:
+    - volume_id
+    type: object
   httphandlers.CreateVolumeRequest:
     properties:
       name:
@@ -524,6 +564,15 @@ definitions:
     required:
     - new_password
     - token
+    type: object
+  httphandlers.RestoreSnapshotRequest:
+    properties:
+      new_volume_name:
+        maxLength: 64
+        minLength: 3
+        type: string
+    required:
+    - new_volume_name
     type: object
   httphandlers.VolumeAttachmentRequest:
     properties:
@@ -1414,6 +1463,152 @@ paths:
       summary: Remove a target from a load balancer
       tags:
       - loadbalancers
+  /snapshots:
+    get:
+      description: Gets a list of all existing snapshots for the user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Snapshot'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: List all snapshots
+      tags:
+      - snapshots
+    post:
+      consumes:
+      - application/json
+      description: Creates a point-in-time snapshot of an existing volume
+      parameters:
+      - description: Snapshot creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.CreateSnapshotRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Snapshot'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Create a new snapshot
+      tags:
+      - snapshots
+  /snapshots/{id}:
+    delete:
+      description: Removes a snapshot and its stored data
+      parameters:
+      - description: Snapshot ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Delete a snapshot
+      tags:
+      - snapshots
+    get:
+      description: Gets detailed information about a specific snapshot
+      parameters:
+      - description: Snapshot ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Snapshot'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Get snapshot details
+      tags:
+      - snapshots
+  /snapshots/{id}/restore:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new volume using data from a snapshot
+      parameters:
+      - description: Snapshot ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Restore request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.RestoreSnapshotRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Volume'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Restore snapshot to volume
+      tags:
+      - snapshots
   /storage/{bucket}:
     get:
       description: Gets a list of all objects within a specific bucket
