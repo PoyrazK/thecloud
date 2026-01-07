@@ -10,6 +10,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
+	"github.com/poyrazk/thecloud/internal/platform"
 )
 
 type VolumeService struct {
@@ -67,6 +68,11 @@ func (s *VolumeService) CreateVolume(ctx context.Context, name string, sizeGB in
 	})
 
 	s.logger.Info("volume created", "volume_id", vol.ID, "name", vol.Name)
+
+	platform.VolumesTotal.WithLabelValues("available").Inc()
+	platform.VolumeSizeBytes.Add(float64(vol.SizeGB * 1024 * 1024 * 1024))
+	platform.StorageOperationsTotal.WithLabelValues("volume_create").Inc()
+
 	return vol, nil
 }
 
@@ -102,6 +108,10 @@ func (s *VolumeService) DeleteVolume(ctx context.Context, idOrName string) error
 	if err := s.repo.Delete(ctx, vol.ID); err != nil {
 		return err
 	}
+
+	platform.VolumesTotal.WithLabelValues(string(vol.Status)).Dec()
+	platform.VolumeSizeBytes.Sub(float64(vol.SizeGB * 1024 * 1024 * 1024))
+	platform.StorageOperationsTotal.WithLabelValues("volume_delete").Inc()
 
 	_ = s.eventSvc.RecordEvent(ctx, "VOLUME_DELETE", vol.ID.String(), "VOLUME", map[string]interface{}{})
 

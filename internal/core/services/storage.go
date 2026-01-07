@@ -10,6 +10,7 @@ import (
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/platform"
 )
 
 type StorageService struct {
@@ -61,6 +62,8 @@ func (s *StorageService) Upload(ctx context.Context, bucket, key string, r io.Re
 		"key":    obj.Key,
 	})
 
+	platform.StorageOperationsTotal.WithLabelValues("object_upload").Inc()
+
 	return obj, nil
 }
 
@@ -97,6 +100,8 @@ func (s *StorageService) DeleteObject(ctx context.Context, bucket, key string) e
 		"bucket": bucket,
 		"key":    key,
 	})
+
+	platform.StorageOperationsTotal.WithLabelValues("object_delete").Inc()
 
 	return nil
 }
