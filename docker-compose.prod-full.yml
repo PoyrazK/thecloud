@@ -1,8 +1,6 @@
 version: '3.9'
 
-# Production-ready Docker Compose with full monit
-
-oring stack
+# Production-ready Docker Compose with full monitoring stack
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.prod-full.yml up -d
 
 services:
@@ -34,7 +32,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -57,7 +55,7 @@ services:
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -126,7 +124,7 @@ services:
     environment:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -138,6 +136,7 @@ volumes:
   prometheus_data:
   grafana_data:
   nginx_logs:
+
 
 networks:
   cloud-network:
