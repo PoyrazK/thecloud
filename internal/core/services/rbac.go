@@ -98,3 +98,26 @@ func (s *rbacService) AddPermissionToRole(ctx context.Context, roleID uuid.UUID,
 func (s *rbacService) RemovePermissionFromRole(ctx context.Context, roleID uuid.UUID, permission domain.Permission) error {
 	return s.roleRepo.RemovePermissionFromRole(ctx, roleID, permission)
 }
+
+func (s *rbacService) BindRole(ctx context.Context, userID uuid.UUID, roleName string) error {
+	// 1. Verify role exists
+	_, err := s.roleRepo.GetRoleByName(ctx, roleName)
+	if err != nil {
+		return fmt.Errorf("role %s does not exist: %w", roleName, err)
+	}
+
+	// 2. Get user
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("user not found: %w", err)
+	}
+
+	// 3. Update role
+	user.Role = roleName
+	return s.userRepo.Update(ctx, user)
+}
+
+func (s *rbacService) ListRoleBindings(ctx context.Context) ([]*domain.User, error) {
+	// In this implementation, bindings are just users with their roles
+	return s.userRepo.List(ctx)
+}
