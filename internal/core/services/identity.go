@@ -10,6 +10,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
+	"github.com/poyrazk/thecloud/internal/platform"
 )
 
 type IdentityService struct {
@@ -40,6 +41,8 @@ func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name 
 	if err := s.repo.CreateAPIKey(ctx, key); err != nil {
 		return nil, err
 	}
+
+	platform.APIKeysActive.Inc()
 
 	// Log audit event
 	_ = s.auditSvc.Log(ctx, userID, "api_key.create", "api_key", key.ID.String(), map[string]interface{}{
@@ -74,6 +77,8 @@ func (s *IdentityService) RevokeKey(ctx context.Context, userID uuid.UUID, id uu
 	if err := s.repo.DeleteAPIKey(ctx, id); err != nil {
 		return err
 	}
+
+	platform.APIKeysActive.Dec()
 
 	// Log audit event
 	_ = s.auditSvc.Log(ctx, userID, "api_key.revoke", "api_key", id.String(), map[string]interface{}{
