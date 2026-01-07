@@ -279,9 +279,10 @@ func (s *InstanceService) TerminateInstance(ctx context.Context, idOrName string
 		return err
 	}
 
-	if inst.Status == domain.StatusRunning {
+	switch inst.Status {
+	case domain.StatusRunning:
 		platform.InstancesTotal.WithLabelValues("running", s.compute.Type()).Dec()
-	} else if inst.Status == domain.StatusStopped {
+	case domain.StatusStopped:
 		platform.InstancesTotal.WithLabelValues("stopped", s.compute.Type()).Dec()
 	}
 	platform.InstanceOperationsTotal.WithLabelValues("terminate", "success").Inc()

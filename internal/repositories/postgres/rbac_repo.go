@@ -21,7 +21,7 @@ func (r *rbacRepository) CreateRole(ctx context.Context, role *domain.Role) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	_, err = tx.Exec(ctx, "INSERT INTO roles (id, name, description) VALUES ($1, $2, $3)",
 		role.ID, role.Name, role.Description)
@@ -101,7 +101,7 @@ func (r *rbacRepository) UpdateRole(ctx context.Context, role *domain.Role) erro
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	_, err = tx.Exec(ctx, "UPDATE roles SET name = $1, description = $2 WHERE id = $3",
 		role.Name, role.Description, role.ID)
