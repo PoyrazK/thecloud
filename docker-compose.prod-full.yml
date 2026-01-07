@@ -97,6 +97,31 @@ services:
     networks:
       - cloud-network
 
+  # Postgres Metrics Exporter
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: cloud-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-cloud}:${DB_PASSWORD:-cloud}@postgres:5432/${DB_NAME:-thecloud}?sslmode=disable"
+    depends_on:
+      - postgres
+    networks:
+      - cloud-network
+
+  # Redis Metrics Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    container_name: cloud-redis-exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
+    depends_on:
+      - redis
+    networks:
+      - cloud-network
+
   # Override postgres for production
   postgres:
     deploy:

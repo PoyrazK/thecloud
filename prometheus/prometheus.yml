@@ -16,18 +16,18 @@ scrape_configs:
     scrape_interval: 30s
 
   # PostgreSQL Exporter (optional - enable only if running postgres_exporter)
-  # - job_name: 'postgres'
-  #   static_configs:
-  #     - targets: ['postgres-exporter:9187']
-  #       labels:
-  #         service: 'postgres'
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgres'
 
   # Redis Exporter (optional - enable only if running redis_exporter)
-  # - job_name: 'redis'
-  #   static_configs:
-  #     - targets: ['redis-exporter:9121']
-  #       labels:
-  #         service: 'redis'
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
 
   # Node Exporter (system metrics)
   - job_name: 'node'
