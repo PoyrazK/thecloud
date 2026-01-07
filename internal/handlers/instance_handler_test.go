@@ -1,6 +1,7 @@
 package httphandlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -223,5 +224,44 @@ func TestInstanceHandler_GetStats(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestInstanceHandler_Launch_WithVolumesAndVPC(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(instanceServiceMock)
+	handler := NewInstanceHandler(mockSvc)
+	r := gin.New()
+	r.POST("/instances", handler.Launch)
+
+	vpcID := uuid.New()
+	volID := "vol-123"
+
+	inst := &domain.Instance{ID: uuid.New(), Name: "test-complex", VpcID: &vpcID}
+
+	expectedVolumes := []domain.VolumeAttachment{
+		{VolumeIDOrName: volID, MountPath: "/mnt/data"},
+	}
+
+	mockSvc.On("LaunchInstance", mock.Anything, "test-complex", "ubuntu", "80:80", &vpcID, expectedVolumes).Return(inst, nil)
+
+	body := map[string]interface{}{
+		"name":   "test-complex",
+		"image":  "ubuntu",
+		"ports":  "80:80",
+		"vpc_id": vpcID.String(),
+		"volumes": []map[string]string{
+			{"volume_id": volID, "mount_path": "/mnt/data"},
+		},
+	}
+	jsonBody, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/instances", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
 	mockSvc.AssertExpectations(t)
 }

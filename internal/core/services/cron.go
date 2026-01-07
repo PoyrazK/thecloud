@@ -24,7 +24,7 @@ func NewCronService(repo ports.CronRepository, eventSvc ports.EventService, audi
 		repo:     repo,
 		eventSvc: eventSvc,
 		auditSvc: auditSvc,
-		parser:   cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow),
+		parser:   cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
 	}
 }
 
@@ -104,7 +104,10 @@ func (s *CronService) ResumeJob(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	sched, _ := s.parser.Parse(job.Schedule)
+	sched, err := s.parser.Parse(job.Schedule)
+	if err != nil {
+		return fmt.Errorf("invalid schedule in job: %w", err)
+	}
 	nextRun := sched.Next(time.Now())
 
 	job.Status = domain.CronStatusActive

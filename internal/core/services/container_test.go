@@ -12,43 +12,102 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestContainerService_CreateDeployment(t *testing.T) {
-	repo := new(MockContainerRepo)
+func TestCreateDeployment_Success(t *testing.T) {
+	repo := new(MockContainerRepository)
+	eventSvc := new(MockEventService)
+	auditSvc := new(MockAuditService)
+	// logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// Note: NewContainerService signature might vary, assuming it takes these
+	// Checking the file content for NewContainerService: repo, eventSvc, auditSvc
+	svc := services.NewContainerService(repo, eventSvc, auditSvc)
+
+	ctx := context.Background()
+	userID := uuid.New()
+	ctx = appcontext.WithUserID(ctx, userID)
+
+	name := "test-deploy"
+	image := "nginx:latest"
+	replicas := 3
+	ports := "80:80"
+
+	repo.On("CreateDeployment", ctx, mock.MatchedBy(func(d *domain.Deployment) bool {
+		return d.Name == name && d.Replicas == replicas && d.UserID == userID
+	})).Return(nil)
+
+	eventSvc.On("RecordEvent", ctx, "DEPLOYMENT_CREATED", mock.Anything, "DEPLOYMENT", mock.Anything).Return(nil)
+	auditSvc.On("Log", ctx, userID, "container.deployment_create", "deployment", mock.Anything, mock.Anything).Return(nil)
+
+	dep, err := svc.CreateDeployment(ctx, name, image, replicas, ports)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, dep)
+	assert.Equal(t, name, dep.Name)
+	assert.Equal(t, replicas, dep.Replicas)
+
+	repo.AssertExpectations(t)
+	eventSvc.AssertExpectations(t)
+	auditSvc.AssertExpectations(t)
+}
+
+func TestScaleDeployment_Success(t *testing.T) {
+	repo := new(MockContainerRepository)
 	eventSvc := new(MockEventService)
 	auditSvc := new(MockAuditService)
 	svc := services.NewContainerService(repo, eventSvc, auditSvc)
 
+	ctx := context.Background()
 	userID := uuid.New()
-	ctx := appcontext.WithUserID(context.Background(), userID)
+	ctx = appcontext.WithUserID(ctx, userID)
+	deployID := uuid.New()
 
-	repo.On("CreateDeployment", ctx, mock.AnythingOfType("*domain.Deployment")).Return(nil)
-	eventSvc.On("RecordEvent", ctx, "DEPLOYMENT_CREATED", mock.Anything, "DEPLOYMENT", mock.Anything).Return(nil)
-	auditSvc.On("Log", ctx, userID, "container.deployment_create", "deployment", mock.Anything, mock.Anything).Return(nil)
+	existing := &domain.Deployment{
+		ID:       deployID,
+		UserID:   userID,
+		Replicas: 1,
+	}
 
-	dep, err := svc.CreateDeployment(ctx, "web-app", "nginx:latest", 3, "80:80")
+	repo.On("GetDeploymentByID", ctx, deployID, userID).Return(existing, nil)
+	repo.On("UpdateDeployment", ctx, mock.MatchedBy(func(d *domain.Deployment) bool {
+		return d.Replicas == 5 && d.ID == deployID
+	})).Return(nil)
+
+	auditSvc.On("Log", ctx, userID, "container.deployment_scale", "deployment", deployID.String(), mock.Anything).Return(nil)
+
+	err := svc.ScaleDeployment(ctx, deployID, 5)
 
 	assert.NoError(t, err)
-	assert.NotNil(t, dep)
-	assert.Equal(t, "web-app", dep.Name)
-	assert.Equal(t, 3, dep.Replicas)
+
 	repo.AssertExpectations(t)
 }
 
-func TestContainerService_ScaleDeployment(t *testing.T) {
-	repo := new(MockContainerRepo)
+func TestDeleteDeployment_Success(t *testing.T) {
+	repo := new(MockContainerRepository)
+	eventSvc := new(MockEventService)
 	auditSvc := new(MockAuditService)
-	svc := services.NewContainerService(repo, nil, auditSvc)
+	svc := services.NewContainerService(repo, eventSvc, auditSvc)
 
+	ctx := context.Background()
 	userID := uuid.New()
-	depID := uuid.New()
-	ctx := appcontext.WithUserID(context.Background(), userID)
+	ctx = appcontext.WithUserID(ctx, userID)
+	deployID := uuid.New()
 
-	repo.On("GetDeploymentByID", ctx, depID, userID).Return(&domain.Deployment{ID: depID, UserID: userID}, nil)
+	existing := &domain.Deployment{
+		ID:     deployID,
+		UserID: userID,
+		Status: domain.DeploymentStatusReady,
+	}
+
+	repo.On("GetDeploymentByID", ctx, deployID, userID).Return(existing, nil)
 	repo.On("UpdateDeployment", ctx, mock.MatchedBy(func(d *domain.Deployment) bool {
-		return d.Replicas == 5
+		return d.Status == domain.DeploymentStatusDeleting
 	})).Return(nil)
-	auditSvc.On("Log", ctx, userID, "container.deployment_scale", "deployment", depID.String(), mock.Anything).Return(nil)
 
-	err := svc.ScaleDeployment(ctx, depID, 5)
+	auditSvc.On("Log", ctx, userID, "container.deployment_delete", "deployment", deployID.String(), mock.Anything).Return(nil)
+
+	err := svc.DeleteDeployment(ctx, deployID)
+
 	assert.NoError(t, err)
+
+	repo.AssertExpectations(t)
 }

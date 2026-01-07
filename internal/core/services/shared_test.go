@@ -1156,3 +1156,150 @@ func (m *MockSnapshotService) RestoreSnapshot(ctx context.Context, snapshotID uu
 	}
 	return args.Get(0).(*domain.Volume), args.Error(1)
 }
+
+// MockFunctionRepository
+type MockFunctionRepository struct {
+	mock.Mock
+}
+
+func (m *MockFunctionRepository) Create(ctx context.Context, function *domain.Function) error {
+	args := m.Called(ctx, function)
+	return args.Error(0)
+}
+func (m *MockFunctionRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Function, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Function), args.Error(1)
+}
+func (m *MockFunctionRepository) GetByName(ctx context.Context, userID uuid.UUID, name string) (*domain.Function, error) {
+	args := m.Called(ctx, userID, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Function), args.Error(1)
+}
+func (m *MockFunctionRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Function, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Function), args.Error(1)
+}
+func (m *MockFunctionRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+func (m *MockFunctionRepository) CreateInvocation(ctx context.Context, i *domain.Invocation) error {
+	args := m.Called(ctx, i)
+	return args.Error(0)
+}
+func (m *MockFunctionRepository) GetInvocations(ctx context.Context, functionID uuid.UUID, limit int) ([]*domain.Invocation, error) {
+	args := m.Called(ctx, functionID, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Invocation), args.Error(1)
+}
+
+// MockContainerRepository
+type MockContainerRepository struct {
+	mock.Mock
+}
+
+func (m *MockContainerRepository) CreateDeployment(ctx context.Context, dep *domain.Deployment) error {
+	args := m.Called(ctx, dep)
+	return args.Error(0)
+}
+func (m *MockContainerRepository) GetDeploymentByID(ctx context.Context, id, userID uuid.UUID) (*domain.Deployment, error) {
+	args := m.Called(ctx, id, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Deployment), args.Error(1)
+}
+func (m *MockContainerRepository) ListDeployments(ctx context.Context, userID uuid.UUID) ([]*domain.Deployment, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Deployment), args.Error(1)
+}
+func (m *MockContainerRepository) UpdateDeployment(ctx context.Context, dep *domain.Deployment) error {
+	args := m.Called(ctx, dep)
+	return args.Error(0)
+}
+func (m *MockContainerRepository) DeleteDeployment(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+// Replication management
+func (m *MockContainerRepository) AddContainer(ctx context.Context, deploymentID, instanceID uuid.UUID) error {
+	args := m.Called(ctx, deploymentID, instanceID)
+	return args.Error(0)
+}
+func (m *MockContainerRepository) RemoveContainer(ctx context.Context, deploymentID, instanceID uuid.UUID) error {
+	args := m.Called(ctx, deploymentID, instanceID)
+	return args.Error(0)
+}
+func (m *MockContainerRepository) GetContainers(ctx context.Context, deploymentID uuid.UUID) ([]uuid.UUID, error) {
+	args := m.Called(ctx, deploymentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]uuid.UUID), args.Error(1)
+}
+
+// Worker
+func (m *MockContainerRepository) ListAllDeployments(ctx context.Context) ([]*domain.Deployment, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Deployment), args.Error(1)
+}
+
+// MockCronRepository
+type MockCronRepository struct {
+	mock.Mock
+}
+
+func (m *MockCronRepository) CreateJob(ctx context.Context, job *domain.CronJob) error {
+	args := m.Called(ctx, job)
+	return args.Error(0)
+}
+func (m *MockCronRepository) GetJobByID(ctx context.Context, id, userID uuid.UUID) (*domain.CronJob, error) {
+	args := m.Called(ctx, id, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.CronJob), args.Error(1)
+}
+func (m *MockCronRepository) ListJobs(ctx context.Context, userID uuid.UUID) ([]*domain.CronJob, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.CronJob), args.Error(1)
+}
+func (m *MockCronRepository) UpdateJob(ctx context.Context, job *domain.CronJob) error {
+	args := m.Called(ctx, job)
+	return args.Error(0)
+}
+func (m *MockCronRepository) DeleteJob(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+func (m *MockCronRepository) GetNextJobsToRun(ctx context.Context) ([]*domain.CronJob, error) {
+	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.CronJob), args.Error(1)
+}
+func (m *MockCronRepository) SaveJobRun(ctx context.Context, run *domain.CronJobRun) error {
+	args := m.Called(ctx, run)
+	return args.Error(0)
+}

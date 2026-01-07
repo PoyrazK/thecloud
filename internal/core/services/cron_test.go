@@ -12,53 +12,121 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestCronService_CreateJob(t *testing.T) {
-	repo := new(MockCronRepo)
+func TestCreateJob_Success(t *testing.T) {
+	repo := new(MockCronRepository)
 	eventSvc := new(MockEventService)
 	auditSvc := new(MockAuditService)
 	svc := services.NewCronService(repo, eventSvc, auditSvc)
 
+	ctx := context.Background()
 	userID := uuid.New()
-	ctx := appcontext.WithUserID(context.Background(), userID)
+	ctx = appcontext.WithUserID(ctx, userID)
 
-	repo.On("CreateJob", ctx, mock.AnythingOfType("*domain.CronJob")).Return(nil)
+	name := "test-job"
+	schedule := "* * * * *" // Every minute
+	targetURL := "http://example.com"
+	targetMethod := "GET"
+	targetPayload := ""
+
+	repo.On("CreateJob", ctx, mock.MatchedBy(func(j *domain.CronJob) bool {
+		return j.Name == name && j.Schedule == schedule && j.UserID == userID
+	})).Return(nil)
+
 	eventSvc.On("RecordEvent", ctx, "CRON_JOB_CREATED", mock.Anything, "CRON_JOB", mock.Anything).Return(nil)
 	auditSvc.On("Log", ctx, userID, "cron.job_create", "cron_job", mock.Anything, mock.Anything).Return(nil)
 
-	job, err := svc.CreateJob(ctx, "daily-task", "0 0 * * *", "http://api/run", "POST", "")
+	job, err := svc.CreateJob(ctx, name, schedule, targetURL, targetMethod, targetPayload)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, job)
-	assert.Equal(t, "daily-task", job.Name)
+	assert.Equal(t, name, job.Name)
 	assert.Equal(t, domain.CronStatusActive, job.Status)
 	assert.NotNil(t, job.NextRunAt)
+
+	repo.AssertExpectations(t)
+	eventSvc.AssertExpectations(t)
+	auditSvc.AssertExpectations(t)
+}
+
+func TestPauseJob_Success(t *testing.T) {
+	repo := new(MockCronRepository)
+	eventSvc := new(MockEventService)
+	auditSvc := new(MockAuditService)
+	svc := services.NewCronService(repo, eventSvc, auditSvc)
+
+	ctx := context.Background()
+	userID := uuid.New()
+	ctx = appcontext.WithUserID(ctx, userID)
+	jobID := uuid.New()
+
+	existing := &domain.CronJob{
+		ID:       jobID,
+		UserID:   userID,
+		Status:   domain.CronStatusActive,
+		Schedule: "* * * * *",
+	}
+
+	repo.On("GetJobByID", ctx, jobID, userID).Return(existing, nil)
+	repo.On("UpdateJob", ctx, mock.MatchedBy(func(j *domain.CronJob) bool {
+		return j.Status == domain.CronStatusPaused && j.NextRunAt == nil
+	})).Return(nil)
+
+	err := svc.PauseJob(ctx, jobID)
+
+	assert.NoError(t, err)
+
 	repo.AssertExpectations(t)
 }
 
-func TestCronService_PauseResume(t *testing.T) {
-	repo := new(MockCronRepo)
+func TestResumeJob_Success(t *testing.T) {
+	repo := new(MockCronRepository)
+	eventSvc := new(MockEventService)
 	auditSvc := new(MockAuditService)
-	svc := services.NewCronService(repo, nil, auditSvc)
+	svc := services.NewCronService(repo, eventSvc, auditSvc)
 
+	ctx := context.Background()
 	userID := uuid.New()
+	ctx = appcontext.WithUserID(ctx, userID)
 	jobID := uuid.New()
-	ctx := appcontext.WithUserID(context.Background(), userID)
 
-	job := &domain.CronJob{ID: jobID, UserID: userID, Status: domain.CronStatusActive, Schedule: "0 0 * * *"}
-	repo.On("GetJobByID", ctx, jobID, userID).Return(job, nil)
-	repo.On("UpdateJob", ctx, mock.MatchedBy(func(j *domain.CronJob) bool {
-		return j.Status == domain.CronStatusPaused
-	})).Return(nil)
-	auditSvc.On("Log", ctx, userID, "cron.job_pause", "cron_job", jobID.String(), mock.Anything).Return(nil)
+	existing := &domain.CronJob{
+		ID:       jobID,
+		UserID:   userID,
+		Status:   domain.CronStatusPaused,
+		Schedule: "@hourly",
+	}
 
-	err := svc.PauseJob(ctx, jobID)
-	assert.NoError(t, err)
-
+	repo.On("GetJobByID", ctx, jobID, userID).Return(existing, nil)
 	repo.On("UpdateJob", ctx, mock.MatchedBy(func(j *domain.CronJob) bool {
 		return j.Status == domain.CronStatusActive && j.NextRunAt != nil
 	})).Return(nil)
-	auditSvc.On("Log", ctx, userID, "cron.job_resume", "cron_job", jobID.String(), mock.Anything).Return(nil)
 
-	err = svc.ResumeJob(ctx, jobID)
+	err := svc.ResumeJob(ctx, jobID)
+
 	assert.NoError(t, err)
+
+	repo.AssertExpectations(t)
+}
+
+func TestCronWorker_DeleteJob(t *testing.T) {
+	repo := new(MockCronRepository)
+	eventSvc := new(MockEventService)
+	auditSvc := new(MockAuditService)
+	svc := services.NewCronService(repo, eventSvc, auditSvc)
+
+	ctx := context.Background()
+	userID := uuid.New()
+	ctx = appcontext.WithUserID(ctx, userID)
+	jobID := uuid.New()
+
+	existing := &domain.CronJob{ID: jobID, UserID: userID}
+
+	repo.On("GetJobByID", ctx, jobID, userID).Return(existing, nil)
+	repo.On("DeleteJob", ctx, jobID).Return(nil)
+	auditSvc.On("Log", ctx, userID, "cron.job_delete", "cron_job", jobID.String(), mock.Anything).Return(nil)
+
+	err := svc.DeleteJob(ctx, jobID)
+
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
 }
