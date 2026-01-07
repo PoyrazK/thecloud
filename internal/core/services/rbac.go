@@ -63,3 +63,38 @@ func (s *rbacService) HasPermission(ctx context.Context, userID uuid.UUID, permi
 
 	return false, nil
 }
+
+func (s *rbacService) CreateRole(ctx context.Context, role *domain.Role) error {
+	if role.ID == uuid.Nil {
+		role.ID = uuid.New()
+	}
+	return s.roleRepo.CreateRole(ctx, role)
+}
+
+func (s *rbacService) GetRoleByID(ctx context.Context, id uuid.UUID) (*domain.Role, error) {
+	return s.roleRepo.GetRoleByID(ctx, id)
+}
+
+func (s *rbacService) GetRoleByName(ctx context.Context, name string) (*domain.Role, error) {
+	return s.roleRepo.GetRoleByName(ctx, name)
+}
+
+func (s *rbacService) ListRoles(ctx context.Context) ([]*domain.Role, error) {
+	return s.roleRepo.ListRoles(ctx)
+}
+
+func (s *rbacService) UpdateRole(ctx context.Context, role *domain.Role) error {
+	return s.roleRepo.UpdateRole(ctx, role)
+}
+
+func (s *rbacService) DeleteRole(ctx context.Context, id uuid.UUID) error {
+	return s.roleRepo.DeleteRole(ctx, id)
+}
+
+func (s *rbacService) AddPermissionToRole(ctx context.Context, roleID uuid.UUID, permission domain.Permission) error {
+	return s.roleRepo.AddPermissionToRole(ctx, roleID, permission)
+}
+
+func (s *rbacService) RemovePermissionFromRole(ctx context.Context, roleID uuid.UUID, permission domain.Permission) error {
+	return s.roleRepo.RemovePermissionFromRole(ctx, roleID, permission)
+}
