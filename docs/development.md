@@ -108,6 +108,52 @@ If you don't have `make`, run these commands:
     git config --global core.autocrlf true
     ```
 
+
+---
+
+## 🧪 Testing
+
+The Cloud has comprehensive test coverage (51.3%) across all layers:
+
+### Running Tests
+
+**Unit Tests Only** (no database required):
+```bash
+go test ./...
+```
+
+**Integration Tests** (requires PostgreSQL):
+```bash
+# Start PostgreSQL first
+docker compose up -d postgres
+
+# Run all tests including integration tests
+go test -tags=integration ./...
+```
+
+**Coverage Report**:
+```bash
+# Generate coverage report
+go test -tags=integration -coverprofile=coverage.out ./...
+
+# View in browser
+go tool cover -html=coverage.out
+
+# View summary
+go tool cover -func=coverage.out | grep total
+```
+
+### Test Organization
+- **Unit Tests**: `internal/core/services/*_test.go`, `internal/handlers/*_test.go`
+- **Integration Tests**: `internal/repositories/postgres/*_test.go` (require `//go:build integration` tag)
+- **Mocks**: `internal/core/services/shared_test.go`
+
+### Current Coverage
+- **Overall**: 51.3%
+- **Services**: 55.4%
+- **Handlers**: 52.8%
+- **Repositories**: 57.5%
+
 ---
 
 ## 🐳 Docker Note (All OS)

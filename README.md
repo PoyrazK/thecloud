@@ -141,3 +141,23 @@ npm run dev
 - Time to Hello World: < 5 min
 - API Latency (P95): < 200ms
 - CLI Success Rate: > 95%
+- **Test Coverage: 51.3%** (Unit + Integration Tests)
+
+## Testing
+The Cloud has comprehensive test coverage across all layers:
+- **Unit Tests**: Core services, handlers, and business logic
+- **Integration Tests**: Database repositories with real PostgreSQL
+- **Coverage**: 51.3% overall (Services: 55.4%, Handlers: 52.8%, Repositories: 57.5%)
+
+Run tests:
+```bash
+# Unit tests only
+go test ./...
+
+# With integration tests (requires PostgreSQL)
+go test -tags=integration ./...
+
+# With coverage report
+go test -tags=integration -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
