@@ -161,6 +161,8 @@ func main() {
 	dashboardSvc := services.NewDashboardService(instanceRepo, volumeRepo, vpcRepo, eventRepo, logger)
 	dashboardHandler := httphandlers.NewDashboardHandler(dashboardSvc)
 
+	rbacHandler := httphandlers.NewRBACHandler(rbacSvc)
+
 	// Snapshot Service
 	snapshotRepo := postgres.NewSnapshotRepository(db)
 	snapshotSvc := services.NewSnapshotService(snapshotRepo, volumeRepo, computeBackend, eventSvc, auditSvc, logger)
@@ -314,6 +316,18 @@ func main() {
 	auditGroup.Use(httputil.Auth(identitySvc))
 	{
 		auditGroup.GET("", auditHandler.ListLogs)
+	}
+
+	// RBAC Routes (Protected)
+	rbacGroup := r.Group("/rbac")
+	rbacGroup.Use(httputil.Auth(identitySvc))
+	{
+		rbacGroup.POST("/roles", httputil.Permission(rbacSvc, domain.PermissionFullAccess), rbacHandler.CreateRole)
+		rbacGroup.GET("/roles", httputil.Permission(rbacSvc, domain.PermissionFullAccess), rbacHandler.ListRoles)
+		rbacGroup.GET("/roles/:id", httputil.Permission(rbacSvc, domain.PermissionFullAccess), rbacHandler.GetRole)
+		rbacGroup.DELETE("/roles/:id", httputil.Permission(rbacSvc, domain.PermissionFullAccess), rbacHandler.DeleteRole)
+		rbacGroup.POST("/roles/:id/permissions", httputil.Permission(rbacSvc, domain.PermissionFullAccess), rbacHandler.AddPermission)
+		rbacGroup.DELETE("/roles/:id/permissions/:permission", httputil.Permission(rbacSvc, domain.PermissionFullAccess), rbacHandler.RemovePermission)
 	}
 
 	// Volume Routes (Protected)
