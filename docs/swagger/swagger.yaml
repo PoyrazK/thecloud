@@ -207,6 +207,128 @@ definitions:
       user_id:
         type: string
     type: object
+  domain.Permission:
+    enum:
+    - instance:launch
+    - instance:terminate
+    - instance:read
+    - instance:update
+    - vpc:create
+    - vpc:delete
+    - vpc:read
+    - volume:create
+    - volume:delete
+    - volume:read
+    - snapshot:create
+    - snapshot:delete
+    - snapshot:read
+    - snapshot:restore
+    - lb:create
+    - lb:delete
+    - lb:read
+    - lb:update
+    - db:create
+    - db:delete
+    - db:read
+    - secret:create
+    - secret:delete
+    - secret:read
+    - function:invoke
+    - function:create
+    - function:delete
+    - function:read
+    - cache:create
+    - cache:delete
+    - cache:read
+    - cache:update
+    - queue:create
+    - queue:delete
+    - queue:read
+    - queue:write
+    - notify:create
+    - notify:delete
+    - notify:read
+    - notify:publish
+    - cron:create
+    - cron:delete
+    - cron:read
+    - cron:update
+    - gateway:create
+    - gateway:delete
+    - gateway:read
+    - stack:create
+    - stack:delete
+    - stack:read
+    - as:create
+    - as:delete
+    - as:read
+    - as:update
+    - container:create
+    - container:delete
+    - container:read
+    - container:scale
+    - '*'
+    type: string
+    x-enum-varnames:
+    - PermissionInstanceLaunch
+    - PermissionInstanceTerminate
+    - PermissionInstanceRead
+    - PermissionInstanceUpdate
+    - PermissionVpcCreate
+    - PermissionVpcDelete
+    - PermissionVpcRead
+    - PermissionVolumeCreate
+    - PermissionVolumeDelete
+    - PermissionVolumeRead
+    - PermissionSnapshotCreate
+    - PermissionSnapshotDelete
+    - PermissionSnapshotRead
+    - PermissionSnapshotRestore
+    - PermissionLbCreate
+    - PermissionLbDelete
+    - PermissionLbRead
+    - PermissionLbUpdate
+    - PermissionDBCreate
+    - PermissionDBDelete
+    - PermissionDBRead
+    - PermissionSecretCreate
+    - PermissionSecretDelete
+    - PermissionSecretRead
+    - PermissionFunctionInvoke
+    - PermissionFunctionCreate
+    - PermissionFunctionDelete
+    - PermissionFunctionRead
+    - PermissionCacheCreate
+    - PermissionCacheDelete
+    - PermissionCacheRead
+    - PermissionCacheUpdate
+    - PermissionQueueCreate
+    - PermissionQueueDelete
+    - PermissionQueueRead
+    - PermissionQueueWrite
+    - PermissionNotifyCreate
+    - PermissionNotifyDelete
+    - PermissionNotifyRead
+    - PermissionNotifyWrite
+    - PermissionCronCreate
+    - PermissionCronDelete
+    - PermissionCronRead
+    - PermissionCronUpdate
+    - PermissionGatewayCreate
+    - PermissionGatewayDelete
+    - PermissionGatewayRead
+    - PermissionStackCreate
+    - PermissionStackDelete
+    - PermissionStackRead
+    - PermissionAsCreate
+    - PermissionAsDelete
+    - PermissionAsRead
+    - PermissionAsUpdate
+    - PermissionContainerCreate
+    - PermissionContainerDelete
+    - PermissionContainerRead
+    - PermissionContainerUpdate
+    - PermissionFullAccess
   domain.ResourceSummary:
     properties:
       attached_volumes:
@@ -223,6 +345,19 @@ definitions:
         type: integer
       total_vpcs:
         type: integer
+    type: object
+  domain.Role:
+    properties:
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/domain.Permission'
+        type: array
     type: object
   domain.ScalingGroup:
     properties:
@@ -468,6 +603,13 @@ definitions:
     - VolumeStatusAvailable
     - VolumeStatusInUse
     - VolumeStatusDeleting
+  httphandlers.AddPermissionRequest:
+    properties:
+      permission:
+        $ref: '#/definitions/domain.Permission'
+    required:
+    - permission
+    type: object
   httphandlers.AddTargetRequest:
     properties:
       instance_id:
@@ -479,6 +621,16 @@ definitions:
     required:
     - instance_id
     - port
+    type: object
+  httphandlers.BindRoleRequest:
+    properties:
+      role_name:
+        type: string
+      user_identifier:
+        type: string
+    required:
+    - role_name
+    - user_identifier
     type: object
   httphandlers.CreateASPolicyRequest:
     properties:
@@ -549,6 +701,19 @@ definitions:
     - name
     - port
     - vpc_id
+    type: object
+  httphandlers.CreateRoleRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/domain.Permission'
+        type: array
+    required:
+    - name
     type: object
   httphandlers.CreateSnapshotRequest:
     properties:
@@ -1649,6 +1814,178 @@ paths:
       summary: Remove a target from a load balancer
       tags:
       - loadbalancers
+  /rbac/bindings:
+    get:
+      description: Returns all user-role assignments
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.User'
+            type: array
+      summary: List role bindings
+      tags:
+      - RBAC
+    post:
+      consumes:
+      - application/json
+      description: Assigns a role to a user
+      parameters:
+      - description: Binding details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.BindRoleRequest'
+      responses:
+        "204":
+          description: No Content
+      summary: Bind role to user
+      tags:
+      - RBAC
+  /rbac/roles:
+    get:
+      description: Returns all available roles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Role'
+            type: array
+      summary: List roles
+      tags:
+      - RBAC
+    post:
+      consumes:
+      - application/json
+      description: Creates a new role with permissions
+      parameters:
+      - description: Role details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.CreateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Role'
+      summary: Create a new role
+      tags:
+      - RBAC
+  /rbac/roles/{id}:
+    delete:
+      description: Deletes a role by ID
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete role
+      tags:
+      - RBAC
+    get:
+      description: Returns a single role by ID or Name
+      parameters:
+      - description: Role ID or Name
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Role'
+      summary: Get role details
+      tags:
+      - RBAC
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing role's description or permissions
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.CreateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Role'
+      summary: Update role details
+      tags:
+      - RBAC
+  /rbac/roles/{id}/permissions:
+    post:
+      consumes:
+      - application/json
+      description: Adds a permission to an existing role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Permission details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.AddPermissionRequest'
+      responses:
+        "204":
+          description: No Content
+      summary: Add permission to role
+      tags:
+      - RBAC
+  /rbac/roles/{id}/permissions/{permission}:
+    delete:
+      consumes:
+      - application/json
+      description: Removes a permission from an existing role
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Permission name
+        in: path
+        name: permission
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Remove permission from role
+      tags:
+      - RBAC
   /snapshots:
     get:
       description: Gets a list of all existing snapshots for the user

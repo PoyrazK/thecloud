@@ -1514,6 +1514,267 @@
                 }
             }
         },
+        "/rbac/bindings": {
+            "get": {
+                "description": "Returns all user-role assignments",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "List role bindings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.User"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Assigns a role to a user",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "Bind role to user",
+                "parameters": [
+                    {
+                        "description": "Binding details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.BindRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/rbac/roles": {
+            "get": {
+                "description": "Returns all available roles",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "List roles",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Role"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new role with permissions",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "Create a new role",
+                "parameters": [
+                    {
+                        "description": "Role details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.CreateRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Role"
+                        }
+                    }
+                }
+            }
+        },
+        "/rbac/roles/{id}": {
+            "get": {
+                "description": "Returns a single role by ID or Name",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "Get role details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role ID or Name",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Role"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates an existing role's description or permissions",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "Update role details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Role details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.CreateRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Role"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a role by ID",
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "Delete role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/rbac/roles/{id}/permissions": {
+            "post": {
+                "description": "Adds a permission to an existing role",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "Add permission to role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Permission details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.AddPermissionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/rbac/roles/{id}/permissions/{permission}": {
+            "delete": {
+                "description": "Removes a permission from an existing role",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "RBAC"
+                ],
+                "summary": "Remove permission from role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Permission name",
+                        "name": "permission",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/snapshots": {
             "get": {
                 "security": [
@@ -2590,6 +2851,131 @@
                 }
             }
         },
+        "domain.Permission": {
+            "type": "string",
+            "enum": [
+                "instance:launch",
+                "instance:terminate",
+                "instance:read",
+                "instance:update",
+                "vpc:create",
+                "vpc:delete",
+                "vpc:read",
+                "volume:create",
+                "volume:delete",
+                "volume:read",
+                "snapshot:create",
+                "snapshot:delete",
+                "snapshot:read",
+                "snapshot:restore",
+                "lb:create",
+                "lb:delete",
+                "lb:read",
+                "lb:update",
+                "db:create",
+                "db:delete",
+                "db:read",
+                "secret:create",
+                "secret:delete",
+                "secret:read",
+                "function:invoke",
+                "function:create",
+                "function:delete",
+                "function:read",
+                "cache:create",
+                "cache:delete",
+                "cache:read",
+                "cache:update",
+                "queue:create",
+                "queue:delete",
+                "queue:read",
+                "queue:write",
+                "notify:create",
+                "notify:delete",
+                "notify:read",
+                "notify:publish",
+                "cron:create",
+                "cron:delete",
+                "cron:read",
+                "cron:update",
+                "gateway:create",
+                "gateway:delete",
+                "gateway:read",
+                "stack:create",
+                "stack:delete",
+                "stack:read",
+                "as:create",
+                "as:delete",
+                "as:read",
+                "as:update",
+                "container:create",
+                "container:delete",
+                "container:read",
+                "container:scale",
+                "*"
+            ],
+            "x-enum-varnames": [
+                "PermissionInstanceLaunch",
+                "PermissionInstanceTerminate",
+                "PermissionInstanceRead",
+                "PermissionInstanceUpdate",
+                "PermissionVpcCreate",
+                "PermissionVpcDelete",
+                "PermissionVpcRead",
+                "PermissionVolumeCreate",
+                "PermissionVolumeDelete",
+                "PermissionVolumeRead",
+                "PermissionSnapshotCreate",
+                "PermissionSnapshotDelete",
+                "PermissionSnapshotRead",
+                "PermissionSnapshotRestore",
+                "PermissionLbCreate",
+                "PermissionLbDelete",
+                "PermissionLbRead",
+                "PermissionLbUpdate",
+                "PermissionDBCreate",
+                "PermissionDBDelete",
+                "PermissionDBRead",
+                "PermissionSecretCreate",
+                "PermissionSecretDelete",
+                "PermissionSecretRead",
+                "PermissionFunctionInvoke",
+                "PermissionFunctionCreate",
+                "PermissionFunctionDelete",
+                "PermissionFunctionRead",
+                "PermissionCacheCreate",
+                "PermissionCacheDelete",
+                "PermissionCacheRead",
+                "PermissionCacheUpdate",
+                "PermissionQueueCreate",
+                "PermissionQueueDelete",
+                "PermissionQueueRead",
+                "PermissionQueueWrite",
+                "PermissionNotifyCreate",
+                "PermissionNotifyDelete",
+                "PermissionNotifyRead",
+                "PermissionNotifyWrite",
+                "PermissionCronCreate",
+                "PermissionCronDelete",
+                "PermissionCronRead",
+                "PermissionCronUpdate",
+                "PermissionGatewayCreate",
+                "PermissionGatewayDelete",
+                "PermissionGatewayRead",
+                "PermissionStackCreate",
+                "PermissionStackDelete",
+                "PermissionStackRead",
+                "PermissionAsCreate",
+                "PermissionAsDelete",
+                "PermissionAsRead",
+                "PermissionAsUpdate",
+                "PermissionContainerCreate",
+                "PermissionContainerDelete",
+                "PermissionContainerRead",
+                "PermissionContainerUpdate",
+                "PermissionFullAccess"
+            ]
+        },
         "domain.ResourceSummary": {
             "type": "object",
             "properties": {
@@ -2613,6 +2999,26 @@
                 },
                 "total_vpcs": {
                     "type": "integer"
+                }
+            }
+        },
+        "domain.Role": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Permission"
+                    }
                 }
             }
         },
@@ -2968,6 +3374,17 @@
                 "VolumeStatusDeleting"
             ]
         },
+        "httphandlers.AddPermissionRequest": {
+            "type": "object",
+            "required": [
+                "permission"
+            ],
+            "properties": {
+                "permission": {
+                    "$ref": "#/definitions/domain.Permission"
+                }
+            }
+        },
         "httphandlers.AddTargetRequest": {
             "type": "object",
             "required": [
@@ -2983,6 +3400,21 @@
                 },
                 "weight": {
                     "type": "integer"
+                }
+            }
+        },
+        "httphandlers.BindRoleRequest": {
+            "type": "object",
+            "required": [
+                "role_name",
+                "user_identifier"
+            ],
+            "properties": {
+                "role_name": {
+                    "type": "string"
+                },
+                "user_identifier": {
+                    "type": "string"
                 }
             }
         },
@@ -3084,6 +3516,26 @@
                 },
                 "vpc_id": {
                     "type": "string"
+                }
+            }
+        },
+        "httphandlers.CreateRoleRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Permission"
+                    }
                 }
             }
         },
