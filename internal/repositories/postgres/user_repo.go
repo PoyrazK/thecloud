@@ -101,3 +101,35 @@ func (r *UserRepo) Update(ctx context.Context, user *domain.User) error {
 	}
 	return nil
 }
+
+func (r *UserRepo) List(ctx context.Context) ([]*domain.User, error) {
+	query := `
+		SELECT id, email, password_hash, name, role, created_at, updated_at
+		FROM users
+		ORDER BY created_at DESC
+	`
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*domain.User
+	for rows.Next() {
+		user := &domain.User{}
+		err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.PasswordHash,
+			&user.Name,
+			&user.Role,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
