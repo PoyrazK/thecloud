@@ -42,7 +42,7 @@ Every function in the Service and Repository layers MUST accept `context.Context
 3.  **Implement Repository**: Add code to `internal/repositories/<adapter>/`.
 4.  **Implement Service**: Add business rules to `internal/core/services/`.
 5.  **Expose Handler**: Add Gin route in `internal/handlers/`.
-6.  **Wire up**: Update `cmd/compute-api/main.go`.
+6.  **Wire up**: Update `cmd/api/main.go`.
 
 ## Testing
 

@@ -35,7 +35,7 @@ migrate:
 	@echo "Running migrations..."
 	@docker compose up -d postgres
 	@sleep 2
-	@go run cmd/compute-api/main.go --migrate-only 2>/dev/null || echo "Migrations applied via server startup"
+	@go run cmd/api/main.go --migrate-only 2>/dev/null || echo "Migrations applied via server startup"
 
 migrate-status:
 	@echo "Checking migration status..."

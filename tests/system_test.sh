@@ -11,7 +11,7 @@ echo -e "${BLUE}Starting System Test for The Cloud...${NC}"
 # 1. Start API in background
 echo "Restarting API..."
 fuser -k 8080/tcp || true
-nohup ./bin/compute-api > test_api.log 2>&1 &
+nohup ./bin/api > test_api.log 2>&1 &
 API_PID=$!
 sleep 2
 

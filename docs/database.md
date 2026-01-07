@@ -144,9 +144,9 @@ CREATE TABLE metrics_history (
 - **Location**: `internal/repositories/postgres/migrations/`
 - **Execution**: Migrations run automatically on API startup.
 - **CI/CD / Manual**: Use the `-migrate-only` flag to run migrations and exit:
-  ```bash
-  go run cmd/compute-api/main.go -migrate-only
-  ```
+    ```bash
+    go run cmd/api/main.go -migrate-only
+    ```
 
 ## Connection Details
 The default connection string for local development is:
