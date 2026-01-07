@@ -26,7 +26,7 @@ func TestCreateFunction_Success(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
 	// Simulate authenticated user
-	ctx = appcontext.WithUser(ctx, &domain.User{ID: userID})
+	ctx = appcontext.WithUserID(ctx, userID)
 
 	name := "test-func"
 	runtime := "nodejs20"
@@ -84,7 +84,7 @@ func TestCreateFunction_InvalidRuntime(t *testing.T) {
 
 	ctx := context.Background()
 	userID := uuid.New()
-	ctx = appcontext.WithUser(ctx, &domain.User{ID: userID})
+	ctx = appcontext.WithUserID(ctx, userID)
 
 	// Invalid runtime
 	_, err := svc.CreateFunction(ctx, "test", "invalid-runtime", "handler", []byte("code"))

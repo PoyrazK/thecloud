@@ -1159,39 +1159,46 @@ func (m *MockSnapshotService) RestoreSnapshot(ctx context.Context, snapshotID uu
 
 // MockFunctionRepository
 type MockFunctionRepository struct {
-mock.Mock
+	mock.Mock
 }
 
 func (m *MockFunctionRepository) Create(ctx context.Context, function *domain.Function) error {
-args := m.Called(ctx, function)
-return args.Error(0)
+	args := m.Called(ctx, function)
+	return args.Error(0)
 }
 func (m *MockFunctionRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Function, error) {
-args := m.Called(ctx, id)
-if args.Get(0) == nil {
- nil, args.Error(1)
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Function), args.Error(1)
 }
-return args.Get(0).(*domain.Function), args.Error(1)
+func (m *MockFunctionRepository) GetByName(ctx context.Context, userID uuid.UUID, name string) (*domain.Function, error) {
+	args := m.Called(ctx, userID, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Function), args.Error(1)
 }
-func (m *MockFunctionRepository) GetByName(ctx context.Context, name string) (*domain.Function, error) {
-args := m.Called(ctx, name)
-if args.Get(0) == nil {
- nil, args.Error(1)
-}
-return args.Get(0).(*domain.Function), args.Error(1)
-}
-func (m *MockFunctionRepository) List(ctx context.Context) ([]*domain.Function, error) {
-args := m.Called(ctx)
-if args.Get(0) == nil {
- nil, args.Error(1)
-}
-return args.Get(0).([]*domain.Function), args.Error(1)
-}
-func (m *MockFunctionRepository) Update(ctx context.Context, function *domain.Function) error {
-args := m.Called(ctx, function)
-return args.Error(0)
+func (m *MockFunctionRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Function, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Function), args.Error(1)
 }
 func (m *MockFunctionRepository) Delete(ctx context.Context, id uuid.UUID) error {
-args := m.Called(ctx, id)
-return args.Error(0)
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+func (m *MockFunctionRepository) CreateInvocation(ctx context.Context, i *domain.Invocation) error {
+	args := m.Called(ctx, i)
+	return args.Error(0)
+}
+func (m *MockFunctionRepository) GetInvocations(ctx context.Context, functionID uuid.UUID, limit int) ([]*domain.Invocation, error) {
+	args := m.Called(ctx, functionID, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Invocation), args.Error(1)
 }
