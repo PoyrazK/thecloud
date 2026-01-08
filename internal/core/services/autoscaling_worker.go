@@ -245,7 +245,7 @@ func (w *AutoScalingWorker) scaleOut(ctx context.Context, group *domain.ScalingG
 	// Use dynamic ports to avoid conflicts on the same host
 	dynamicPorts := toDynamicPorts(group.Ports)
 
-	inst, err := w.instanceSvc.LaunchInstance(ctx, name, group.Image, dynamicPorts, &group.VpcID, nil)
+	inst, err := w.instanceSvc.LaunchInstance(ctx, name, group.Image, dynamicPorts, &group.VpcID, nil, nil)
 	if err != nil {
 		return err
 	}

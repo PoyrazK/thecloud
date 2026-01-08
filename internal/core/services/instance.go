@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -21,26 +23,30 @@ import (
 type InstanceService struct {
 	repo       ports.InstanceRepository
 	vpcRepo    ports.VpcRepository
+	subnetRepo ports.SubnetRepository
 	volumeRepo ports.VolumeRepository
 	compute    ports.ComputeBackend
+	network    ports.NetworkBackend
 	eventSvc   ports.EventService
 	auditSvc   ports.AuditService
 	logger     *slog.Logger
 }
 
-func NewInstanceService(repo ports.InstanceRepository, vpcRepo ports.VpcRepository, volumeRepo ports.VolumeRepository, compute ports.ComputeBackend, eventSvc ports.EventService, auditSvc ports.AuditService, logger *slog.Logger) *InstanceService {
+func NewInstanceService(repo ports.InstanceRepository, vpcRepo ports.VpcRepository, subnetRepo ports.SubnetRepository, volumeRepo ports.VolumeRepository, compute ports.ComputeBackend, network ports.NetworkBackend, eventSvc ports.EventService, auditSvc ports.AuditService, logger *slog.Logger) *InstanceService {
 	return &InstanceService{
 		repo:       repo,
 		vpcRepo:    vpcRepo,
+		subnetRepo: subnetRepo,
 		volumeRepo: volumeRepo,
 		compute:    compute,
+		network:    network,
 		eventSvc:   eventSvc,
 		auditSvc:   auditSvc,
 		logger:     logger,
 	}
 }
 
-func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports string, vpcID *uuid.UUID, volumes []domain.VolumeAttachment) (*domain.Instance, error) {
+func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports string, vpcID, subnetID *uuid.UUID, volumes []domain.VolumeAttachment) (*domain.Instance, error) {
 	// 1. Validate ports if provided
 	portList, err := s.parseAndValidatePorts(ports)
 	if err != nil {
@@ -56,6 +62,7 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports
 		Status:    domain.StatusStarting,
 		Ports:     ports,
 		VpcID:     vpcID,
+		SubnetID:  subnetID,
 		Version:   1,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -77,6 +84,24 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports
 			return nil, err
 		}
 		networkID = vpc.NetworkID
+	}
+
+	// OVS Networking Setup (Pre-conditional)
+	if subnetID != nil && s.network != nil {
+		subnet, err := s.subnetRepo.GetByID(ctx, *subnetID)
+		if err != nil {
+			return nil, errors.Wrap(errors.NotFound, "subnet not found", err)
+		}
+
+		// Dynamic IP allocation
+		allocatedIP, err := s.allocateIP(ctx, subnet)
+		if err != nil {
+			return nil, errors.Wrap(errors.ResourceLimitExceeded, "failed to allocate IP in subnet", err)
+		}
+		inst.PrivateIP = allocatedIP
+
+		vethHost := fmt.Sprintf("veth-%s", inst.ID.String()[:8])
+		inst.OvsPort = vethHost
 	}
 
 	// 5. Process volume attachments
@@ -110,6 +135,35 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports
 			"error": err.Error(),
 		})
 		return nil, errors.Wrap(errors.Internal, "failed to launch container", err)
+	}
+
+	// 4a. OVS Post-launch plumb
+	if inst.OvsPort != "" && s.network != nil {
+		vethContainer := fmt.Sprintf("eth0-%s", inst.ID.String()[:8])
+		if err := s.network.CreateVethPair(ctx, inst.OvsPort, vethContainer); err == nil {
+			vpc, _ := s.vpcRepo.GetByID(ctx, *inst.VpcID)
+			_ = s.network.AttachVethToBridge(ctx, vpc.NetworkID, inst.OvsPort)
+
+			// Set IP on the host simulation "container" end
+			if inst.SubnetID != nil {
+				subnet, _ := s.subnetRepo.GetByID(ctx, *inst.SubnetID)
+				if subnet != nil {
+					_, ipNet, _ := net.ParseCIDR(subnet.CIDRBlock)
+					ones, _ := ipNet.Mask.Size()
+					// In a real cloud, this happens inside the container namespace.
+					// For this demo, we do it on the host for the 'peer' end.
+					_ = s.network.SetVethIP(ctx, vethContainer, inst.PrivateIP, fmt.Sprintf("%d", ones))
+
+					// Ensure the "container" end is also up on host if simulating
+					cmd := exec.CommandContext(ctx, "ip", "link", "set", vethContainer, "up")
+					_ = cmd.Run()
+				}
+			}
+
+			// Note: Moving veth to container namespace requires the container PID,
+			// which Docker shim handles in a real cloud. For this local demo,
+			// we just create the veth pair on host.
+		}
 	}
 
 	s.logger.Info("container launched", "instance_id", inst.ID, "container_id", containerID)
@@ -428,4 +482,47 @@ func (s *InstanceService) updateVolumesAfterLaunch(ctx context.Context, volumes 
 			s.logger.Warn("failed to update volume status", "volume_id", vol.ID, "error", err)
 		}
 	}
+}
+func (s *InstanceService) allocateIP(ctx context.Context, subnet *domain.Subnet) (string, error) {
+	_, ipNet, err := net.ParseCIDR(subnet.CIDRBlock)
+	if err != nil {
+		return "", err
+	}
+
+	instances, err := s.repo.ListBySubnet(ctx, subnet.ID)
+	if err != nil {
+		return "", err
+	}
+
+	usedIPs := make(map[string]bool)
+	for _, inst := range instances {
+		if inst.PrivateIP != "" {
+			usedIPs[inst.PrivateIP] = true
+		}
+	}
+	usedIPs[subnet.GatewayIP] = true
+
+	// Find first available IP
+	ip := ipNet.IP
+	for ipNet.Contains(ip) {
+		// Increment IP
+		for i := len(ip) - 1; i >= 0; i-- {
+			ip[i]++
+			if ip[i] > 0 {
+				break
+			}
+		}
+
+		if !usedIPs[ip.String()] && !ip.Equal(ipNet.IP) && s.isValidHostIP(ip, ipNet) {
+			return ip.String(), nil
+		}
+	}
+
+	return "", fmt.Errorf("no available IPs in subnet")
+}
+
+func (s *InstanceService) isValidHostIP(ip net.IP, n *net.IPNet) bool {
+	// Simple check: not network address and not broadcast address (if /30 or larger)
+	// For simplicity in this demo, we just ensure it's in range and not gateway
+	return n.Contains(ip)
 }

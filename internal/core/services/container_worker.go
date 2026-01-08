@@ -116,7 +116,7 @@ func (w *ContainerWorker) launchContainer(ctx context.Context, dep *domain.Deplo
 
 	// Deployments usually run in a default VPC or we could add VPC support to deployments
 	// For now using nil VPC (default network)
-	inst, err := w.instanceSvc.LaunchInstance(ctx, name, dep.Image, dep.Ports, nil, nil)
+	inst, err := w.instanceSvc.LaunchInstance(ctx, name, dep.Image, dep.Ports, nil, nil, nil)
 	if err != nil {
 		return err
 	}
