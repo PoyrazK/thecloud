@@ -18,12 +18,19 @@ import (
 // Helper to get a strong password for tests
 const strongTestPassword = "CorrectHorseBatteryStaple123!"
 
-func TestAuthService_Register_Success(t *testing.T) {
+func setupAuthServiceTest(t *testing.T) (*MockUserRepo, *MockIdentityService, *MockAuditService, *services.AuthService) {
 	userRepo := new(MockUserRepo)
 	identitySvc := new(MockIdentityService)
 	auditSvc := new(MockAuditService)
-
 	svc := services.NewAuthService(userRepo, identitySvc, auditSvc)
+	return userRepo, identitySvc, auditSvc, svc
+}
+
+func TestAuthService_Register_Success(t *testing.T) {
+	userRepo, _, auditSvc, svc := setupAuthServiceTest(t)
+	defer userRepo.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
+
 	ctx := context.Background()
 
 	email := "test@example.com"
@@ -42,16 +49,12 @@ func TestAuthService_Register_Success(t *testing.T) {
 	assert.Equal(t, name, user.Name)
 	assert.NotEmpty(t, user.PasswordHash)
 	assert.NotEqual(t, password, user.PasswordHash) // Hashed
-
-	userRepo.AssertExpectations(t)
 }
 
 func TestAuthService_Register_WeakPassword(t *testing.T) {
-	userRepo := new(MockUserRepo)
-	identitySvc := new(MockIdentityService)
-	auditSvc := new(MockAuditService)
+	userRepo, _, _, svc := setupAuthServiceTest(t)
+	defer userRepo.AssertExpectations(t)
 
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc)
 	ctx := context.Background()
 
 	// "123" is definitely too weak
@@ -63,11 +66,9 @@ func TestAuthService_Register_WeakPassword(t *testing.T) {
 }
 
 func TestAuthService_Register_DuplicateEmail(t *testing.T) {
-	userRepo := new(MockUserRepo)
-	identitySvc := new(MockIdentityService)
-	auditSvc := new(MockAuditService)
+	userRepo, _, _, svc := setupAuthServiceTest(t)
+	defer userRepo.AssertExpectations(t)
 
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc)
 	ctx := context.Background()
 
 	email := "existing@example.com"
@@ -83,16 +84,17 @@ func TestAuthService_Register_DuplicateEmail(t *testing.T) {
 }
 
 func TestAuthService_Login_Success(t *testing.T) {
-	userRepo := new(MockUserRepo)
-	identitySvc := new(MockIdentityService)
-	auditSvc := new(MockAuditService)
+	userRepo, identitySvc, auditSvc, svc := setupAuthServiceTest(t)
+	defer userRepo.AssertExpectations(t)
+	defer identitySvc.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc)
 	ctx := context.Background()
 
 	email := "login@example.com"
 	password := "correct-password-is-long-enough"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	assert.NoError(t, err)
 	userID := uuid.New()
 	user := &domain.User{ID: userID, Email: email, PasswordHash: string(hashedPassword)}
 
@@ -109,20 +111,17 @@ func TestAuthService_Login_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resultUser)
 	assert.Equal(t, "sk_test_123", apiKey)
-	userRepo.AssertExpectations(t)
-	identitySvc.AssertExpectations(t)
 }
 
 func TestAuthService_Login_WrongPassword(t *testing.T) {
-	userRepo := new(MockUserRepo)
-	identitySvc := new(MockIdentityService)
-	auditSvc := new(MockAuditService)
+	userRepo, _, _, svc := setupAuthServiceTest(t)
+	defer userRepo.AssertExpectations(t)
 
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc)
 	ctx := context.Background()
 
 	email := "wrong@example.com"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("real-password"), bcrypt.DefaultCost)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("real-password"), bcrypt.DefaultCost)
+	assert.NoError(t, err)
 	user := &domain.User{ID: uuid.New(), Email: email, PasswordHash: string(hashedPassword)}
 
 	userRepo.On("GetByEmail", ctx, email).Return(user, nil)
@@ -140,11 +139,9 @@ func TestAuthService_Login_WrongPassword(t *testing.T) {
 }
 
 func TestAuthService_ValidateUser(t *testing.T) {
-	userRepo := new(MockUserRepo)
-	identitySvc := new(MockIdentityService)
-	auditSvc := new(MockAuditService)
+	userRepo, _, _, svc := setupAuthServiceTest(t)
+	defer userRepo.AssertExpectations(t)
 
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc)
 	ctx := context.Background()
 	userID := uuid.New()
 	user := &domain.User{ID: userID, Email: "validate@example.com"}
@@ -155,5 +152,4 @@ func TestAuthService_ValidateUser(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, userID, result.ID)
-	userRepo.AssertExpectations(t)
 }

@@ -12,11 +12,19 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/services"
 )
 
-func TestCreateGroup_SecurityLimits(t *testing.T) {
+func setupAutoScalingServiceTest(t *testing.T) (*MockAutoScalingRepo, *MockVpcRepo, *MockAuditService, *services.AutoScalingService) {
 	mockRepo := new(MockAutoScalingRepo)
 	mockVpcRepo := new(MockVpcRepo)
 	auditSvc := new(MockAuditService)
 	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	return mockRepo, mockVpcRepo, auditSvc, svc
+}
+
+func TestCreateGroup_SecurityLimits(t *testing.T) {
+	mockRepo, mockVpcRepo, _, svc := setupAutoScalingServiceTest(t)
+	defer mockVpcRepo.AssertExpectations(t)
+	defer mockRepo.AssertExpectations(t)
+
 	ctx := context.Background()
 	vpcID := uuid.New()
 
@@ -37,10 +45,11 @@ func TestCreateGroup_SecurityLimits(t *testing.T) {
 }
 
 func TestCreateGroup_Success(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, mockVpcRepo, auditSvc, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+	defer mockVpcRepo.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
+
 	ctx := context.Background()
 	vpcID := uuid.New()
 
@@ -57,14 +66,12 @@ func TestCreateGroup_Success(t *testing.T) {
 	assert.Equal(t, 1, group.MinInstances)
 	assert.Equal(t, 5, group.MaxInstances)
 	assert.Equal(t, 2, group.DesiredCount)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreateGroup_Idempotency(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, _, _, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+
 	ctx := context.Background()
 	vpcID := uuid.New()
 
@@ -79,10 +86,7 @@ func TestCreateGroup_Idempotency(t *testing.T) {
 }
 
 func TestCreateGroup_ValidationErrors(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	_, _, _, svc := setupAutoScalingServiceTest(t)
 	ctx := context.Background()
 	vpcID := uuid.New()
 
@@ -106,10 +110,10 @@ func TestCreateGroup_ValidationErrors(t *testing.T) {
 }
 
 func TestDeleteGroup_Success(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, _, auditSvc, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
+
 	ctx := context.Background()
 	groupID := uuid.New()
 
@@ -123,14 +127,12 @@ func TestDeleteGroup_Success(t *testing.T) {
 	err := svc.DeleteGroup(ctx, groupID)
 
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestSetDesiredCapacity_Success(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, _, _, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+
 	ctx := context.Background()
 	groupID := uuid.New()
 
@@ -143,14 +145,12 @@ func TestSetDesiredCapacity_Success(t *testing.T) {
 	err := svc.SetDesiredCapacity(ctx, groupID, 5)
 
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestSetDesiredCapacity_OutOfRange(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, _, _, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+
 	ctx := context.Background()
 	groupID := uuid.New()
 
@@ -164,10 +164,9 @@ func TestSetDesiredCapacity_OutOfRange(t *testing.T) {
 }
 
 func TestCreatePolicy_Success(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, _, _, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+
 	ctx := context.Background()
 	groupID := uuid.New()
 
@@ -180,14 +179,12 @@ func TestCreatePolicy_Success(t *testing.T) {
 	assert.NotNil(t, policy)
 	assert.Equal(t, "cpu-high", policy.Name)
 	assert.Equal(t, 70.0, policy.TargetValue)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreatePolicy_CooldownTooLow(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, _, _, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+
 	ctx := context.Background()
 	groupID := uuid.New()
 
@@ -200,10 +197,9 @@ func TestCreatePolicy_CooldownTooLow(t *testing.T) {
 }
 
 func TestListGroups(t *testing.T) {
-	mockRepo := new(MockAutoScalingRepo)
-	mockVpcRepo := new(MockVpcRepo)
-	auditSvc := new(MockAuditService)
-	svc := services.NewAutoScalingService(mockRepo, mockVpcRepo, auditSvc)
+	mockRepo, _, _, svc := setupAutoScalingServiceTest(t)
+	defer mockRepo.AssertExpectations(t)
+
 	ctx := context.Background()
 
 	groups := []*domain.ScalingGroup{{Name: "asg1"}, {Name: "asg2"}}
@@ -213,5 +209,4 @@ func TestListGroups(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
-	mockRepo.AssertExpectations(t)
 }

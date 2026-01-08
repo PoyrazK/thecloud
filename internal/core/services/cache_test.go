@@ -38,6 +38,9 @@ func (m *MockCacheRepo) GetByName(ctx context.Context, userID uuid.UUID, name st
 }
 func (m *MockCacheRepo) List(ctx context.Context, userID uuid.UUID) ([]*domain.Cache, error) {
 	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]*domain.Cache), args.Error(1)
 }
 func (m *MockCacheRepo) Update(ctx context.Context, c *domain.Cache) error {
@@ -49,7 +52,7 @@ func (m *MockCacheRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return args.Error(0)
 }
 
-func TestCreateCache_Success(t *testing.T) {
+func setupCacheServiceTest(t *testing.T) (*MockCacheRepo, *MockComputeBackend, *MockVpcRepo, *MockEventService, *MockAuditService, *services.CacheService) {
 	repo := new(MockCacheRepo)
 	docker := new(MockComputeBackend)
 	vpcRepo := new(MockVpcRepo)
@@ -58,6 +61,15 @@ func TestCreateCache_Success(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	return repo, docker, vpcRepo, eventSvc, auditSvc, svc
+}
+
+func TestCreateCache_Success(t *testing.T) {
+	repo, docker, _, eventSvc, auditSvc, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer docker.AssertExpectations(t)
+	defer eventSvc.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := appcontext.WithUserID(context.Background(), uuid.New())
 	name := "test-cache"
@@ -84,20 +96,14 @@ func TestCreateCache_Success(t *testing.T) {
 	assert.Equal(t, "cont-123", cache.ContainerID)
 	assert.NotEmpty(t, cache.Password)
 	assert.Equal(t, 128, cache.MemoryMB)
-
-	repo.AssertExpectations(t)
-	docker.AssertExpectations(t)
 }
 
 func TestDeleteCache_Success(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, docker, _, eventSvc, auditSvc, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer docker.AssertExpectations(t)
+	defer eventSvc.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := context.Background()
 	cacheID := uuid.New()
@@ -117,19 +123,13 @@ func TestDeleteCache_Success(t *testing.T) {
 	err := svc.DeleteCache(ctx, cacheID.String())
 
 	assert.NoError(t, err)
-	repo.AssertExpectations(t)
-	docker.AssertExpectations(t)
 }
 
 func TestFlushCache_Success(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, docker, _, _, auditSvc, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer docker.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := context.Background()
 	cacheID := uuid.New()
@@ -148,18 +148,12 @@ func TestFlushCache_Success(t *testing.T) {
 	err := svc.FlushCache(ctx, cacheID.String())
 
 	assert.NoError(t, err)
-	docker.AssertExpectations(t)
 }
 
 func TestGetCacheStats_Success(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, docker, _, _, _, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer docker.AssertExpectations(t)
 
 	ctx := context.Background()
 	cacheID := uuid.New()
@@ -189,19 +183,12 @@ func TestGetCacheStats_Success(t *testing.T) {
 	assert.Equal(t, int64(2048), stats.MaxMemoryBytes)
 	assert.Equal(t, 5, stats.ConnectedClients)
 	assert.Equal(t, int64(10), stats.TotalKeys)
-
-	docker.AssertExpectations(t)
 }
 
 func TestCreateCache_DockerFailure(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, docker, _, _, _, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer docker.AssertExpectations(t)
 
 	ctx := appcontext.WithUserID(context.Background(), uuid.New())
 	name := "fail-cache"
@@ -219,19 +206,11 @@ func TestCreateCache_DockerFailure(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, cache)
-	repo.AssertExpectations(t)
-	docker.AssertExpectations(t)
 }
 
 func TestGetCache_ByID(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, _, _, _, _, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
 
 	ctx := context.Background()
 	cacheID := uuid.New()
@@ -243,18 +222,11 @@ func TestGetCache_ByID(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, cacheID, result.ID)
-	repo.AssertExpectations(t)
 }
 
 func TestGetCache_ByName(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, _, _, _, _, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
 
 	userID := uuid.New()
 	ctx := appcontext.WithUserID(context.Background(), userID)
@@ -267,18 +239,11 @@ func TestGetCache_ByName(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, name, result.Name)
-	repo.AssertExpectations(t)
 }
 
 func TestListCaches(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, _, _, _, _, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
 
 	userID := uuid.New()
 	ctx := appcontext.WithUserID(context.Background(), userID)
@@ -290,18 +255,11 @@ func TestListCaches(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
-	repo.AssertExpectations(t)
 }
 
 func TestGetCacheConnectionString(t *testing.T) {
-	repo := new(MockCacheRepo)
-	docker := new(MockComputeBackend)
-	vpcRepo := new(MockVpcRepo)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	svc := services.NewCacheService(repo, docker, vpcRepo, eventSvc, auditSvc, logger)
+	repo, _, _, _, _, svc := setupCacheServiceTest(t)
+	defer repo.AssertExpectations(t)
 
 	ctx := context.Background()
 	cacheID := uuid.New()
@@ -320,5 +278,4 @@ func TestGetCacheConnectionString(t *testing.T) {
 	assert.Contains(t, connStr, "redis://")
 	assert.Contains(t, connStr, "secret")
 	assert.Contains(t, connStr, "6379")
-	repo.AssertExpectations(t)
 }
