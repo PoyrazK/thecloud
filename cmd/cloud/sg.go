@@ -126,6 +126,7 @@ var sgAttachCmd = &cobra.Command{
 	},
 }
 
+// init initializes the security group CLI by registering flags for the create, list, and add-rule commands and adding the sg subcommands to the root command.
 func init() {
 	sgCreateCmd.Flags().String("vpc-id", "", "VPC ID")
 	sgCreateCmd.Flags().String("description", "", "Description")

@@ -15,6 +15,7 @@ type SecurityGroupRepository struct {
 	db *pgxpool.Pool
 }
 
+// NewSecurityGroupRepository creates a SecurityGroupRepository that uses the provided pgxpool.Pool for database operations.
 func NewSecurityGroupRepository(db *pgxpool.Pool) *SecurityGroupRepository {
 	return &SecurityGroupRepository{db: db}
 }

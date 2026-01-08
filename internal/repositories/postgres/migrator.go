@@ -16,7 +16,10 @@ var migrationsFS embed.FS
 // RunMigrations applies all embedded up migrations.
 // In a real production system, this should track applied migrations in a table.
 // For The Cloud, we'll use IF NOT EXISTS in SQL to make them idempotent-ish,
-// or just run them and ignore "already exists" errors for simplicity in this MVP.
+// RunMigrations applies embedded SQL migration files found in the "migrations" directory.
+// It reads and sorts files, then executes each file whose name ends with ".up.sql" against the provided Postgres pool.
+// Reading the migrations directory or an individual migration file returns an error; execution errors for individual
+// migrations are logged but do not stop processing of subsequent migrations.
 func RunMigrations(ctx context.Context, db *pgxpool.Pool) error {
 	entries, err := migrationsFS.ReadDir("migrations")
 	if err != nil {

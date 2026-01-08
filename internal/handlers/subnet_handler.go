@@ -13,6 +13,8 @@ type SubnetHandler struct {
 	svc ports.SubnetService
 }
 
+// NewSubnetHandler creates a SubnetHandler that handles HTTP endpoints for subnets using the provided SubnetService.
+// The svc parameter is used to perform subnet-related business logic invoked by the handler methods.
 func NewSubnetHandler(svc ports.SubnetService) *SubnetHandler {
 	return &SubnetHandler{svc: svc}
 }

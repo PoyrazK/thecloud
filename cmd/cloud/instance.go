@@ -229,6 +229,9 @@ var statsCmd = &cobra.Command{
 	},
 }
 
+// init registers instance subcommands under instanceCmd and configures flags used by the CLI.
+// It adds flags for launchCmd: --name (required), --image (default "alpine"), --port, --vpc, --subnet, and --volume,
+// and sets persistent flags --json (bound to outputJSON) and --api-key (bound to apiKey).
 func init() {
 	instanceCmd.AddCommand(listCmd)
 	instanceCmd.AddCommand(launchCmd)

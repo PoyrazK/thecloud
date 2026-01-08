@@ -23,6 +23,9 @@ type OvsAdapter struct {
 	logger    *slog.Logger
 }
 
+// NewOvsAdapter creates a new OvsAdapter initialized with paths to the ovs-vsctl and ovs-ofctl binaries.
+// It looks up both executables in PATH and returns an error if either is not found.
+// The provided logger is stored on the adapter for use by its methods.
 func NewOvsAdapter(logger *slog.Logger) (*OvsAdapter, error) {
 	ovsctl, err := exec.LookPath("ovs-vsctl")
 	if err != nil {

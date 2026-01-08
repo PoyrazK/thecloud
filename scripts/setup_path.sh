@@ -12,7 +12,12 @@ echo "Detecting shell and configuring PATH..."
 # Create directory if it doesn't exist
 mkdir -p "$LOCAL_BIN"
 
-# Function to add to config if not present
+# add_to_config adds a specified line to a config file if that exact line is not already present.
+# If the file exists and the line is missing, it appends a blank line, a comment ("# The Cloud CLI PATH"),
+# and the provided line, prints "Added to <config_file>", and returns 0. If the line is already present,
+# it prints "Found in <config_file>, skipping." and returns 1. If the file does not exist, it does nothing.
+# @param config_file Path to the configuration file to check and potentially modify.
+# @param line Exact line to append to the file when absent.
 add_to_config() {
     local config_file=$1
     local line=$2

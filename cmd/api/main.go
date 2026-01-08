@@ -50,7 +50,10 @@ import (
 
 // @securityDefinitions.apikey APIKeyAuth
 // @in header
-// @name X-API-Key
+// main initializes the application, wiring logger, configuration, database (and migrations), adapters, repositories,
+// services and HTTP handlers, registers middleware and routes, starts background workers and the HTTP server, and
+// performs a graceful shutdown on SIGINT/SIGTERM.
+// If the -migrate-only flag is provided, it runs database migrations and exits after completion.
 
 func main() {
 	// 1. Logger

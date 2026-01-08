@@ -86,6 +86,8 @@ var vpcRmCmd = &cobra.Command{
 	},
 }
 
+// init registers VPC subcommands and configures flags for the create command.
+// It adds the --cidr-block flag to vpcCreateCmd and attaches vpcListCmd, vpcCreateCmd, and vpcRmCmd to vpcCmd.
 func init() {
 	vpcCreateCmd.Flags().String("cidr-block", "10.0.0.0/16", "CIDR block for the VPC")
 	vpcCmd.AddCommand(vpcListCmd)

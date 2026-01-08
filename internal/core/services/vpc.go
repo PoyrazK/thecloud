@@ -20,6 +20,7 @@ type VpcService struct {
 	logger   *slog.Logger
 }
 
+// NewVpcService creates a VpcService with the provided VPC repository, network backend, audit service, and logger wired as dependencies.
 func NewVpcService(repo ports.VpcRepository, network ports.NetworkBackend, auditSvc ports.AuditService, logger *slog.Logger) *VpcService {
 	return &VpcService{
 		repo:     repo,

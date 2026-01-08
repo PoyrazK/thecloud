@@ -21,6 +21,7 @@ type SubnetService struct {
 	logger   *slog.Logger
 }
 
+// NewSubnetService creates a SubnetService configured with the given subnet and VPC repositories, audit service, and logger.
 func NewSubnetService(repo ports.SubnetRepository, vpcRepo ports.VpcRepository, auditSvc ports.AuditService, logger *slog.Logger) *SubnetService {
 	return &SubnetService{
 		repo:     repo,

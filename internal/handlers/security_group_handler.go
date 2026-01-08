@@ -14,6 +14,7 @@ type SecurityGroupHandler struct {
 	svc ports.SecurityGroupService
 }
 
+// NewSecurityGroupHandler creates a SecurityGroupHandler backed by the provided SecurityGroupService.
 func NewSecurityGroupHandler(svc ports.SecurityGroupService) *SecurityGroupHandler {
 	return &SecurityGroupHandler{svc: svc}
 }

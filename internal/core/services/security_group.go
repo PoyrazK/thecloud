@@ -22,6 +22,9 @@ type SecurityGroupService struct {
 	logger   *slog.Logger
 }
 
+// NewSecurityGroupService creates a SecurityGroupService initialized with the provided
+// security group repository, VPC repository, network backend, audit service, and logger.
+// The returned service holds these dependencies for use by its methods.
 func NewSecurityGroupService(
 	repo ports.SecurityGroupRepository,
 	vpcRepo ports.VpcRepository,

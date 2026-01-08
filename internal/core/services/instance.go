@@ -32,6 +32,7 @@ type InstanceService struct {
 	logger     *slog.Logger
 }
 
+// compute and network backends, event and audit services, and logger.
 func NewInstanceService(repo ports.InstanceRepository, vpcRepo ports.VpcRepository, subnetRepo ports.SubnetRepository, volumeRepo ports.VolumeRepository, compute ports.ComputeBackend, network ports.NetworkBackend, eventSvc ports.EventService, auditSvc ports.AuditService, logger *slog.Logger) *InstanceService {
 	return &InstanceService{
 		repo:       repo,

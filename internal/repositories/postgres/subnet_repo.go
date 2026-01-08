@@ -16,6 +16,8 @@ type SubnetRepository struct {
 	db *pgxpool.Pool
 }
 
+// NewSubnetRepository creates a SubnetRepository backed by the provided pgxpool.Pool.
+// The returned repository uses the pool for all database operations related to subnets.
 func NewSubnetRepository(db *pgxpool.Pool) *SubnetRepository {
 	return &SubnetRepository{db: db}
 }

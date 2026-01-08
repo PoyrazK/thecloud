@@ -23,6 +23,10 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+// init registers the CLI's top-level subcommands on rootCmd.
+// It adds versionCmd and the service commands: instance, auth, storage, vpc,
+// lb, db, secrets, function, cache, autoscaling, container, cron, events,
+// gateway, notify, queue, snapshot, volume, iac, roles, and subnet.
 func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(instanceCmd)
@@ -48,6 +52,7 @@ func init() {
 	rootCmd.AddCommand(subnetCmd)
 }
 
+// main is the program entry point; it executes the root CLI command and exits with status 1 if execution fails.
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

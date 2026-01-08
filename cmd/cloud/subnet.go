@@ -90,6 +90,9 @@ var subnetDeleteCmd = &cobra.Command{
 	},
 }
 
+// init configures the subnet create command's flags and registers subnet subcommands.
+// It adds the "az" flag with default "us-east-1a" to subnetCreateCmd and attaches
+// subnetListCmd, subnetCreateCmd, and subnetDeleteCmd to subnetCmd.
 func init() {
 	subnetCreateCmd.Flags().String("az", "us-east-1a", "Availability zone")
 
