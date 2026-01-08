@@ -18,6 +18,10 @@ func TestOvsAdapter_Integration(t *testing.T) {
 		t.Skip("Skipping OVS integration test. Set OVS_INTEGRATION_TEST=true to run.")
 	}
 
+	if _, err := os.Stat("/usr/bin/ovs-vsctl"); os.IsNotExist(err) {
+		t.Skip("Skipping OVS integration test: ovs-vsctl not found at /usr/bin/ovs-vsctl")
+	}
+
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	adapter, err := ovs.NewOvsAdapter(logger)
 	require.NoError(t, err)

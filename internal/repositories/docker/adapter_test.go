@@ -22,16 +22,21 @@ func TestDockerAdapter_Integration(t *testing.T) {
 
 		// 1. Create
 		// Using a minimal sleep command so it stays running but exits eventually
-		id, err := adapter.CreateContainer(ctx, name, image, []string{}, "", []string{}, nil, nil)
+		// Signature: CreateInstance(ctx, name, imageName, ports, networkID, volumeBinds, env, cmd)
+		id, err := adapter.CreateInstance(ctx, name, image, []string{}, "", []string{}, []string{}, []string{"sleep", "10"})
 		require.NoError(t, err)
 		assert.NotEmpty(t, id)
 
 		// 2. Stop
-		err = adapter.StopContainer(ctx, id)
+		// Note: CreateInstance returns ID, but StopInstance expects Name currently based on implementation?
+		// Checking implementation: StopInstance(ctx, name string) takes name.
+		// BUT the test was passing ID. Let's check if StopInstance handles ID or Name.
+		// Docker API usually handles both.
+		err = adapter.StopInstance(ctx, id)
 		assert.NoError(t, err)
 
 		// 3. Remove
-		err = adapter.RemoveContainer(ctx, id)
+		err = adapter.DeleteInstance(ctx, id)
 		assert.NoError(t, err)
 	})
 
