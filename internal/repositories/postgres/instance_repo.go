@@ -13,14 +13,17 @@ import (
 	"github.com/poyrazk/thecloud/internal/errors"
 )
 
+// InstanceRepository provides a PostgreSQL implementation for managing instance metadata.
 type InstanceRepository struct {
 	db *pgxpool.Pool
 }
 
+// NewInstanceRepository creates a new InstanceRepository with the given database pool.
 func NewInstanceRepository(db *pgxpool.Pool) *InstanceRepository {
 	return &InstanceRepository{db: db}
 }
 
+// Create inserts a new instance record into the database.
 func (r *InstanceRepository) Create(ctx context.Context, inst *domain.Instance) error {
 	query := `
 		INSERT INTO instances (id, user_id, name, image, container_id, status, ports, vpc_id, subnet_id, private_ip, ovs_port, version, created_at, updated_at)
@@ -36,6 +39,7 @@ func (r *InstanceRepository) Create(ctx context.Context, inst *domain.Instance) 
 	return nil
 }
 
+// GetByID retrieves a single instance by its UUID and ensures it belongs to the authenticated user.
 func (r *InstanceRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Instance, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `
@@ -56,6 +60,7 @@ func (r *InstanceRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain
 	return &inst, nil
 }
 
+// GetByName retrieves a single instance by its name and ensures it belongs to the authenticated user.
 func (r *InstanceRepository) GetByName(ctx context.Context, name string) (*domain.Instance, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `
@@ -76,6 +81,7 @@ func (r *InstanceRepository) GetByName(ctx context.Context, name string) (*domai
 	return &inst, nil
 }
 
+// List returns all instances belonging to the authenticated user.
 func (r *InstanceRepository) List(ctx context.Context) ([]*domain.Instance, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `
@@ -104,6 +110,7 @@ func (r *InstanceRepository) List(ctx context.Context) ([]*domain.Instance, erro
 	return instances, nil
 }
 
+// Update modifies an existing instance record using optimistic locking (via the version field).
 func (r *InstanceRepository) Update(ctx context.Context, inst *domain.Instance) error {
 	// Implements Optimistic Locking via 'version'
 	query := `
@@ -126,6 +133,7 @@ func (r *InstanceRepository) Update(ctx context.Context, inst *domain.Instance) 
 	return nil
 }
 
+// ListBySubnet returns all instances associated with a specific subnet.
 func (r *InstanceRepository) ListBySubnet(ctx context.Context, subnetID uuid.UUID) ([]*domain.Instance, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `
@@ -154,6 +162,7 @@ func (r *InstanceRepository) ListBySubnet(ctx context.Context, subnetID uuid.UUI
 	return instances, nil
 }
 
+// Delete removes an instance record from the database.
 func (r *InstanceRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `DELETE FROM instances WHERE id = $1 AND user_id = $2`

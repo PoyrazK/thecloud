@@ -20,6 +20,9 @@ import (
 	"github.com/poyrazk/thecloud/internal/platform"
 )
 
+// InstanceService manages the lifecycle of compute instances,
+// coordinating between database persistence, compute backends (Docker/Libvirt),
+// and network backends (OVS).
 type InstanceService struct {
 	repo       ports.InstanceRepository
 	vpcRepo    ports.VpcRepository
@@ -32,6 +35,7 @@ type InstanceService struct {
 	logger     *slog.Logger
 }
 
+// NewInstanceService initializes a new InstanceService with required dependencies.
 func NewInstanceService(repo ports.InstanceRepository, vpcRepo ports.VpcRepository, subnetRepo ports.SubnetRepository, volumeRepo ports.VolumeRepository, compute ports.ComputeBackend, network ports.NetworkBackend, eventSvc ports.EventService, auditSvc ports.AuditService, logger *slog.Logger) *InstanceService {
 	return &InstanceService{
 		repo:       repo,
@@ -46,6 +50,8 @@ func NewInstanceService(repo ports.InstanceRepository, vpcRepo ports.VpcReposito
 	}
 }
 
+// LaunchInstance provisions a new instance, sets up its network (if VPC/Subnet provided),
+// and attaches any requested volumes.
 func (s *InstanceService) LaunchInstance(ctx context.Context, name, image, ports string, vpcID, subnetID *uuid.UUID, volumes []domain.VolumeAttachment) (*domain.Instance, error) {
 	// 1. Validate ports if provided
 	portList, err := s.parseAndValidatePorts(ports)
@@ -239,6 +245,7 @@ func parsePort(s string) (int, error) {
 	return port, nil
 }
 
+// StopInstance halts a running instance's associated compute resource (e.g., container).
 func (s *InstanceService) StopInstance(ctx context.Context, idOrName string) error {
 	// 1. Get from DB (handles both Name and UUID)
 	inst, err := s.GetInstance(ctx, idOrName)
@@ -282,10 +289,12 @@ func (s *InstanceService) StopInstance(ctx context.Context, idOrName string) err
 	return nil
 }
 
+// ListInstances returns all instances owned by the current user.
 func (s *InstanceService) ListInstances(ctx context.Context) ([]*domain.Instance, error) {
 	return s.repo.List(ctx)
 }
 
+// GetInstance retrieves an instance by its UUID or name.
 func (s *InstanceService) GetInstance(ctx context.Context, idOrName string) (*domain.Instance, error) {
 	// 1. Try to parse as UUID
 	id, uuidErr := uuid.Parse(idOrName)
@@ -296,6 +305,7 @@ func (s *InstanceService) GetInstance(ctx context.Context, idOrName string) (*do
 	return s.repo.GetByName(ctx, idOrName)
 }
 
+// GetInstanceLogs retrieves the execution logs from the instance's compute resource.
 func (s *InstanceService) GetInstanceLogs(ctx context.Context, idOrName string) (string, error) {
 	inst, err := s.GetInstance(ctx, idOrName)
 	if err != nil {
@@ -320,6 +330,7 @@ func (s *InstanceService) GetInstanceLogs(ctx context.Context, idOrName string) 
 	return string(bytes), nil
 }
 
+// TerminateInstance permanently removes an instance and its associated compute resources.
 func (s *InstanceService) TerminateInstance(ctx context.Context, idOrName string) error {
 	// 1. Get from DB (handles both Name and UUID)
 	inst, err := s.GetInstance(ctx, idOrName)
@@ -399,6 +410,7 @@ func (s *InstanceService) releaseAttachedVolumes(ctx context.Context, instanceID
 	return nil
 }
 
+// GetInstanceStats retrieves real-time CPU and Memory usage for an instance.
 func (s *InstanceService) GetInstanceStats(ctx context.Context, idOrName string) (*domain.InstanceStats, error) {
 	inst, err := s.GetInstance(ctx, idOrName)
 	if err != nil {

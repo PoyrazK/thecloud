@@ -1,3 +1,4 @@
+// Package services contains the core business logic of the application.
 package services
 
 import (
@@ -13,6 +14,8 @@ import (
 	"github.com/poyrazk/thecloud/internal/errors"
 )
 
+// VpcService handles the lifecycle of Virtual Private Clouds (VPCs),
+// including network isolation through OVS bridges and backend persistence.
 type VpcService struct {
 	repo        ports.VpcRepository
 	network     ports.NetworkBackend
@@ -21,6 +24,8 @@ type VpcService struct {
 	defaultCIDR string
 }
 
+// NewVpcService creates a new instance of VpcService.
+// If defaultCIDR is empty, it defaults to "10.0.0.0/16".
 func NewVpcService(repo ports.VpcRepository, network ports.NetworkBackend, auditSvc ports.AuditService, logger *slog.Logger, defaultCIDR string) *VpcService {
 	if defaultCIDR == "" {
 		defaultCIDR = "10.0.0.0/16" // Fallback if not provided
@@ -34,6 +39,8 @@ func NewVpcService(repo ports.VpcRepository, network ports.NetworkBackend, audit
 	}
 }
 
+// CreateVPC provisions a new VPC with an associated OVS bridge for network isolation.
+// It generates a unique VXLAN ID and persists the VPC metadata to the database.
 func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*domain.VPC, error) {
 	if cidrBlock == "" {
 		cidrBlock = s.defaultCIDR
@@ -85,6 +92,7 @@ func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*do
 	return vpc, nil
 }
 
+// GetVPC retrieves a VPC by its unique identifier (UUID) or its name.
 func (s *VpcService) GetVPC(ctx context.Context, idOrName string) (*domain.VPC, error) {
 	id, err := uuid.Parse(idOrName)
 	if err == nil {
@@ -93,10 +101,12 @@ func (s *VpcService) GetVPC(ctx context.Context, idOrName string) (*domain.VPC, 
 	return s.repo.GetByName(ctx, idOrName)
 }
 
+// ListVPCs returns a list of all VPCs accessible by the current user.
 func (s *VpcService) ListVPCs(ctx context.Context) ([]*domain.VPC, error) {
 	return s.repo.List(ctx)
 }
 
+// DeleteVPC removes a VPC, its associated OVS bridge, and all related database records.
 func (s *VpcService) DeleteVPC(ctx context.Context, idOrName string) error {
 	vpc, err := s.GetVPC(ctx, idOrName)
 	if err != nil {

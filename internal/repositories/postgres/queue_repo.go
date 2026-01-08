@@ -12,14 +12,18 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/ports"
 )
 
+// PostgresQueueRepository implements a message queue system using PostgreSQL as the backend.
+// It supports visibility timeouts and message locking for concurrent processing.
 type PostgresQueueRepository struct {
 	db *pgxpool.Pool
 }
 
+// NewPostgresQueueRepository creates a new instance of PostgresQueueRepository.
 func NewPostgresQueueRepository(db *pgxpool.Pool) ports.QueueRepository {
 	return &PostgresQueueRepository{db: db}
 }
 
+// Create provisions a new message queue entity.
 func (r *PostgresQueueRepository) Create(ctx context.Context, q *domain.Queue) error {
 	query := `
 		INSERT INTO queues (id, user_id, name, arn, visibility_timeout, retention_days, max_message_size, status, created_at, updated_at)
@@ -30,6 +34,7 @@ func (r *PostgresQueueRepository) Create(ctx context.Context, q *domain.Queue) e
 	return err
 }
 
+// GetByID retrieves a queue definition by its unique identifier.
 func (r *PostgresQueueRepository) GetByID(ctx context.Context, id, userID uuid.UUID) (*domain.Queue, error) {
 	q := &domain.Queue{}
 	query := `SELECT id, user_id, name, arn, visibility_timeout, retention_days, max_message_size, status, created_at, updated_at FROM queues WHERE id = $1 AND user_id = $2`
@@ -41,6 +46,7 @@ func (r *PostgresQueueRepository) GetByID(ctx context.Context, id, userID uuid.U
 	return q, err
 }
 
+// GetByName retrieves a queue definition by its user-defined name.
 func (r *PostgresQueueRepository) GetByName(ctx context.Context, name string, userID uuid.UUID) (*domain.Queue, error) {
 	q := &domain.Queue{}
 	query := `SELECT id, user_id, name, arn, visibility_timeout, retention_days, max_message_size, status, created_at, updated_at FROM queues WHERE name = $1 AND user_id = $2`
@@ -52,6 +58,7 @@ func (r *PostgresQueueRepository) GetByName(ctx context.Context, name string, us
 	return q, err
 }
 
+// List returns all queues owned by the specified user.
 func (r *PostgresQueueRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Queue, error) {
 	query := `SELECT id, user_id, name, arn, visibility_timeout, retention_days, max_message_size, status, created_at, updated_at FROM queues WHERE user_id = $1`
 	rows, err := r.db.Query(ctx, query, userID)
@@ -71,11 +78,14 @@ func (r *PostgresQueueRepository) List(ctx context.Context, userID uuid.UUID) ([
 	return queues, nil
 }
 
+// Delete removes a queue definition; note that dependent messages should be handled by DB constraints.
 func (r *PostgresQueueRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.Exec(ctx, "DELETE FROM queues WHERE id = $1", id)
 	return err
 }
 
+// SendMessage appends a new message to the queue.
+// It handles clock skew by potentially using the database server time (NOW()).
 func (r *PostgresQueueRepository) SendMessage(ctx context.Context, queueID uuid.UUID, body string) (*domain.Message, error) {
 	m := &domain.Message{
 		ID:        uuid.New(),
@@ -98,6 +108,8 @@ func (r *PostgresQueueRepository) SendMessage(ctx context.Context, queueID uuid.
 	return m, nil
 }
 
+// ReceiveMessages polls the queue for available messages and marks them as "in-flight"
+// by setting a visibility timeout based on the provided parameter.
 func (r *PostgresQueueRepository) ReceiveMessages(ctx context.Context, queueID uuid.UUID, maxMessages, visibilityTimeout int) ([]*domain.Message, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -149,6 +161,7 @@ func (r *PostgresQueueRepository) ReceiveMessages(ctx context.Context, queueID u
 	return messages, nil
 }
 
+// DeleteMessage permanently removes a message from the queue after successful processing.
 func (r *PostgresQueueRepository) DeleteMessage(ctx context.Context, queueID uuid.UUID, receiptHandle string) error {
 	result, err := r.db.Exec(ctx, "DELETE FROM queue_messages WHERE queue_id = $1 AND receipt_handle = $2", queueID, receiptHandle)
 	if err != nil {
@@ -160,6 +173,7 @@ func (r *PostgresQueueRepository) DeleteMessage(ctx context.Context, queueID uui
 	return nil
 }
 
+// PurgeMessages deletes all messages currently in the specified queue.
 func (r *PostgresQueueRepository) PurgeMessages(ctx context.Context, queueID uuid.UUID) (int64, error) {
 	result, err := r.db.Exec(ctx, "DELETE FROM queue_messages WHERE queue_id = $1", queueID)
 	if err != nil {
@@ -168,6 +182,7 @@ func (r *PostgresQueueRepository) PurgeMessages(ctx context.Context, queueID uui
 	return result.RowsAffected(), nil
 }
 
+// GetQueueStats returns the count of visible (ready) and in-flight (waiting) messages.
 func (r *PostgresQueueRepository) GetQueueStats(ctx context.Context, queueID uuid.UUID) (int, int, error) {
 	var visible, inFlight int
 	query := `

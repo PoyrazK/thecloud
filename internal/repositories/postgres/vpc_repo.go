@@ -12,14 +12,17 @@ import (
 	"github.com/poyrazk/thecloud/internal/errors"
 )
 
+// VpcRepository provides a PostgreSQL implementation for managing VPC metadata.
 type VpcRepository struct {
 	db *pgxpool.Pool
 }
 
+// NewVpcRepository creates a new VpcRepository with the given database pool.
 func NewVpcRepository(db *pgxpool.Pool) *VpcRepository {
 	return &VpcRepository{db: db}
 }
 
+// Create inserts a new VPC record into the database.
 func (r *VpcRepository) Create(ctx context.Context, vpc *domain.VPC) error {
 	query := `
 		INSERT INTO vpcs (id, user_id, name, cidr_block, network_id, vxlan_id, status, arn, created_at)
@@ -32,6 +35,7 @@ func (r *VpcRepository) Create(ctx context.Context, vpc *domain.VPC) error {
 	return nil
 }
 
+// GetByID retrieves a single VPC by its UUID and ensures it belongs to the authenticated user.
 func (r *VpcRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.VPC, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `SELECT id, user_id, name, COALESCE(cidr_block::text, ''), network_id, vxlan_id, status, arn, created_at FROM vpcs WHERE id = $1 AND user_id = $2`
@@ -48,6 +52,7 @@ func (r *VpcRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.VPC,
 	return &vpc, nil
 }
 
+// GetByName retrieves a single VPC by its name and ensures it belongs to the authenticated user.
 func (r *VpcRepository) GetByName(ctx context.Context, name string) (*domain.VPC, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `SELECT id, user_id, name, COALESCE(cidr_block::text, ''), network_id, vxlan_id, status, arn, created_at FROM vpcs WHERE name = $1 AND user_id = $2`
@@ -64,6 +69,7 @@ func (r *VpcRepository) GetByName(ctx context.Context, name string) (*domain.VPC
 	return &vpc, nil
 }
 
+// List returns all VPCs belonging to the authenticated user.
 func (r *VpcRepository) List(ctx context.Context) ([]*domain.VPC, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `SELECT id, user_id, name, COALESCE(cidr_block::text, ''), network_id, vxlan_id, status, arn, created_at FROM vpcs WHERE user_id = $1 ORDER BY created_at DESC`
@@ -87,6 +93,7 @@ func (r *VpcRepository) List(ctx context.Context) ([]*domain.VPC, error) {
 	return vpcs, nil
 }
 
+// Delete removes a VPC record from the database.
 func (r *VpcRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	userID := appcontext.UserIDFromContext(ctx)
 	query := `DELETE FROM vpcs WHERE id = $1 AND user_id = $2`
