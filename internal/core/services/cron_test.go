@@ -7,16 +7,25 @@ import (
 	"github.com/google/uuid"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func TestCreateJob_Success(t *testing.T) {
+func setupCronServiceTest(t *testing.T) (*MockCronRepository, *MockEventService, *MockAuditService, ports.CronService) {
 	repo := new(MockCronRepository)
 	eventSvc := new(MockEventService)
 	auditSvc := new(MockAuditService)
 	svc := services.NewCronService(repo, eventSvc, auditSvc)
+	return repo, eventSvc, auditSvc, svc
+}
+
+func TestCreateJob_Success(t *testing.T) {
+	repo, eventSvc, auditSvc, svc := setupCronServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer eventSvc.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -42,17 +51,11 @@ func TestCreateJob_Success(t *testing.T) {
 	assert.Equal(t, name, job.Name)
 	assert.Equal(t, domain.CronStatusActive, job.Status)
 	assert.NotNil(t, job.NextRunAt)
-
-	repo.AssertExpectations(t)
-	eventSvc.AssertExpectations(t)
-	auditSvc.AssertExpectations(t)
 }
 
 func TestPauseJob_Success(t *testing.T) {
-	repo := new(MockCronRepository)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	svc := services.NewCronService(repo, eventSvc, auditSvc)
+	repo, _, _, svc := setupCronServiceTest(t)
+	defer repo.AssertExpectations(t)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -74,15 +77,11 @@ func TestPauseJob_Success(t *testing.T) {
 	err := svc.PauseJob(ctx, jobID)
 
 	assert.NoError(t, err)
-
-	repo.AssertExpectations(t)
 }
 
 func TestResumeJob_Success(t *testing.T) {
-	repo := new(MockCronRepository)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	svc := services.NewCronService(repo, eventSvc, auditSvc)
+	repo, _, _, svc := setupCronServiceTest(t)
+	defer repo.AssertExpectations(t)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -104,15 +103,12 @@ func TestResumeJob_Success(t *testing.T) {
 	err := svc.ResumeJob(ctx, jobID)
 
 	assert.NoError(t, err)
-
-	repo.AssertExpectations(t)
 }
 
 func TestCronWorker_DeleteJob(t *testing.T) {
-	repo := new(MockCronRepository)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	svc := services.NewCronService(repo, eventSvc, auditSvc)
+	repo, _, auditSvc, svc := setupCronServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -128,5 +124,4 @@ func TestCronWorker_DeleteJob(t *testing.T) {
 	err := svc.DeleteJob(ctx, jobID)
 
 	assert.NoError(t, err)
-	repo.AssertExpectations(t)
 }

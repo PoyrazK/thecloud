@@ -10,12 +10,18 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestContainerWorker_Reconcile_ScaleUp(t *testing.T) {
+func setupContainerWorkerTest(t *testing.T) (*MockContainerRepo, *MockInstanceService, *MockEventService, *services.ContainerWorker) {
 	repo := new(MockContainerRepo)
 	instSvc := new(MockInstanceService)
 	eventSvc := new(MockEventService)
-
 	worker := services.NewContainerWorker(repo, instSvc, eventSvc)
+	return repo, instSvc, eventSvc, worker
+}
+
+func TestContainerWorker_Reconcile_ScaleUp(t *testing.T) {
+	repo, instSvc, _, worker := setupContainerWorkerTest(t)
+	defer repo.AssertExpectations(t)
+	defer instSvc.AssertExpectations(t)
 
 	depID := uuid.New()
 	userID := uuid.New()
@@ -48,16 +54,12 @@ func TestContainerWorker_Reconcile_ScaleUp(t *testing.T) {
 	})).Return(nil)
 
 	worker.Reconcile(context.Background())
-
-	repo.AssertExpectations(t)
-	instSvc.AssertExpectations(t)
 }
 
 func TestContainerWorker_Reconcile_ScaleDown(t *testing.T) {
-	repo := new(MockContainerRepo)
-	instSvc := new(MockInstanceService)
-	eventSvc := new(MockEventService)
-	worker := services.NewContainerWorker(repo, instSvc, eventSvc)
+	repo, instSvc, _, worker := setupContainerWorkerTest(t)
+	defer repo.AssertExpectations(t)
+	defer instSvc.AssertExpectations(t)
 
 	depID := uuid.New()
 	userID := uuid.New()
@@ -79,7 +81,4 @@ func TestContainerWorker_Reconcile_ScaleDown(t *testing.T) {
 	repo.On("UpdateDeployment", mock.Anything, mock.Anything).Return(nil)
 
 	worker.Reconcile(context.Background())
-
-	repo.AssertExpectations(t)
-	instSvc.AssertExpectations(t)
 }

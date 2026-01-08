@@ -7,20 +7,25 @@ import (
 	"github.com/google/uuid"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func TestCreateDeployment_Success(t *testing.T) {
+func setupContainerServiceTest(t *testing.T) (*MockContainerRepository, *MockEventService, *MockAuditService, ports.ContainerService) {
 	repo := new(MockContainerRepository)
 	eventSvc := new(MockEventService)
 	auditSvc := new(MockAuditService)
-	// logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	// Note: NewContainerService signature might vary, assuming it takes these
-	// Checking the file content for NewContainerService: repo, eventSvc, auditSvc
 	svc := services.NewContainerService(repo, eventSvc, auditSvc)
+	return repo, eventSvc, auditSvc, svc
+}
+
+func TestCreateDeployment_Success(t *testing.T) {
+	repo, eventSvc, auditSvc, svc := setupContainerServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer eventSvc.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -44,17 +49,12 @@ func TestCreateDeployment_Success(t *testing.T) {
 	assert.NotNil(t, dep)
 	assert.Equal(t, name, dep.Name)
 	assert.Equal(t, replicas, dep.Replicas)
-
-	repo.AssertExpectations(t)
-	eventSvc.AssertExpectations(t)
-	auditSvc.AssertExpectations(t)
 }
 
 func TestScaleDeployment_Success(t *testing.T) {
-	repo := new(MockContainerRepository)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	svc := services.NewContainerService(repo, eventSvc, auditSvc)
+	repo, _, auditSvc, svc := setupContainerServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -77,15 +77,12 @@ func TestScaleDeployment_Success(t *testing.T) {
 	err := svc.ScaleDeployment(ctx, deployID, 5)
 
 	assert.NoError(t, err)
-
-	repo.AssertExpectations(t)
 }
 
 func TestDeleteDeployment_Success(t *testing.T) {
-	repo := new(MockContainerRepository)
-	eventSvc := new(MockEventService)
-	auditSvc := new(MockAuditService)
-	svc := services.NewContainerService(repo, eventSvc, auditSvc)
+	repo, _, auditSvc, svc := setupContainerServiceTest(t)
+	defer repo.AssertExpectations(t)
+	defer auditSvc.AssertExpectations(t)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -108,6 +105,4 @@ func TestDeleteDeployment_Success(t *testing.T) {
 	err := svc.DeleteDeployment(ctx, deployID)
 
 	assert.NoError(t, err)
-
-	repo.AssertExpectations(t)
 }

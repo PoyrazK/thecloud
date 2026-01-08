@@ -13,9 +13,15 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestCronWorker_ProcessJobs(t *testing.T) {
+func setupCronWorkerTest(t *testing.T) (*MockCronRepo, *services.CronWorker) {
 	repo := new(MockCronRepo)
 	worker := services.NewCronWorker(repo)
+	return repo, worker
+}
+
+func TestCronWorker_ProcessJobs(t *testing.T) {
+	repo, worker := setupCronWorkerTest(t)
+	defer repo.AssertExpectations(t)
 
 	// Mock target server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,15 +55,5 @@ func TestCronWorker_ProcessJobs(t *testing.T) {
 
 	// Should wait for goroutines? ProcessJobs launches goroutines.
 	// Since w.runJob is called in a goroutine, we need to wait.
-	// But w.runJob is not exposed to wait on.
-	// However, simple sleep might work for this test, or we mock the "go" keyword? No.
-	//
-	// The right way is to ensure reproducibility.
-	// Verify that the expectations are met eventually.
-	// Mock testify AssertExpectations doesn't wait.
-	//
-	// We can use `Eventually` or just a small sleep since we are testing concurrency.
 	time.Sleep(100 * time.Millisecond)
-
-	repo.AssertExpectations(t)
 }
