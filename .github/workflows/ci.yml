@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, feature/libvirt-adapter]
+    branches: [main, "feature/*"]
     tags: ['v*']
   pull_request:
     branches: [main]
