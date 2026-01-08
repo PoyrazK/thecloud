@@ -43,17 +43,25 @@ func (m *dashboardServiceMock) GetStats(ctx context.Context) (*domain.DashboardS
 	return args.Get(0).(*domain.DashboardStats), args.Error(1)
 }
 
-func TestDashboardHandler_GetSummary(t *testing.T) {
+func setupDashboardHandlerTest(t *testing.T) (*dashboardServiceMock, *DashboardHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	mockSvc := new(dashboardServiceMock)
 	handler := NewDashboardHandler(mockSvc)
 	r := gin.New()
+	return mockSvc, handler, r
+}
+
+func TestDashboardHandler_GetSummary(t *testing.T) {
+	mockSvc, handler, r := setupDashboardHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
+
 	r.GET("/summary", handler.GetSummary)
 
 	summary := &domain.ResourceSummary{TotalInstances: 5}
 	mockSvc.On("GetSummary", mock.Anything).Return(summary, nil)
 
-	req, _ := http.NewRequest("GET", "/summary", nil)
+	req, err := http.NewRequest("GET", "/summary", nil)
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -66,16 +74,16 @@ func TestDashboardHandler_GetSummary(t *testing.T) {
 }
 
 func TestDashboardHandler_GetRecentEvents(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(dashboardServiceMock)
-	handler := NewDashboardHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupDashboardHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
+
 	r.GET("/events", handler.GetRecentEvents)
 
 	events := []*domain.Event{{ID: uuid.New(), Action: "TEST"}}
 	mockSvc.On("GetRecentEvents", mock.Anything, 10).Return(events, nil)
 
-	req, _ := http.NewRequest("GET", "/events?limit=10", nil)
+	req, err := http.NewRequest("GET", "/events?limit=10", nil)
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -88,10 +96,9 @@ func TestDashboardHandler_GetRecentEvents(t *testing.T) {
 }
 
 func TestDashboardHandler_GetStats(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(dashboardServiceMock)
-	handler := NewDashboardHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupDashboardHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
+
 	r.GET("/stats", handler.GetStats)
 
 	stats := &domain.DashboardStats{
@@ -99,7 +106,8 @@ func TestDashboardHandler_GetStats(t *testing.T) {
 	}
 	mockSvc.On("GetStats", mock.Anything).Return(stats, nil)
 
-	req, _ := http.NewRequest("GET", "/stats", nil)
+	req, err := http.NewRequest("GET", "/stats", nil)
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -113,16 +121,16 @@ func TestDashboardHandler_GetStats(t *testing.T) {
 }
 
 func TestDashboardHandler_StreamEvents(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(dashboardServiceMock)
-	handler := NewDashboardHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupDashboardHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
+
 	r.GET("/stream", handler.StreamEvents)
 
 	summary := &domain.ResourceSummary{TotalInstances: 10}
 	mockSvc.On("GetSummary", mock.Anything).Return(summary, nil)
 
-	req, _ := http.NewRequest("GET", "/stream", nil)
+	req, err := http.NewRequest("GET", "/stream", nil)
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	ctx, cancel := context.WithCancel(context.Background())
 	req = req.WithContext(ctx)

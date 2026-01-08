@@ -30,20 +30,26 @@ func (m *mockEventService) ListEvents(ctx context.Context, limit int) ([]*domain
 	return args.Get(0).([]*domain.Event), args.Error(1)
 }
 
-func TestEventHandler_List(t *testing.T) {
+func setupEventHandlerTest(t *testing.T) (*mockEventService, *EventHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockEventService)
 	handler := NewEventHandler(svc)
-
 	r := gin.New()
+	return svc, handler, r
+}
+
+func TestEventHandler_List(t *testing.T) {
+	svc, handler, r := setupEventHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
 	r.GET("/events", handler.List)
 
 	events := []*domain.Event{{ID: uuid.New(), Action: "test"}}
 	svc.On("ListEvents", mock.Anything, 50).Return(events, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/events", nil)
+	req, err := http.NewRequest(http.MethodGet, "/events", nil)
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
