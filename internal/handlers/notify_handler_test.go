@@ -60,31 +60,37 @@ func (m *mockNotifyService) Publish(ctx context.Context, topicID uuid.UUID, body
 	return args.Error(0)
 }
 
-func TestNotifyHandler_CreateTopic(t *testing.T) {
+func setupNotifyHandlerTest(t *testing.T) (*mockNotifyService, *NotifyHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockNotifyService)
 	handler := NewNotifyHandler(svc)
-
 	r := gin.New()
+	return svc, handler, r
+}
+
+func TestNotifyHandler_CreateTopic(t *testing.T) {
+	svc, handler, r := setupNotifyHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
 	r.POST("/notify/topics", handler.CreateTopic)
 
 	topic := &domain.Topic{ID: uuid.New(), Name: "topic-1"}
 	svc.On("CreateTopic", mock.Anything, "topic-1").Return(topic, nil)
 
-	body, _ := json.Marshal(map[string]interface{}{"name": "topic-1"})
+	body, err := json.Marshal(map[string]interface{}{"name": "topic-1"})
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/notify/topics", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/notify/topics", bytes.NewBuffer(body))
+	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
 func TestNotifyHandler_ListTopics(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockNotifyService)
-	handler := NewNotifyHandler(svc)
+	svc, handler, r := setupNotifyHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.GET("/notify/topics", handler.ListTopics)
 
 	topics := []*domain.Topic{{ID: uuid.New(), Name: "topic-1"}}
@@ -99,11 +105,9 @@ func TestNotifyHandler_ListTopics(t *testing.T) {
 }
 
 func TestNotifyHandler_DeleteTopic(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockNotifyService)
-	handler := NewNotifyHandler(svc)
+	svc, handler, r := setupNotifyHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.DELETE("/notify/topics/:id", handler.DeleteTopic)
 
 	id := uuid.New()
@@ -118,34 +122,32 @@ func TestNotifyHandler_DeleteTopic(t *testing.T) {
 }
 
 func TestNotifyHandler_Subscribe(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockNotifyService)
-	handler := NewNotifyHandler(svc)
+	svc, handler, r := setupNotifyHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.POST("/notify/topics/:id/subscriptions", handler.Subscribe)
 
 	id := uuid.New()
 	sub := &domain.Subscription{ID: uuid.New(), TopicID: id, Endpoint: "http://example.com"}
 	svc.On("Subscribe", mock.Anything, id, domain.SubscriptionProtocol("http"), "http://example.com").Return(sub, nil)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]interface{}{
 		"protocol": "http",
 		"endpoint": "http://example.com",
 	})
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/notify/topics/"+id.String()+"/subscriptions", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/notify/topics/"+id.String()+"/subscriptions", bytes.NewBuffer(body))
+	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
 func TestNotifyHandler_ListSubscriptions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockNotifyService)
-	handler := NewNotifyHandler(svc)
+	svc, handler, r := setupNotifyHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.GET("/notify/topics/:id/subscriptions", handler.ListSubscriptions)
 
 	id := uuid.New()
@@ -161,11 +163,9 @@ func TestNotifyHandler_ListSubscriptions(t *testing.T) {
 }
 
 func TestNotifyHandler_Unsubscribe(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockNotifyService)
-	handler := NewNotifyHandler(svc)
+	svc, handler, r := setupNotifyHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.DELETE("/notify/subscriptions/:id", handler.Unsubscribe)
 
 	id := uuid.New()
@@ -180,19 +180,19 @@ func TestNotifyHandler_Unsubscribe(t *testing.T) {
 }
 
 func TestNotifyHandler_Publish(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockNotifyService)
-	handler := NewNotifyHandler(svc)
+	svc, handler, r := setupNotifyHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.POST("/notify/topics/:id/publish", handler.Publish)
 
 	id := uuid.New()
 	svc.On("Publish", mock.Anything, id, "hello").Return(nil)
 
-	body, _ := json.Marshal(map[string]interface{}{"message": "hello"})
+	body, err := json.Marshal(map[string]interface{}{"message": "hello"})
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/notify/topics/"+id.String()+"/publish", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/notify/topics/"+id.String()+"/publish", bytes.NewBuffer(body))
+	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

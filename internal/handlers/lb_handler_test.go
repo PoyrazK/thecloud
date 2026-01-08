@@ -60,37 +60,43 @@ func (m *mockLBService) ListTargets(ctx context.Context, lbID uuid.UUID) ([]*dom
 	return args.Get(0).([]*domain.LBTarget), args.Error(1)
 }
 
-func TestLBHandler_Create(t *testing.T) {
+func setupLBHandlerTest(t *testing.T) (*mockLBService, *LBHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockLBService)
 	handler := NewLBHandler(svc)
-
 	r := gin.New()
+	return svc, handler, r
+}
+
+func TestLBHandler_Create(t *testing.T) {
+	svc, handler, r := setupLBHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
 	r.POST("/lb", handler.Create)
 
 	vpcID := uuid.New()
 	lb := &domain.LoadBalancer{ID: uuid.New(), Name: "test-lb"}
 	svc.On("Create", mock.Anything, "test-lb", vpcID, 80, "round-robin", "").Return(lb, nil)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]interface{}{
 		"name":      "test-lb",
 		"vpc_id":    vpcID.String(),
 		"port":      80,
 		"algorithm": "round-robin",
 	})
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/lb", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/lb", bytes.NewBuffer(body))
+	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusAccepted, w.Code)
 }
 
 func TestLBHandler_List(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockLBService)
-	handler := NewLBHandler(svc)
+	svc, handler, r := setupLBHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.GET("/lb", handler.List)
 
 	lbs := []*domain.LoadBalancer{{ID: uuid.New(), Name: "lb1"}}
@@ -105,11 +111,9 @@ func TestLBHandler_List(t *testing.T) {
 }
 
 func TestLBHandler_Get(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockLBService)
-	handler := NewLBHandler(svc)
+	svc, handler, r := setupLBHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.GET("/lb/:id", handler.Get)
 
 	id := uuid.New()
@@ -125,11 +129,9 @@ func TestLBHandler_Get(t *testing.T) {
 }
 
 func TestLBHandler_Delete(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockLBService)
-	handler := NewLBHandler(svc)
+	svc, handler, r := setupLBHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.DELETE("/lb/:id", handler.Delete)
 
 	id := uuid.New()
@@ -144,35 +146,33 @@ func TestLBHandler_Delete(t *testing.T) {
 }
 
 func TestLBHandler_AddTarget(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockLBService)
-	handler := NewLBHandler(svc)
+	svc, handler, r := setupLBHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.POST("/lb/:id/targets", handler.AddTarget)
 
 	lbID := uuid.New()
 	instID := uuid.New()
 	svc.On("AddTarget", mock.Anything, lbID, instID, 8080, 10).Return(nil)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]interface{}{
 		"instance_id": instID.String(),
 		"port":        8080,
 		"weight":      10,
 	})
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/lb/"+lbID.String()+"/targets", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/lb/"+lbID.String()+"/targets", bytes.NewBuffer(body))
+	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
 func TestLBHandler_RemoveTarget(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockLBService)
-	handler := NewLBHandler(svc)
+	svc, handler, r := setupLBHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.DELETE("/lb/:id/targets/:instanceId", handler.RemoveTarget)
 
 	lbID := uuid.New()
@@ -188,11 +188,9 @@ func TestLBHandler_RemoveTarget(t *testing.T) {
 }
 
 func TestLBHandler_ListTargets(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockLBService)
-	handler := NewLBHandler(svc)
+	svc, handler, r := setupLBHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.GET("/lb/:id/targets", handler.ListTargets)
 
 	lbID := uuid.New()

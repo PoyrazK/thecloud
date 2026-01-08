@@ -57,48 +57,55 @@ func (m *mockPasswordResetService) ResetPassword(ctx context.Context, token, new
 	return args.Error(0)
 }
 
-func TestAuthHandler_Register(t *testing.T) {
+func setupAuthHandlerTest(t *testing.T) (*mockAuthService, *mockPasswordResetService, *AuthHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockAuthService)
 	pwdSvc := new(mockPasswordResetService)
 	handler := NewAuthHandler(svc, pwdSvc)
-
 	r := gin.New()
+	return svc, pwdSvc, handler, r
+}
+
+func TestAuthHandler_Register(t *testing.T) {
+	svc, _, handler, r := setupAuthHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
 	r.POST("/auth/register", handler.Register)
 
 	user := &domain.User{ID: uuid.New(), Email: "test@example.com"}
 	svc.On("Register", mock.Anything, "test@example.com", "password123", "Test User").Return(user, nil)
 
-	body, _ := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"email":    "test@example.com",
 		"password": "password123",
 		"name":     "Test User",
 	})
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/auth/register", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/auth/register", bytes.NewBuffer(body))
+	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
 func TestAuthHandler_Login(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	svc := new(mockAuthService)
-	pwdSvc := new(mockPasswordResetService)
-	handler := NewAuthHandler(svc, pwdSvc)
+	svc, _, handler, r := setupAuthHandlerTest(t)
+	defer svc.AssertExpectations(t)
 
-	r := gin.New()
 	r.POST("/auth/login", handler.Login)
 
 	user := &domain.User{ID: uuid.New(), Email: "test@example.com"}
 	svc.On("Login", mock.Anything, "test@example.com", "password123").Return(user, "key123", nil)
 
-	body, _ := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"email":    "test@example.com",
 		"password": "password123",
 	})
+	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("POST", "/auth/login", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/auth/login", bytes.NewBuffer(body))
+	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

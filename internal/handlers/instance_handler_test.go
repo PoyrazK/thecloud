@@ -64,11 +64,17 @@ func (m *instanceServiceMock) TerminateInstance(ctx context.Context, idOrName st
 	return args.Error(0)
 }
 
-func TestInstanceHandler_LaunchRejectsEmptyImage(t *testing.T) {
+func setupInstanceHandlerTest(t *testing.T) (*instanceServiceMock, *InstanceHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	mockSvc := new(instanceServiceMock)
 	handler := NewInstanceHandler(mockSvc)
 	r := gin.New()
+	return mockSvc, handler, r
+}
+
+func TestInstanceHandler_LaunchRejectsEmptyImage(t *testing.T) {
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.POST("/instances", handler.Launch)
 
 	body := `{"name":"test-inst","image":"   "}`
@@ -90,10 +96,8 @@ func TestInstanceHandler_LaunchRejectsEmptyImage(t *testing.T) {
 }
 
 func TestInstanceHandler_Launch(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.POST("/instances", handler.Launch)
 
 	inst := &domain.Instance{ID: uuid.New(), Name: "test-inst"}
@@ -107,14 +111,11 @@ func TestInstanceHandler_Launch(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
-	mockSvc.AssertExpectations(t)
 }
 
 func TestInstanceHandler_List(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.GET("/instances", handler.List)
 
 	instances := []*domain.Instance{{ID: uuid.New(), Name: "test-inst"}}
@@ -126,14 +127,11 @@ func TestInstanceHandler_List(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	mockSvc.AssertExpectations(t)
 }
 
 func TestInstanceHandler_Get(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.GET("/instances/:id", handler.Get)
 
 	id := uuid.New().String()
@@ -146,14 +144,11 @@ func TestInstanceHandler_Get(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	mockSvc.AssertExpectations(t)
 }
 
 func TestInstanceHandler_Stop(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.POST("/instances/:id/stop", handler.Stop)
 
 	id := uuid.New().String()
@@ -165,14 +160,11 @@ func TestInstanceHandler_Stop(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	mockSvc.AssertExpectations(t)
 }
 
 func TestInstanceHandler_Terminate(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.DELETE("/instances/:id", handler.Terminate)
 
 	id := uuid.New().String()
@@ -184,14 +176,11 @@ func TestInstanceHandler_Terminate(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	mockSvc.AssertExpectations(t)
 }
 
 func TestInstanceHandler_GetLogs(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.GET("/instances/:id/logs", handler.GetLogs)
 
 	id := uuid.New().String()
@@ -204,14 +193,11 @@ func TestInstanceHandler_GetLogs(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "logs content", w.Body.String())
-	mockSvc.AssertExpectations(t)
 }
 
 func TestInstanceHandler_GetStats(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.GET("/instances/:id/stats", handler.GetStats)
 
 	id := uuid.New().String()
@@ -224,14 +210,11 @@ func TestInstanceHandler_GetStats(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	mockSvc.AssertExpectations(t)
 }
 
 func TestInstanceHandler_Launch_WithVolumesAndVPC(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	mockSvc := new(instanceServiceMock)
-	handler := NewInstanceHandler(mockSvc)
-	r := gin.New()
+	mockSvc, handler, r := setupInstanceHandlerTest(t)
+	defer mockSvc.AssertExpectations(t)
 	r.POST("/instances", handler.Launch)
 
 	vpcID := uuid.New()
@@ -254,7 +237,8 @@ func TestInstanceHandler_Launch_WithVolumesAndVPC(t *testing.T) {
 			{"volume_id": volID, "mount_path": "/mnt/data"},
 		},
 	}
-	jsonBody, _ := json.Marshal(body)
+	jsonBody, err := json.Marshal(body)
+	assert.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodPost, "/instances", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -263,5 +247,4 @@ func TestInstanceHandler_Launch_WithVolumesAndVPC(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
-	mockSvc.AssertExpectations(t)
 }
