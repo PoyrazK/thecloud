@@ -51,7 +51,7 @@ miniaws-data/
 
 # Build binaries
 api/main
-cloud
-cloud-api
+/cloud
+/cloud-api
 platform-api
 api_test.log

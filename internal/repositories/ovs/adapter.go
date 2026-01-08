@@ -175,13 +175,11 @@ func (a *OvsAdapter) ListFlowRules(ctx context.Context, bridge string) ([]ports.
 	}
 
 	cmd := exec.CommandContext(ctx, a.ofctlPath, "dump-flows", bridge)
-	output, err := cmd.Output()
+	_, err := cmd.Output()
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list flow rules", err)
 	}
 
-	// This would need parsing the output of dump-flows, which is complex.
-	// For now returns a placeholder or simplified list if possible.
-	// Implementation omitted for brevity in this initial pass.
-	return nil, nil
+	// Parsing ovs-ofctl dump-flows output is complex and will be implemented in a follow-up.
+	return []ports.FlowRule{}, nil
 }

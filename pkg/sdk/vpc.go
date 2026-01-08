@@ -8,7 +8,11 @@ import (
 type VPC struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
+	CIDRBlock string    `json:"cidr_block"`
 	NetworkID string    `json:"network_id"`
+	VXLANID   int       `json:"vxlan_id"`
+	Status    string    `json:"status"`
+	ARN       string    `json:"arn"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -20,8 +24,11 @@ func (c *Client) ListVPCs() ([]VPC, error) {
 	return res.Data, nil
 }
 
-func (c *Client) CreateVPC(name string) (*VPC, error) {
-	body := map[string]string{"name": name}
+func (c *Client) CreateVPC(name, cidrBlock string) (*VPC, error) {
+	body := map[string]string{
+		"name":       name,
+		"cidr_block": cidrBlock,
+	}
 	var res Response[VPC]
 	if err := c.post("/vpcs", body, &res); err != nil {
 		return nil, err

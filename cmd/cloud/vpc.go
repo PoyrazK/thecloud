@@ -32,13 +32,15 @@ var vpcListCmd = &cobra.Command{
 		}
 
 		table := tablewriter.NewWriter(os.Stdout)
-		table.Header([]string{"ID", "NAME", "NETWORK ID", "CREATED AT"})
+		table.Header([]string{"ID", "NAME", "CIDR", "VXLAN", "STATUS", "CREATED AT"})
 
 		for _, v := range vpcs {
 			table.Append([]string{
 				v.ID[:8],
 				v.Name,
-				v.NetworkID[:12],
+				v.CIDRBlock,
+				fmt.Sprintf("%d", v.VXLANID),
+				v.Status,
 				v.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
@@ -52,8 +54,9 @@ var vpcCreateCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		name := args[0]
+		cidr, _ := cmd.Flags().GetString("cidr-block")
 		client := getClient()
-		vpc, err := client.CreateVPC(name)
+		vpc, err := client.CreateVPC(name, cidr)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
@@ -61,6 +64,8 @@ var vpcCreateCmd = &cobra.Command{
 
 		fmt.Printf("[SUCCESS] VPC %s created successfully!\n", vpc.Name)
 		fmt.Printf("ID: %s\n", vpc.ID)
+		fmt.Printf("CIDR: %s\n", vpc.CIDRBlock)
+		fmt.Printf("VXLAN ID: %d\n", vpc.VXLANID)
 		fmt.Printf("Network ID: %s\n", vpc.NetworkID)
 	},
 }
@@ -82,6 +87,7 @@ var vpcRmCmd = &cobra.Command{
 }
 
 func init() {
+	vpcCreateCmd.Flags().String("cidr-block", "10.0.0.0/16", "CIDR block for the VPC")
 	vpcCmd.AddCommand(vpcListCmd)
 	vpcCmd.AddCommand(vpcCreateCmd)
 	vpcCmd.AddCommand(vpcRmCmd)

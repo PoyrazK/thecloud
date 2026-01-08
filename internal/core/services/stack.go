@@ -212,8 +212,9 @@ func (s *stackService) createVPC(ctx context.Context, stackID uuid.UUID, logical
 	if name == "" {
 		name = fmt.Sprintf("%s-%s", logicalID, stackID.String()[:8])
 	}
+	cidr, _ := props["CIDRBlock"].(string)
 
-	vpc, err := s.vpcSvc.CreateVPC(ctx, name)
+	vpc, err := s.vpcSvc.CreateVPC(ctx, name, cidr)
 	if err != nil {
 		return uuid.Nil, err
 	}

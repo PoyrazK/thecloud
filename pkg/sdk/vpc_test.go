@@ -48,6 +48,7 @@ func TestClient_CreateVPC(t *testing.T) {
 		var body map[string]string
 		json.NewDecoder(r.Body).Decode(&body)
 		assert.Equal(t, "new-vpc", body["name"])
+		assert.Equal(t, "10.0.0.0/16", body["cidr_block"])
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -56,7 +57,7 @@ func TestClient_CreateVPC(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "test-key")
-	vpc, err := client.CreateVPC("new-vpc")
+	vpc, err := client.CreateVPC("new-vpc", "10.0.0.0/16")
 
 	assert.NoError(t, err)
 	assert.Equal(t, "vpc-1", vpc.ID)
