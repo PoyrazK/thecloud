@@ -45,9 +45,9 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool) error {
 		if err != nil {
 			// Log but don't fail, as tables might already exist
 			// Ideally we should check specific error codes
-			fmt.Printf("⚠️  Migration %s result: %v\n", entry.Name(), err)
+			fmt.Printf("Migration %s result: %v\n", entry.Name(), err)
 		} else {
-			fmt.Printf("✅ Applied migration: %s\n", entry.Name())
+			fmt.Printf("Applied migration: %s\n", entry.Name())
 		}
 	}
 

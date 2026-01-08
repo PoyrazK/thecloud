@@ -63,7 +63,7 @@ func TestMigrationRollback(t *testing.T) {
 			m := downMigrations[i]
 			err := runFile(m)
 			require.NoError(t, err, "Failed to rollback migration: %s", m)
-			t.Logf("✅ Rolled back: %s", m)
+			t.Logf("Rolled back: %s", m)
 		}
 	})
 
@@ -71,7 +71,7 @@ func TestMigrationRollback(t *testing.T) {
 		for _, m := range upMigrations {
 			err := runFile(m)
 			require.NoError(t, err, "Failed to re-apply migration: %s", m)
-			t.Logf("✅ Re-applied: %s", m)
+			t.Logf("Re-applied: %s", m)
 		}
 	})
 }
