@@ -81,6 +81,27 @@ func TestVpcHandlerCreate(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
+func TestVpcHandlerCreate_Errors(t *testing.T) {
+	svc, handler, r := setupVpcHandlerTest(t)
+	r.POST(vpcsPath, handler.Create)
+
+	t.Run("InvalidJSON", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", vpcsPath, bytes.NewBufferString("{invalid}"))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("ServiceError", func(t *testing.T) {
+		svc.On("CreateVPC", mock.Anything, "err-vpc", "").Return(nil, assert.AnError)
+		body, _ := json.Marshal(map[string]string{"name": "err-vpc"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", vpcsPath, bytes.NewBuffer(body))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
 func TestVpcHandlerList(t *testing.T) {
 	svc, handler, r := setupVpcHandlerTest(t)
 	defer svc.AssertExpectations(t)
@@ -116,6 +137,19 @@ func TestVpcHandlerGet(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestVpcHandlerGet_Error(t *testing.T) {
+	svc, handler, r := setupVpcHandlerTest(t)
+	r.GET(vpcsPath+"/:id", handler.Get)
+
+	svc.On("GetVPC", mock.Anything, "non-existent").Return(nil, assert.AnError)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", vpcsPath+"/non-existent", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 func TestVpcHandlerDelete(t *testing.T) {
 	svc, handler, r := setupVpcHandlerTest(t)
 	defer svc.AssertExpectations(t)
@@ -131,4 +165,30 @@ func TestVpcHandlerDelete(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestVpcHandlerList_Error(t *testing.T) {
+	svc, handler, r := setupVpcHandlerTest(t)
+	r.GET(vpcsPath, handler.List)
+
+	svc.On("ListVPCs", mock.Anything).Return(nil, assert.AnError)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", vpcsPath, nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestVpcHandlerDelete_Error(t *testing.T) {
+	svc, handler, r := setupVpcHandlerTest(t)
+	r.DELETE(vpcsPath+"/:id", handler.Delete)
+
+	svc.On("DeleteVPC", mock.Anything, "error-id").Return(assert.AnError)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", vpcsPath+"/error-id", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

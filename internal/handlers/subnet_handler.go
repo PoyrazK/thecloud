@@ -19,6 +19,9 @@ func NewSubnetHandler(svc ports.SubnetService) *SubnetHandler {
 
 func (h *SubnetHandler) Create(c *gin.Context) {
 	vpcIDStr := c.Param("vpc_id")
+	if vpcIDStr == "" {
+		vpcIDStr = c.Param("id")
+	}
 	vpcID, err := uuid.Parse(vpcIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vpc_id"})
@@ -47,6 +50,9 @@ func (h *SubnetHandler) Create(c *gin.Context) {
 
 func (h *SubnetHandler) List(c *gin.Context) {
 	vpcIDStr := c.Param("vpc_id")
+	if vpcIDStr == "" {
+		vpcIDStr = c.Param("id")
+	}
 	vpcID, err := uuid.Parse(vpcIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid vpc_id"})

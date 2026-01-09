@@ -35,6 +35,9 @@ func (m *mockCacheService) CreateCache(ctx context.Context, name, version string
 
 func (m *mockCacheService) ListCaches(ctx context.Context) ([]*domain.Cache, error) {
 	args := m.Called(ctx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]*domain.Cache), args.Error(1)
 }
 
@@ -202,4 +205,81 @@ func TestCacheHandlerGetStats(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCacheHandler_Errors(t *testing.T) {
+	svc, handler, r := setupCacheHandlerTest(t)
+	r.POST(cachesPath, handler.Create)
+	r.GET(cachesPath, handler.List)
+	r.GET(cachesPath+"/:id", handler.Get)
+	r.DELETE(cachesPath+"/:id", handler.Delete)
+	r.GET(cachesPath+"/:id/connection", handler.GetConnectionString)
+	r.POST(cachesPath+"/:id/flush", handler.Flush)
+	r.GET(cachesPath+"/:id/stats", handler.GetStats)
+
+	id := "test-id"
+
+	t.Run("CreateJSON", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", cachesPath, bytes.NewBufferString("{invalid}"))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("CreateService", func(t *testing.T) {
+		svc.On("CreateCache", mock.Anything, "err", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
+		body, _ := json.Marshal(map[string]interface{}{"name": "err", "version": "v1", "memory_mb": 64})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", cachesPath, bytes.NewBuffer(body))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("List", func(t *testing.T) {
+		svc.On("ListCaches", mock.Anything).Return(nil, assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", cachesPath, nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		svc.On("GetCache", mock.Anything, id).Return(nil, assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", cachesPath+"/"+id, nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		svc.On("DeleteCache", mock.Anything, id).Return(assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", cachesPath+"/"+id, nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("GetConnectionString", func(t *testing.T) {
+		svc.On("GetConnectionString", mock.Anything, id).Return("", assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", cachesPath+"/"+id+"/connection", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("Flush", func(t *testing.T) {
+		svc.On("FlushCache", mock.Anything, id).Return(assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", cachesPath+"/"+id+"/flush", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("GetStats", func(t *testing.T) {
+		svc.On("GetCacheStats", mock.Anything, id).Return(nil, assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", cachesPath+"/"+id+"/stats", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
 }

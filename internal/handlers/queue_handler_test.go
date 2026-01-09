@@ -233,3 +233,164 @@ func TestQueueHandlerPurge(t *testing.T) {
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
+
+func TestQueueHandlerReceiveMessages_Defaults(t *testing.T) {
+	svc, handler, r := setupQueueHandlerTest(t)
+	r.GET(queuesPath+"/:id/messages", handler.ReceiveMessages)
+
+	id := uuid.New()
+	svc.On("ReceiveMessages", mock.Anything, id, 1).Return([]*domain.Message{}, nil)
+
+	req, _ := http.NewRequest(http.MethodGet, queuesPath+"/"+id.String()+"/messages?max_messages=abc", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestQueueHandler_Errors(t *testing.T) {
+	svc, handler, r := setupQueueHandlerTest(t)
+	r.POST(queuesPath, handler.Create)
+	r.GET(queuesPath+"/:id", handler.Get)
+	r.DELETE(queuesPath+"/:id", handler.Delete)
+	r.POST(queuesPath+"/:id/messages", handler.SendMessage)
+	r.GET(queuesPath+"/:id/messages", handler.ReceiveMessages)
+	r.DELETE(queuesPath+"/:id/messages/:handle", handler.DeleteMessage)
+	r.POST(queuesPath+"/:id/purge", handler.Purge)
+
+	id := uuid.New()
+
+	t.Run("CreateError", func(t *testing.T) {
+		svc.On("CreateQueue", mock.Anything, "err-q", mock.Anything).Return(nil, assert.AnError)
+		body, _ := json.Marshal(map[string]string{"name": "err-q"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", queuesPath, bytes.NewBuffer(body))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("GetError", func(t *testing.T) {
+		svc.On("GetQueue", mock.Anything, id).Return(nil, assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", queuesPath+"/"+id.String(), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("DeleteError", func(t *testing.T) {
+		svc.On("DeleteQueue", mock.Anything, id).Return(assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", queuesPath+"/"+id.String(), nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("SendMessageError", func(t *testing.T) {
+		svc.On("SendMessage", mock.Anything, id, "body").Return(nil, assert.AnError)
+		body, _ := json.Marshal(map[string]string{"body": "body"})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", queuesPath+"/"+id.String()+"/messages", bytes.NewBuffer(body))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("ReceiveMessagesError", func(t *testing.T) {
+		svc.On("ReceiveMessages", mock.Anything, id, 1).Return(nil, assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", queuesPath+"/"+id.String()+"/messages", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("DeleteMessageError", func(t *testing.T) {
+		svc.On("DeleteMessage", mock.Anything, id, "handle").Return(assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("DELETE", queuesPath+"/"+id.String()+"/messages/handle", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("PurgeError", func(t *testing.T) {
+		svc.On("PurgeQueue", mock.Anything, id).Return(assert.AnError)
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", queuesPath+"/"+id.String()+"/purge", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestQueueHandler_InvalidUUIDs(t *testing.T) {
+	_, handler, r := setupQueueHandlerTest(t)
+	r.GET(queuesPath+"/:id", handler.Get)
+	r.DELETE(queuesPath+"/:id", handler.Delete)
+	r.POST(queuesPath+"/:id/messages", handler.SendMessage)
+	r.GET(queuesPath+"/:id/messages", handler.ReceiveMessages)
+	r.DELETE(queuesPath+"/:id/messages/:handle", handler.DeleteMessage)
+	r.POST(queuesPath+"/:id/purge", handler.Purge)
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{"GET", queuesPath + "/invalid"},
+		{"DELETE", queuesPath + "/invalid"},
+		{"POST", queuesPath + "/invalid/messages"},
+		{"GET", queuesPath + "/invalid/messages"},
+		{"POST", queuesPath + "/invalid/purge"},
+		{"DELETE", queuesPath + "/invalid/messages/h"},
+	}
+
+	for _, tt := range tests {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(tt.method, tt.path, nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	}
+}
+
+func TestQueueHandlerDeleteMessage_NoHandle(t *testing.T) {
+	_, handler, r := setupQueueHandlerTest(t)
+	r.DELETE(queuesPath+"/:id/messages", handler.DeleteMessage) // Note: handle param is empty here
+
+	id := uuid.New()
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodDelete, queuesPath+"/"+id.String()+"/messages", nil)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestQueueHandlerList_Error(t *testing.T) {
+	svc, handler, r := setupQueueHandlerTest(t)
+	r.GET(queuesPath, handler.List)
+
+	svc.On("ListQueues", mock.Anything).Return(nil, assert.AnError)
+
+	req, _ := http.NewRequest(http.MethodGet, queuesPath, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestQueueHandler_InvalidJSON(t *testing.T) {
+	_, handler, r := setupQueueHandlerTest(t)
+	r.POST(queuesPath, handler.Create)
+	r.POST(queuesPath+"/:id/messages", handler.SendMessage)
+
+	id := uuid.New()
+	
+	t.Run("Create", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", queuesPath, bytes.NewBufferString("{invalid}"))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("SendMessage", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", queuesPath+"/"+id.String()+"/messages", bytes.NewBufferString("{invalid}"))
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}

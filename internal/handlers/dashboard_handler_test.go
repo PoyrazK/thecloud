@@ -145,3 +145,63 @@ func TestDashboardHandlerStreamEvents(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Type"), "text/event-stream")
 	assert.Contains(t, w.Body.String(), "event:summary")
 }
+
+func TestDashboardHandlerGetRecentEvents_Limits(t *testing.T) {
+	mockSvc, handler, r := setupDashboardHandlerTest(t)
+	r.GET("/events", handler.GetRecentEvents)
+
+	t.Run("Default", func(t *testing.T) {
+		mockSvc.On("GetRecentEvents", mock.Anything, 10).Return([]*domain.Event{}, nil).Once()
+		req, _ := http.NewRequest("GET", "/events", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		mockSvc.On("GetRecentEvents", mock.Anything, 10).Return([]*domain.Event{}, nil).Once()
+		req, _ := http.NewRequest("GET", "/events?limit=abc", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("Cap", func(t *testing.T) {
+		mockSvc.On("GetRecentEvents", mock.Anything, 100).Return([]*domain.Event{}, nil).Once()
+		req, _ := http.NewRequest("GET", "/events?limit=200", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+func TestDashboardHandler_Errors(t *testing.T) {
+	mockSvc, handler, r := setupDashboardHandlerTest(t)
+	r.GET("/summary", handler.GetSummary)
+	r.GET("/events", handler.GetRecentEvents)
+	r.GET("/stats", handler.GetStats)
+
+	t.Run("SummaryError", func(t *testing.T) {
+		mockSvc.On("GetSummary", mock.Anything).Return(nil, assert.AnError)
+		req, _ := http.NewRequest("GET", "/summary", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("EventsError", func(t *testing.T) {
+		mockSvc.On("GetRecentEvents", mock.Anything, 10).Return(nil, assert.AnError)
+		req, _ := http.NewRequest("GET", "/events", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("StatsError", func(t *testing.T) {
+		mockSvc.On("GetStats", mock.Anything).Return(nil, assert.AnError)
+		req, _ := http.NewRequest("GET", "/stats", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
