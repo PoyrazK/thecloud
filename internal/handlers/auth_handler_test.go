@@ -15,6 +15,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	testEmail    = "test@example.com"
+	testPassword = "password123"
+)
+
 type mockAuthService struct {
 	mock.Mock
 }
@@ -66,18 +71,18 @@ func setupAuthHandlerTest(t *testing.T) (*mockAuthService, *mockPasswordResetSer
 	return svc, pwdSvc, handler, r
 }
 
-func TestAuthHandler_Register(t *testing.T) {
+func TestAuthHandlerRegister(t *testing.T) {
 	svc, _, handler, r := setupAuthHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
 	r.POST("/auth/register", handler.Register)
 
-	user := &domain.User{ID: uuid.New(), Email: "test@example.com"}
-	svc.On("Register", mock.Anything, "test@example.com", "password123", "Test User").Return(user, nil)
+	user := &domain.User{ID: uuid.New(), Email: testEmail}
+	svc.On("Register", mock.Anything, testEmail, testPassword, "Test User").Return(user, nil)
 
 	body, err := json.Marshal(map[string]string{
-		"email":    "test@example.com",
-		"password": "password123",
+		"email":    testEmail,
+		"password": testPassword,
 		"name":     "Test User",
 	})
 	assert.NoError(t, err)
@@ -89,18 +94,18 @@ func TestAuthHandler_Register(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
-func TestAuthHandler_Login(t *testing.T) {
+func TestAuthHandlerLogin(t *testing.T) {
 	svc, _, handler, r := setupAuthHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
 	r.POST("/auth/login", handler.Login)
 
-	user := &domain.User{ID: uuid.New(), Email: "test@example.com"}
-	svc.On("Login", mock.Anything, "test@example.com", "password123").Return(user, "key123", nil)
+	user := &domain.User{ID: uuid.New(), Email: testEmail}
+	svc.On("Login", mock.Anything, testEmail, testPassword).Return(user, "key123", nil)
 
 	body, err := json.Marshal(map[string]string{
-		"email":    "test@example.com",
-		"password": "password123",
+		"email":    testEmail,
+		"password": testPassword,
 	})
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
