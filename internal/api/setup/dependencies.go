@@ -130,7 +130,17 @@ func InitServices(
 	vpcSvc := services.NewVpcService(repos.Vpc, network, auditSvc, logger, cfg.DefaultVPCCIDR)
 	subnetSvc := services.NewSubnetService(repos.Subnet, repos.Vpc, auditSvc, logger)
 	volumeSvc := services.NewVolumeService(repos.Volume, compute, eventSvc, auditSvc, logger)
-	instanceSvc := services.NewInstanceService(repos.Instance, repos.Vpc, repos.Subnet, repos.Volume, compute, network, eventSvc, auditSvc, logger)
+	instanceSvc := services.NewInstanceService(services.InstanceServiceParams{
+		Repo:       repos.Instance,
+		VpcRepo:    repos.Vpc,
+		SubnetRepo: repos.Subnet,
+		VolumeRepo: repos.Volume,
+		Compute:    compute,
+		Network:    network,
+		EventSvc:   eventSvc,
+		AuditSvc:   auditSvc,
+		Logger:     logger,
+	})
 	sgSvc := services.NewSecurityGroupService(repos.SecurityGroup, repos.Vpc, network, auditSvc, logger)
 
 	// Load Balancer

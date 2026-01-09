@@ -35,18 +35,31 @@ type InstanceService struct {
 	logger     *slog.Logger
 }
 
+// InstanceServiceParams holds dependencies for creating an InstanceService
+type InstanceServiceParams struct {
+	Repo       ports.InstanceRepository
+	VpcRepo    ports.VpcRepository
+	SubnetRepo ports.SubnetRepository
+	VolumeRepo ports.VolumeRepository
+	Compute    ports.ComputeBackend
+	Network    ports.NetworkBackend
+	EventSvc   ports.EventService
+	AuditSvc   ports.AuditService
+	Logger     *slog.Logger
+}
+
 // NewInstanceService initializes a new InstanceService with required dependencies.
-func NewInstanceService(repo ports.InstanceRepository, vpcRepo ports.VpcRepository, subnetRepo ports.SubnetRepository, volumeRepo ports.VolumeRepository, compute ports.ComputeBackend, network ports.NetworkBackend, eventSvc ports.EventService, auditSvc ports.AuditService, logger *slog.Logger) *InstanceService {
+func NewInstanceService(params InstanceServiceParams) *InstanceService {
 	return &InstanceService{
-		repo:       repo,
-		vpcRepo:    vpcRepo,
-		subnetRepo: subnetRepo,
-		volumeRepo: volumeRepo,
-		compute:    compute,
-		network:    network,
-		eventSvc:   eventSvc,
-		auditSvc:   auditSvc,
-		logger:     logger,
+		repo:       params.Repo,
+		vpcRepo:    params.VpcRepo,
+		subnetRepo: params.SubnetRepo,
+		volumeRepo: params.VolumeRepo,
+		compute:    params.Compute,
+		network:    params.Network,
+		eventSvc:   params.EventSvc,
+		auditSvc:   params.AuditSvc,
+		logger:     params.Logger,
 	}
 }
 

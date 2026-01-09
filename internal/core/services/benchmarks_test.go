@@ -23,7 +23,17 @@ func BenchmarkInstanceServiceList(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	logger := slog.Default()
 
-	svc := services.NewInstanceService(repo, vpcRepo, subnetRepo, volumeRepo, compute, network, eventSvc, auditSvc, logger)
+	svc := services.NewInstanceService(services.InstanceServiceParams{
+		Repo:       repo,
+		VpcRepo:    vpcRepo,
+		SubnetRepo: subnetRepo,
+		VolumeRepo: volumeRepo,
+		Compute:    compute,
+		Network:    network,
+		EventSvc:   eventSvc,
+		AuditSvc:   auditSvc,
+		Logger:     logger,
+	})
 
 	ctx := context.Background()
 

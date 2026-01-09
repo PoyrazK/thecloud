@@ -27,7 +27,17 @@ func setupInstanceServiceTest(t *testing.T) (*MockInstanceRepo, *MockVpcRepo, *M
 	auditSvc := new(MockAuditService)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	svc := services.NewInstanceService(repo, vpcRepo, subnetRepo, volumeRepo, compute, network, eventSvc, auditSvc, logger)
+	svc := services.NewInstanceService(services.InstanceServiceParams{
+		Repo:       repo,
+		VpcRepo:    vpcRepo,
+		SubnetRepo: subnetRepo,
+		VolumeRepo: volumeRepo,
+		Compute:    compute,
+		Network:    network,
+		EventSvc:   eventSvc,
+		AuditSvc:   auditSvc,
+		Logger:     logger,
+	})
 	return repo, vpcRepo, subnetRepo, volumeRepo, compute, network, eventSvc, auditSvc, svc
 }
 
