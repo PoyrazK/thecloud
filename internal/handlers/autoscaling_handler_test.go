@@ -22,6 +22,9 @@ const (
 	testPolicyName = "policy-1"
 	invalidIDPath  = "/invalid-id"
 	policiesSuffix = "/policies"
+	port8080       = "80:80"
+	imageAlpine    = "alpine"
+	metricCPU      = "cpu"
 )
 
 type mockAutoScalingService struct {
@@ -89,13 +92,13 @@ func TestAutoScalingHandlerCreateGroup(t *testing.T) {
 
 	vpcID := uuid.New()
 	group := &domain.ScalingGroup{ID: uuid.New(), Name: testAsgName}
-	svc.On("CreateGroup", mock.Anything, testAsgName, vpcID, "alpine", "80:80", 1, 5, 2, (*uuid.UUID)(nil), "").Return(group, nil)
+	svc.On("CreateGroup", mock.Anything, testAsgName, vpcID, imageAlpine, port8080, 1, 5, 2, (*uuid.UUID)(nil), "").Return(group, nil)
 
 	body, err := json.Marshal(map[string]interface{}{
 		"name":          testAsgName,
 		"vpc_id":        vpcID.String(),
-		"image":         "alpine",
-		"ports":         "80:80",
+		"image":         imageAlpine,
+		"ports":         port8080,
 		"min_instances": 1,
 		"max_instances": 5,
 		"desired_count": 2,
@@ -169,11 +172,11 @@ func TestAutoScalingHandlerCreatePolicy(t *testing.T) {
 
 	groupID := uuid.New()
 	policy := &domain.ScalingPolicy{ID: uuid.New(), Name: testPolicyName}
-	svc.On("CreatePolicy", mock.Anything, groupID, testPolicyName, "cpu", 80.0, 1, 1, 60).Return(policy, nil)
+	svc.On("CreatePolicy", mock.Anything, groupID, testPolicyName, metricCPU, 80.0, 1, 1, 60).Return(policy, nil)
 
 	body, err := json.Marshal(map[string]interface{}{
 		"name":           testPolicyName,
-		"metric_type":    "cpu",
+		"metric_type":    metricCPU,
 		"target_value":   80.0,
 		"scale_out_step": 1,
 		"scale_in_step":  1,
@@ -222,8 +225,8 @@ func TestAutoScalingHandlerCreateGroupErrors(t *testing.T) {
 		svc.On("CreateGroup", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
 
 		body, err := json.Marshal(map[string]interface{}{
-			"name": "asg-err", "vpc_id": uuid.New().String(), "image": "alpine",
-			"ports": "80:80", "min_instances": 1, "max_instances": 5, "desired_count": 2,
+			"name": "asg-err", "vpc_id": uuid.New().String(), "image": imageAlpine,
+			"ports": port8080, "min_instances": 1, "max_instances": 5, "desired_count": 2,
 		})
 		assert.NoError(t, err)
 		req, err := http.NewRequest(http.MethodPost, asgPath, bytes.NewBuffer(body))
@@ -322,7 +325,7 @@ func TestAutoScalingHandlerCreatePolicyErrors(t *testing.T) {
 		svc.On("CreatePolicy", mock.Anything, id, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
 
 		body, err := json.Marshal(map[string]interface{}{
-			"name": "p1", "metric_type": "cpu", "target_value": 50, "scale_out_step": 1, "scale_in_step": 1, "cooldown_sec": 60,
+			"name": "p1", "metric_type": metricCPU, "target_value": 50, "scale_out_step": 1, "scale_in_step": 1, "cooldown_sec": 60,
 		})
 		assert.NoError(t, err)
 		req, err := http.NewRequest(http.MethodPost, asgPath+"/"+id.String()+policiesSuffix, bytes.NewBuffer(body))

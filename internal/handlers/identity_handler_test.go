@@ -15,7 +15,10 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-const authKeysPath = "/auth/keys"
+const (
+	authKeysPath = "/auth/keys"
+	testKeyName  = "Test Key"
+)
 
 type mockIdentityService struct {
 	mock.Mock
@@ -75,10 +78,10 @@ func TestIdentityHandlerCreateKey(t *testing.T) {
 
 	r.POST(authKeysPath, handler.CreateKey)
 
-	key := &domain.APIKey{Key: "sk_test_123", Name: "Test Key"}
-	svc.On("CreateKey", mock.Anything, userID, "Test Key").Return(key, nil)
+	key := &domain.APIKey{Key: "sk_test_123", Name: testKeyName}
+	svc.On("CreateKey", mock.Anything, userID, testKeyName).Return(key, nil)
 
-	body, err := json.Marshal(map[string]string{"name": "Test Key"})
+	body, err := json.Marshal(map[string]string{"name": testKeyName})
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest("POST", authKeysPath, bytes.NewBuffer(body))
