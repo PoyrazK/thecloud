@@ -1547,3 +1547,45 @@ func (m *MockSecurityGroupRepo) Delete(ctx context.Context, id uuid.UUID) error 
 func (m *MockSecurityGroupRepo) AddInstanceToGroup(ctx context.Context, instanceID, groupID uuid.UUID) error { return m.Called(ctx, instanceID, groupID).Error(0) }
 func (m *MockSecurityGroupRepo) RemoveInstanceFromGroup(ctx context.Context, instanceID, groupID uuid.UUID) error { return m.Called(ctx, instanceID, groupID).Error(0) }
 func (m *MockSecurityGroupRepo) ListInstanceGroups(ctx context.Context, instanceID uuid.UUID) ([]*domain.SecurityGroup, error) { return nil, nil }
+
+// MockQueueRepository
+type MockQueueRepository struct{ mock.Mock }
+
+func (m *MockQueueRepository) Create(ctx context.Context, queue *domain.Queue) error {
+	args := m.Called(ctx, queue)
+	return args.Error(0)
+}
+func (m *MockQueueRepository) GetByID(ctx context.Context, id, userID uuid.UUID) (*domain.Queue, error) {
+	args := m.Called(ctx, id, userID)
+	if args.Get(0) == nil { return nil, args.Error(1) }
+	return args.Get(0).(*domain.Queue), args.Error(1)
+}
+func (m *MockQueueRepository) GetByName(ctx context.Context, name string, userID uuid.UUID) (*domain.Queue, error) {
+	args := m.Called(ctx, name, userID)
+	if args.Get(0) == nil { return nil, args.Error(1) }
+	return args.Get(0).(*domain.Queue), args.Error(1)
+}
+func (m *MockQueueRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Queue, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).([]*domain.Queue), args.Error(1)
+}
+func (m *MockQueueRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+func (m *MockQueueRepository) SendMessage(ctx context.Context, queueID uuid.UUID, body string) (*domain.Message, error) {
+	args := m.Called(ctx, queueID, body)
+	return args.Get(0).(*domain.Message), args.Error(1)
+}
+func (m *MockQueueRepository) ReceiveMessages(ctx context.Context, queueID uuid.UUID, maxMessages, visibilityTimeout int) ([]*domain.Message, error) {
+	args := m.Called(ctx, queueID, maxMessages, visibilityTimeout)
+	return args.Get(0).([]*domain.Message), args.Error(1)
+}
+func (m *MockQueueRepository) DeleteMessage(ctx context.Context, queueID uuid.UUID, receiptHandle string) error {
+	args := m.Called(ctx, queueID, receiptHandle)
+	return args.Error(0)
+}
+func (m *MockQueueRepository) PurgeMessages(ctx context.Context, queueID uuid.UUID) (int64, error) {
+	args := m.Called(ctx, queueID)
+	return int64(args.Int(0)), args.Error(1)
+}
