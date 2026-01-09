@@ -15,6 +15,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	secretsPath    = "/secrets"
+	testSecretName = "sec-1"
+)
+
 type mockSecretService struct {
 	mock.Mock
 }
@@ -64,39 +69,39 @@ func setupSecretHandlerTest(t *testing.T) (*mockSecretService, *SecretHandler, *
 	return svc, handler, r
 }
 
-func TestSecretHandler_Create(t *testing.T) {
+func TestSecretHandlerCreate(t *testing.T) {
 	svc, handler, r := setupSecretHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.POST("/secrets", handler.Create)
+	r.POST(secretsPath, handler.Create)
 
-	secret := &domain.Secret{ID: uuid.New(), Name: "sec-1"}
-	svc.On("CreateSecret", mock.Anything, "sec-1", "value", "desc").Return(secret, nil)
+	secret := &domain.Secret{ID: uuid.New(), Name: testSecretName}
+	svc.On("CreateSecret", mock.Anything, testSecretName, "value", "desc").Return(secret, nil)
 
 	body, err := json.Marshal(map[string]interface{}{
-		"name":        "sec-1",
+		"name":        testSecretName,
 		"value":       "value",
 		"description": "desc",
 	})
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/secrets", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", secretsPath, bytes.NewBuffer(body))
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
-func TestSecretHandler_List(t *testing.T) {
+func TestSecretHandlerList(t *testing.T) {
 	svc, handler, r := setupSecretHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/secrets", handler.List)
+	r.GET(secretsPath, handler.List)
 
-	secrets := []*domain.Secret{{ID: uuid.New(), Name: "sec-1"}}
+	secrets := []*domain.Secret{{ID: uuid.New(), Name: testSecretName}}
 	svc.On("ListSecrets", mock.Anything).Return(secrets, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/secrets", nil)
+	req, err := http.NewRequest(http.MethodGet, secretsPath, nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -104,17 +109,17 @@ func TestSecretHandler_List(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestSecretHandler_Get_ByID(t *testing.T) {
+func TestSecretHandlerGetByID(t *testing.T) {
 	svc, handler, r := setupSecretHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/secrets/:id", handler.Get)
+	r.GET(secretsPath+"/:id", handler.Get)
 
 	id := uuid.New()
-	secret := &domain.Secret{ID: id, Name: "sec-1"}
+	secret := &domain.Secret{ID: id, Name: testSecretName}
 	svc.On("GetSecret", mock.Anything, id).Return(secret, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/secrets/"+id.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, secretsPath+"/"+id.String(), nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -122,16 +127,16 @@ func TestSecretHandler_Get_ByID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestSecretHandler_Get_ByName(t *testing.T) {
+func TestSecretHandlerGetByName(t *testing.T) {
 	svc, handler, r := setupSecretHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/secrets/:id", handler.Get)
+	r.GET(secretsPath+"/:id", handler.Get)
 
-	secret := &domain.Secret{ID: uuid.New(), Name: "sec-1"}
-	svc.On("GetSecretByName", mock.Anything, "sec-1").Return(secret, nil)
+	secret := &domain.Secret{ID: uuid.New(), Name: testSecretName}
+	svc.On("GetSecretByName", mock.Anything, testSecretName).Return(secret, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/secrets/sec-1", nil)
+	req, err := http.NewRequest(http.MethodGet, secretsPath+"/"+testSecretName, nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -139,16 +144,16 @@ func TestSecretHandler_Get_ByName(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestSecretHandler_Delete(t *testing.T) {
+func TestSecretHandlerDelete(t *testing.T) {
 	svc, handler, r := setupSecretHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.DELETE("/secrets/:id", handler.Delete)
+	r.DELETE(secretsPath+"/:id", handler.Delete)
 
 	id := uuid.New()
 	svc.On("DeleteSecret", mock.Anything, id).Return(nil)
 
-	req, err := http.NewRequest(http.MethodDelete, "/secrets/"+id.String(), nil)
+	req, err := http.NewRequest(http.MethodDelete, secretsPath+"/"+id.String(), nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
