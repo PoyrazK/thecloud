@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const testFileName = "test.txt"
+
 type mockStorageService struct {
 	mock.Mock
 }
@@ -77,35 +79,35 @@ func setupStorageHandlerTest(t *testing.T) (*mockStorageService, *StorageHandler
 	return svc, handler, r
 }
 
-func TestStorageHandler_Upload(t *testing.T) {
+func TestStorageHandlerUpload(t *testing.T) {
 	svc, handler, r := setupStorageHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
 	r.PUT("/storage/:bucket/:key", handler.Upload)
 
-	obj := &domain.Object{Key: "test.txt", SizeBytes: 4}
-	svc.On("Upload", mock.Anything, "b1", "test.txt", mock.Anything).Return(obj, nil)
+	obj := &domain.Object{Key: testFileName, SizeBytes: 4}
+	svc.On("Upload", mock.Anything, "b1", testFileName, mock.Anything).Return(obj, nil)
 
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("PUT", "/storage/b1/test.txt", strings.NewReader("data"))
+	req, err := http.NewRequest("PUT", "/storage/b1/"+testFileName, strings.NewReader("data"))
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
-func TestStorageHandler_Download(t *testing.T) {
+func TestStorageHandlerDownload(t *testing.T) {
 	svc, handler, r := setupStorageHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
 	r.GET("/storage/:bucket/:key", handler.Download)
 
 	content := io.NopCloser(bytes.NewBufferString("hello"))
-	obj := &domain.Object{Key: "test.txt", SizeBytes: 5, ContentType: "text/plain"}
-	svc.On("Download", mock.Anything, "b1", "test.txt").Return(content, obj, nil)
+	obj := &domain.Object{Key: testFileName, SizeBytes: 5, ContentType: "text/plain"}
+	svc.On("Download", mock.Anything, "b1", testFileName).Return(content, obj, nil)
 
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/storage/b1/test.txt", nil)
+	req, err := http.NewRequest("GET", "/storage/b1/"+testFileName, nil)
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
