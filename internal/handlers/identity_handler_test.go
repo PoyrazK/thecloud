@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const authKeysPath = "/auth/keys"
+
 type mockIdentityService struct {
 	mock.Mock
 }
@@ -66,12 +68,12 @@ func setupIdentityHandlerTest(t *testing.T, userID uuid.UUID) (*mockIdentityServ
 	return svc, handler, r
 }
 
-func TestIdentityHandler_CreateKey(t *testing.T) {
+func TestIdentityHandlerCreateKey(t *testing.T) {
 	userID := uuid.New()
 	svc, handler, r := setupIdentityHandlerTest(t, userID)
 	defer svc.AssertExpectations(t)
 
-	r.POST("/auth/keys", handler.CreateKey)
+	r.POST(authKeysPath, handler.CreateKey)
 
 	key := &domain.APIKey{Key: "sk_test_123", Name: "Test Key"}
 	svc.On("CreateKey", mock.Anything, userID, "Test Key").Return(key, nil)
@@ -79,7 +81,7 @@ func TestIdentityHandler_CreateKey(t *testing.T) {
 	body, err := json.Marshal(map[string]string{"name": "Test Key"})
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/auth/keys", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", authKeysPath, bytes.NewBuffer(body))
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
@@ -87,18 +89,18 @@ func TestIdentityHandler_CreateKey(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "sk_test_123")
 }
 
-func TestIdentityHandler_ListKeys(t *testing.T) {
+func TestIdentityHandlerListKeys(t *testing.T) {
 	userID := uuid.New()
 	svc, handler, r := setupIdentityHandlerTest(t, userID)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/auth/keys", handler.ListKeys)
+	r.GET(authKeysPath, handler.ListKeys)
 
 	keys := []*domain.APIKey{{ID: uuid.New(), Name: "K1"}, {ID: uuid.New(), Name: "K2"}}
 	svc.On("ListKeys", mock.Anything, userID).Return(keys, nil)
 
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("GET", "/auth/keys", nil)
+	req, err := http.NewRequest("GET", authKeysPath, nil)
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
@@ -107,37 +109,37 @@ func TestIdentityHandler_ListKeys(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "K2")
 }
 
-func TestIdentityHandler_RevokeKey(t *testing.T) {
+func TestIdentityHandlerRevokeKey(t *testing.T) {
 	userID := uuid.New()
 	svc, handler, r := setupIdentityHandlerTest(t, userID)
 	defer svc.AssertExpectations(t)
 
 	keyID := uuid.New()
-	r.DELETE("/auth/keys/:id", handler.RevokeKey)
+	r.DELETE(authKeysPath+"/:id", handler.RevokeKey)
 
 	svc.On("RevokeKey", mock.Anything, userID, keyID).Return(nil)
 
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("DELETE", "/auth/keys/"+keyID.String(), nil)
+	req, err := http.NewRequest("DELETE", authKeysPath+"/"+keyID.String(), nil)
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
 
-func TestIdentityHandler_RotateKey(t *testing.T) {
+func TestIdentityHandlerRotateKey(t *testing.T) {
 	userID := uuid.New()
 	svc, handler, r := setupIdentityHandlerTest(t, userID)
 	defer svc.AssertExpectations(t)
 
 	keyID := uuid.New()
-	r.POST("/auth/keys/:id/rotate", handler.RotateKey)
+	r.POST(authKeysPath+"/:id/rotate", handler.RotateKey)
 
 	newKey := &domain.APIKey{ID: uuid.New(), Key: "new_key", Name: "Rotated"}
 	svc.On("RotateKey", mock.Anything, userID, keyID).Return(newKey, nil)
 
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/auth/keys/"+keyID.String()+"/rotate", nil)
+	req, err := http.NewRequest("POST", authKeysPath+"/"+keyID.String()+"/rotate", nil)
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
