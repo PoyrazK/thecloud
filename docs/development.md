@@ -113,7 +113,7 @@ If you don't have `make`, run these commands:
 
 ## 🧪 Testing
 
-The Cloud has comprehensive test coverage (51.3%) across all layers:
+The Cloud has comprehensive test coverage (59.7%) across all layers:
 
 ### Running Tests
 
@@ -134,7 +134,7 @@ go test -tags=integration ./...
 **Coverage Report**:
 ```bash
 # Generate coverage report
-go test -tags=integration -coverprofile=coverage.out ./...
+go test -coverprofile=coverage.out ./...
 
 # View in browser
 go tool cover -html=coverage.out
@@ -145,14 +145,18 @@ go tool cover -func=coverage.out | grep total
 
 ### Test Organization
 - **Unit Tests**: `internal/core/services/*_test.go`, `internal/handlers/*_test.go`
-- **Integration Tests**: `internal/repositories/postgres/*_test.go` (require `//go:build integration` tag)
+- **Integration Tests**: `internal/repositories/postgres/*_test.go`
+- **SDK Tests**: `pkg/sdk/*_test.go` (use httptest for HTTP mocking)
 - **Mocks**: `internal/core/services/shared_test.go`
 
 ### Current Coverage
-- **Overall**: 51.3%
-- **Services**: 55.4%
-- **Handlers**: 52.8%
-- **Repositories**: 57.5%
+- **Overall**: 59.7%
+- **SDK**: 80.1%
+- **Services**: 71.5%
+- **Handlers**: 65.8%
+- **Repositories**: 70.1%
+
+For detailed testing guide, see [docs/TESTING.md](./TESTING.md).
 
 ---
 

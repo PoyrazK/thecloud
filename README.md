@@ -158,23 +158,27 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed changes.
 - Time to Hello World: < 5 min
 - API Latency (P95): < 200ms
 - CLI Success Rate: > 95%
-- **Test Coverage: 52.4%** (Unit + Integration Tests)
+- **Test Coverage: 59.7%** (Unit + Integration Tests)
 
 ## Testing
 The Cloud has comprehensive test coverage across all layers:
 - **Unit Tests**: Core services, handlers, and business logic
-- **Integration Tests**: Database repositories with real PostgreSQL
-- **Coverage**: 52.4% overall (Services: 58.2%, Handlers: 52.8%, Repositories: 57.5%)
+- **SDK Tests**: 80.1% coverage with httptest mocking
+- **Repository Tests**: 70.1% coverage with pgxmock
+- **Overall Coverage**: 59.7% (Services: 71.5%, Handlers: 65.8%, Repositories: 70.1%)
 
 Run tests:
 ```bash
-# Unit tests only
+# All tests
 go test ./...
 
-# With integration tests (requires PostgreSQL)
-go test -tags=integration ./...
-
 # With coverage report
-go test -tags=integration -coverprofile=coverage.out ./...
+go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
+
+# Specific packages
+go test ./pkg/sdk/...          # SDK tests only
+go test ./internal/core/services/...  # Service tests only
 ```
+
+For comprehensive testing guide, see [docs/TESTING.md](docs/TESTING.md).
