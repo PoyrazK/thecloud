@@ -50,6 +50,7 @@ func (m *mockInstanceRepo) ListBySubnet(ctx context.Context, subnetID uuid.UUID)
 	return args.Get(0).([]*domain.Instance), args.Error(1)
 }
 func (m *mockInstanceRepo) Update(ctx context.Context, instance *domain.Instance) error {
+	// Mock implementation for Update
 	args := m.Called(ctx, instance)
 	return args.Error(0)
 }
@@ -102,6 +103,7 @@ func (m *mockVolumeRepo) ListByInstanceID(ctx context.Context, instanceID uuid.U
 	return args.Get(0).([]*domain.Volume), args.Error(1)
 }
 func (m *mockVolumeRepo) Update(ctx context.Context, v *domain.Volume) error {
+	// Mock implementation for Update
 	args := m.Called(ctx, v)
 	return args.Error(0)
 }
@@ -169,7 +171,7 @@ func setupDashboardServiceTest(t *testing.T) (*mockInstanceRepo, *mockVolumeRepo
 	return instanceRepo, volumeRepo, vpcRepo, eventRepo, svc
 }
 
-func TestDashboardService_GetSummary(t *testing.T) {
+func TestDashboardServiceGetSummary(t *testing.T) {
 	tests := []struct {
 		name        string
 		instances   []*domain.Instance
@@ -233,7 +235,7 @@ func TestDashboardService_GetSummary(t *testing.T) {
 	}
 }
 
-func TestDashboardService_GetRecentEvents(t *testing.T) {
+func TestDashboardServiceGetRecentEvents(t *testing.T) {
 	_, _, _, eventRepo, svc := setupDashboardServiceTest(t)
 	defer eventRepo.AssertExpectations(t)
 
@@ -249,7 +251,7 @@ func TestDashboardService_GetRecentEvents(t *testing.T) {
 	assert.Len(t, result, 2)
 }
 
-func TestDashboardService_GetStats(t *testing.T) {
+func TestDashboardServiceGetStats(t *testing.T) {
 	instanceRepo, volumeRepo, vpcRepo, eventRepo, svc := setupDashboardServiceTest(t)
 	defer instanceRepo.AssertExpectations(t)
 	defer volumeRepo.AssertExpectations(t)
