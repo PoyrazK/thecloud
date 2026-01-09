@@ -15,6 +15,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	volumesPath    = "/volumes"
+	testVolumeName = "vol-1"
+)
+
 type mockVolumeService struct {
 	mock.Mock
 }
@@ -61,38 +66,38 @@ func setupVolumeHandlerTest(t *testing.T) (*mockVolumeService, *VolumeHandler, *
 	return svc, handler, r
 }
 
-func TestVolumeHandler_Create(t *testing.T) {
+func TestVolumeHandlerCreate(t *testing.T) {
 	svc, handler, r := setupVolumeHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.POST("/volumes", handler.Create)
+	r.POST(volumesPath, handler.Create)
 
-	vol := &domain.Volume{ID: uuid.New(), Name: "vol-1"}
-	svc.On("CreateVolume", mock.Anything, "vol-1", 10).Return(vol, nil)
+	vol := &domain.Volume{ID: uuid.New(), Name: testVolumeName}
+	svc.On("CreateVolume", mock.Anything, testVolumeName, 10).Return(vol, nil)
 
 	body, err := json.Marshal(map[string]interface{}{
-		"name":    "vol-1",
+		"name":    testVolumeName,
 		"size_gb": 10,
 	})
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/volumes", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", volumesPath, bytes.NewBuffer(body))
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
-func TestVolumeHandler_List(t *testing.T) {
+func TestVolumeHandlerList(t *testing.T) {
 	svc, handler, r := setupVolumeHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/volumes", handler.List)
+	r.GET(volumesPath, handler.List)
 
-	vols := []*domain.Volume{{ID: uuid.New(), Name: "vol-1"}}
+	vols := []*domain.Volume{{ID: uuid.New(), Name: testVolumeName}}
 	svc.On("ListVolumes", mock.Anything).Return(vols, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/volumes", nil)
+	req, err := http.NewRequest(http.MethodGet, volumesPath, nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -100,17 +105,17 @@ func TestVolumeHandler_List(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestVolumeHandler_Get(t *testing.T) {
+func TestVolumeHandlerGet(t *testing.T) {
 	svc, handler, r := setupVolumeHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/volumes/:id", handler.Get)
+	r.GET(volumesPath+"/:id", handler.Get)
 
 	id := uuid.New().String()
-	vol := &domain.Volume{ID: uuid.New(), Name: "vol-1"}
+	vol := &domain.Volume{ID: uuid.New(), Name: testVolumeName}
 	svc.On("GetVolume", mock.Anything, id).Return(vol, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/volumes/"+id, nil)
+	req, err := http.NewRequest(http.MethodGet, volumesPath+"/"+id, nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -118,16 +123,16 @@ func TestVolumeHandler_Get(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestVolumeHandler_Delete(t *testing.T) {
+func TestVolumeHandlerDelete(t *testing.T) {
 	svc, handler, r := setupVolumeHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.DELETE("/volumes/:id", handler.Delete)
+	r.DELETE(volumesPath+"/:id", handler.Delete)
 
 	id := uuid.New().String()
 	svc.On("DeleteVolume", mock.Anything, id).Return(nil)
 
-	req, err := http.NewRequest(http.MethodDelete, "/volumes/"+id, nil)
+	req, err := http.NewRequest(http.MethodDelete, volumesPath+"/"+id, nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
