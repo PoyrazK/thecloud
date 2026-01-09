@@ -94,7 +94,7 @@ var getCacheCmd = &cobra.Command{
 		fmt.Printf("Status:    %s\n", cache.Status)
 		fmt.Printf("Port:      %d\n", cache.Port)
 		fmt.Printf("Memory:    %d MB\n", cache.MemoryMB)
-		fmt.Printf("Password:  %s\n", cache.Password) // Be careful showing this
+		fmt.Printf("Password:  %s\n", "******** (use 'cache connection' or check secrets)")
 		if cache.VpcID != nil {
 			fmt.Printf("VPC ID:    %s\n", *cache.VpcID)
 		}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/poyrazk/thecloud/internal/errors"
 )
@@ -23,12 +24,13 @@ func NewLocalFileStore(basePath string) (*LocalFileStore, error) {
 }
 
 func (s *LocalFileStore) Write(ctx context.Context, bucket, key string, r io.Reader) (int64, error) {
-	bucketPath := filepath.Join(s.basePath, bucket)
-	if err := os.MkdirAll(bucketPath, 0755); err != nil {
-		return 0, errors.Wrap(errors.Internal, "failed to create bucket directory", err)
+	bucketPath := filepath.Join(s.basePath, filepath.Clean(bucket))
+	filePath := filepath.Join(bucketPath, filepath.Clean(key))
+
+	if !strings.HasPrefix(filePath, filepath.Clean(s.basePath)) {
+		return 0, errors.New(errors.InvalidInput, "invalid path: traversal detected")
 	}
 
-	filePath := filepath.Join(bucketPath, key)
 	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 		return 0, errors.Wrap(errors.Internal, "failed to create directories", err)
 	}
@@ -48,7 +50,10 @@ func (s *LocalFileStore) Write(ctx context.Context, bucket, key string, r io.Rea
 }
 
 func (s *LocalFileStore) Read(ctx context.Context, bucket, key string) (io.ReadCloser, error) {
-	filePath := filepath.Join(s.basePath, bucket, key)
+	filePath := filepath.Join(s.basePath, filepath.Clean(bucket), filepath.Clean(key))
+	if !strings.HasPrefix(filePath, filepath.Clean(s.basePath)) {
+		return nil, errors.New(errors.InvalidInput, "invalid path: traversal detected")
+	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -60,7 +65,10 @@ func (s *LocalFileStore) Read(ctx context.Context, bucket, key string) (io.ReadC
 }
 
 func (s *LocalFileStore) Delete(ctx context.Context, bucket, key string) error {
-	filePath := filepath.Join(s.basePath, bucket, key)
+	filePath := filepath.Join(s.basePath, filepath.Clean(bucket), filepath.Clean(key))
+	if !strings.HasPrefix(filePath, filepath.Clean(s.basePath)) {
+		return errors.New(errors.InvalidInput, "invalid path: traversal detected")
+	}
 	err := os.Remove(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {

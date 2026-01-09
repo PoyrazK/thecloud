@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -270,6 +271,9 @@ func (s *FunctionService) prepareCode(ctx context.Context, f *domain.Function) (
 
 	for _, file := range zr.File {
 		path := filepath.Join(tmpDir, file.Name)
+		if !strings.HasPrefix(path, filepath.Clean(tmpDir)+string(os.PathSeparator)) {
+			return "", fmt.Errorf("invalid file path in zip: %s", file.Name)
+		}
 		if file.FileInfo().IsDir() {
 			if err := os.MkdirAll(path, 0755); err != nil {
 				return "", err

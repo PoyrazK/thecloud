@@ -175,6 +175,21 @@ func (a *LibvirtAdapter) CreateInstance(ctx context.Context, name, imageName str
 					containerPort = parts[0]
 				}
 
+				// Security: Validate ports are numeric
+				var hP, cP int
+				_, errH := fmt.Sscanf(hostPort, "%d", &hP)
+				_, errC := fmt.Sscanf(containerPort, "%d", &cP)
+				if (hostPort != "0" && errH != nil) || errC != nil {
+					a.logger.Warn("invalid port format, skipping forwarding", "port", p)
+					continue
+				}
+
+				// Validate IP format
+				if net.ParseIP(ip) == nil {
+					a.logger.Error("invalid vm ip for port forwarding", "ip", ip)
+					return
+				}
+
 				hPort := 0
 				if hostPort == "0" {
 					// Allocate random port (deterministic for simplicity in this POC)
@@ -270,6 +285,10 @@ func (a *LibvirtAdapter) DeleteInstance(ctx context.Context, id string) error {
 	a.mu.Unlock()
 
 	// Cleanup Cloud-Init ISO if exists
+	if err := validateID(id); err != nil {
+		a.logger.Warn("invalid id for iso cleanup", "id", id)
+		return nil
+	}
 	isoPath := filepath.Join("/tmp", "cloud-init-"+id+".iso")
 	_ = os.Remove(isoPath)
 
@@ -288,6 +307,9 @@ func (a *LibvirtAdapter) DeleteInstance(ctx context.Context, id string) error {
 }
 
 func (a *LibvirtAdapter) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
+	if err := validateID(id); err != nil {
+		return nil, err
+	}
 	// Read from standard qemu log location
 	// Note: This contains QEMU output, not necessarily guest console output unless serial is redirected there.
 	// To get guest console, we'd need to attach to console or read a file if defined in XML.
@@ -746,4 +768,11 @@ func (a *LibvirtAdapter) getNextNetworkRange() (gateway, rangeStart, rangeEnd st
 	end[len(end)-1] = 254
 
 	return gw.String(), start.String(), end.String()
+}
+
+func validateID(id string) error {
+	if strings.Contains(id, "..") || strings.Contains(id, "/") || strings.Contains(id, "\\") {
+		return fmt.Errorf("invalid id: contains path traversal characters")
+	}
+	return nil
 }
