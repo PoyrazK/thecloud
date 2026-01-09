@@ -16,6 +16,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	functionsPath    = "/functions"
+	testFunctionName = "fn-1"
+)
+
 type mockFunctionService struct {
 	mock.Mock
 }
@@ -73,18 +78,18 @@ func setupFunctionHandlerTest(t *testing.T) (*mockFunctionService, *FunctionHand
 	return svc, handler, r
 }
 
-func TestFunctionHandler_Create(t *testing.T) {
+func TestFunctionHandlerCreate(t *testing.T) {
 	svc, handler, r := setupFunctionHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.POST("/functions", handler.Create)
+	r.POST(functionsPath, handler.Create)
 
-	fn := &domain.Function{ID: uuid.New(), Name: "fn-1"}
-	svc.On("CreateFunction", mock.Anything, "fn-1", "nodejs18", "index.handler", []byte("code")).Return(fn, nil)
+	fn := &domain.Function{ID: uuid.New(), Name: testFunctionName}
+	svc.On("CreateFunction", mock.Anything, testFunctionName, "nodejs18", "index.handler", []byte("code")).Return(fn, nil)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	err := writer.WriteField("name", "fn-1")
+	err := writer.WriteField("name", testFunctionName)
 	assert.NoError(t, err)
 	err = writer.WriteField("runtime", "nodejs18")
 	assert.NoError(t, err)
@@ -97,7 +102,7 @@ func TestFunctionHandler_Create(t *testing.T) {
 	err = writer.Close()
 	assert.NoError(t, err)
 
-	req, err := http.NewRequest(http.MethodPost, "/functions", body)
+	req, err := http.NewRequest(http.MethodPost, functionsPath, body)
 	assert.NoError(t, err)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
@@ -106,16 +111,16 @@ func TestFunctionHandler_Create(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
-func TestFunctionHandler_List(t *testing.T) {
+func TestFunctionHandlerList(t *testing.T) {
 	svc, handler, r := setupFunctionHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/functions", handler.List)
+	r.GET(functionsPath, handler.List)
 
-	fns := []*domain.Function{{ID: uuid.New(), Name: "fn-1"}}
+	fns := []*domain.Function{{ID: uuid.New(), Name: testFunctionName}}
 	svc.On("ListFunctions", mock.Anything).Return(fns, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/functions", nil)
+	req, err := http.NewRequest(http.MethodGet, functionsPath, nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -123,17 +128,17 @@ func TestFunctionHandler_List(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestFunctionHandler_Get(t *testing.T) {
+func TestFunctionHandlerGet(t *testing.T) {
 	svc, handler, r := setupFunctionHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/functions/:id", handler.Get)
+	r.GET(functionsPath+"/:id", handler.Get)
 
 	id := uuid.New()
-	fn := &domain.Function{ID: id, Name: "fn-1"}
+	fn := &domain.Function{ID: id, Name: testFunctionName}
 	svc.On("GetFunction", mock.Anything, id).Return(fn, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/functions/"+id.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, functionsPath+"/"+id.String(), nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -141,16 +146,16 @@ func TestFunctionHandler_Get(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestFunctionHandler_Delete(t *testing.T) {
+func TestFunctionHandlerDelete(t *testing.T) {
 	svc, handler, r := setupFunctionHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.DELETE("/functions/:id", handler.Delete)
+	r.DELETE(functionsPath+"/:id", handler.Delete)
 
 	id := uuid.New()
 	svc.On("DeleteFunction", mock.Anything, id).Return(nil)
 
-	req, err := http.NewRequest(http.MethodDelete, "/functions/"+id.String(), nil)
+	req, err := http.NewRequest(http.MethodDelete, functionsPath+"/"+id.String(), nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -158,17 +163,17 @@ func TestFunctionHandler_Delete(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestFunctionHandler_Invoke(t *testing.T) {
+func TestFunctionHandlerInvoke(t *testing.T) {
 	svc, handler, r := setupFunctionHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.POST("/functions/:id/invoke", handler.Invoke)
+	r.POST(functionsPath+"/:id/invoke", handler.Invoke)
 
 	id := uuid.New()
 	inv := &domain.Invocation{ID: uuid.New(), Status: "completed"}
 	svc.On("InvokeFunction", mock.Anything, id, []byte("{}"), false).Return(inv, nil)
 
-	req, err := http.NewRequest(http.MethodPost, "/functions/"+id.String()+"/invoke", strings.NewReader("{}"))
+	req, err := http.NewRequest(http.MethodPost, functionsPath+"/"+id.String()+"/invoke", strings.NewReader("{}"))
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -176,16 +181,16 @@ func TestFunctionHandler_Invoke(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestFunctionHandler_GetLogs(t *testing.T) {
+func TestFunctionHandlerGetLogs(t *testing.T) {
 	svc, handler, r := setupFunctionHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/functions/:id/logs", handler.GetLogs)
+	r.GET(functionsPath+"/:id/logs", handler.GetLogs)
 
 	id := uuid.New()
 	svc.On("GetFunctionLogs", mock.Anything, id, 100).Return([]*domain.Invocation{}, nil)
 
-	req, err := http.NewRequest(http.MethodGet, "/functions/"+id.String()+"/logs", nil)
+	req, err := http.NewRequest(http.MethodGet, functionsPath+"/"+id.String()+"/logs", nil)
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
