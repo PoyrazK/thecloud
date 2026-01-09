@@ -16,6 +16,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+const (
+	cachesPath    = "/caches"
+	testCacheName = "cache-1"
+)
+
 type mockCacheService struct {
 	mock.Mock
 }
@@ -72,39 +77,39 @@ func setupCacheHandlerTest(t *testing.T) (*mockCacheService, *CacheHandler, *gin
 	return svc, handler, r
 }
 
-func TestCacheHandler_Create(t *testing.T) {
+func TestCacheHandlerCreate(t *testing.T) {
 	svc, handler, r := setupCacheHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.POST("/caches", handler.Create)
+	r.POST(cachesPath, handler.Create)
 
-	cache := &domain.Cache{ID: uuid.New(), Name: "cache-1"}
-	svc.On("CreateCache", mock.Anything, "cache-1", "redis6", 128, (*uuid.UUID)(nil)).Return(cache, nil)
+	cache := &domain.Cache{ID: uuid.New(), Name: testCacheName}
+	svc.On("CreateCache", mock.Anything, testCacheName, "redis6", 128, (*uuid.UUID)(nil)).Return(cache, nil)
 
 	body, err := json.Marshal(map[string]interface{}{
-		"name":      "cache-1",
+		"name":      testCacheName,
 		"version":   "redis6",
 		"memory_mb": 128,
 	})
 	assert.NoError(t, err)
 	w := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", "/caches", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", cachesPath, bytes.NewBuffer(body))
 	assert.NoError(t, err)
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
-func TestCacheHandler_List(t *testing.T) {
+func TestCacheHandlerList(t *testing.T) {
 	svc, handler, r := setupCacheHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/caches", handler.List)
+	r.GET(cachesPath, handler.List)
 
-	caches := []*domain.Cache{{ID: uuid.New(), Name: "cache-1"}}
+	caches := []*domain.Cache{{ID: uuid.New(), Name: testCacheName}}
 	svc.On("ListCaches", mock.Anything).Return(caches, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/caches", nil)
+	req := httptest.NewRequest(http.MethodGet, cachesPath, nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -112,17 +117,17 @@ func TestCacheHandler_List(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestCacheHandler_Get(t *testing.T) {
+func TestCacheHandlerGet(t *testing.T) {
 	svc, handler, r := setupCacheHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/caches/:id", handler.Get)
+	r.GET(cachesPath+"/:id", handler.Get)
 
 	id := uuid.New().String()
-	cache := &domain.Cache{ID: uuid.New(), Name: "cache-1"}
+	cache := &domain.Cache{ID: uuid.New(), Name: testCacheName}
 	svc.On("GetCache", mock.Anything, id).Return(cache, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/caches/"+id, nil)
+	req := httptest.NewRequest(http.MethodGet, cachesPath+"/"+id, nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -130,16 +135,16 @@ func TestCacheHandler_Get(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestCacheHandler_Delete(t *testing.T) {
+func TestCacheHandlerDelete(t *testing.T) {
 	svc, handler, r := setupCacheHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.DELETE("/caches/:id", handler.Delete)
+	r.DELETE(cachesPath+"/:id", handler.Delete)
 
 	id := uuid.New().String()
 	svc.On("DeleteCache", mock.Anything, id).Return(nil)
 
-	req := httptest.NewRequest(http.MethodDelete, "/caches/"+id, nil)
+	req := httptest.NewRequest(http.MethodDelete, cachesPath+"/"+id, nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -147,16 +152,16 @@ func TestCacheHandler_Delete(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestCacheHandler_GetConnectionString(t *testing.T) {
+func TestCacheHandlerGetConnectionString(t *testing.T) {
 	svc, handler, r := setupCacheHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/caches/:id/connection", handler.GetConnectionString)
+	r.GET(cachesPath+"/:id/connection", handler.GetConnectionString)
 
 	id := uuid.New().String()
 	svc.On("GetConnectionString", mock.Anything, id).Return("redis://host:6379", nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/caches/"+id+"/connection", nil)
+	req := httptest.NewRequest(http.MethodGet, cachesPath+"/"+id+"/connection", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -165,16 +170,16 @@ func TestCacheHandler_GetConnectionString(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "redis://host:6379")
 }
 
-func TestCacheHandler_Flush(t *testing.T) {
+func TestCacheHandlerFlush(t *testing.T) {
 	svc, handler, r := setupCacheHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.POST("/caches/:id/flush", handler.Flush)
+	r.POST(cachesPath+"/:id/flush", handler.Flush)
 
 	id := uuid.New().String()
 	svc.On("FlushCache", mock.Anything, id).Return(nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/caches/"+id+"/flush", nil)
+	req := httptest.NewRequest(http.MethodPost, cachesPath+"/"+id+"/flush", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -182,17 +187,17 @@ func TestCacheHandler_Flush(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func TestCacheHandler_GetStats(t *testing.T) {
+func TestCacheHandlerGetStats(t *testing.T) {
 	svc, handler, r := setupCacheHandlerTest(t)
 	defer svc.AssertExpectations(t)
 
-	r.GET("/caches/:id/stats", handler.GetStats)
+	r.GET(cachesPath+"/:id/stats", handler.GetStats)
 
 	id := uuid.New().String()
 	stats := &ports.CacheStats{UsedMemoryBytes: 1024}
 	svc.On("GetCacheStats", mock.Anything, id).Return(stats, nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/caches/"+id+"/stats", nil)
+	req := httptest.NewRequest(http.MethodGet, cachesPath+"/"+id+"/stats", nil)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
