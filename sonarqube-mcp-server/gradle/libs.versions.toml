@@ -1,0 +1,60 @@
+[versions]
+sonarlint-core = "10.40.0.84108"
+
+sonarqube = "6.1.0.5360"
+
+license-plugin = "0.16.1"
+artifactory-plugin = "5.2.5"
+cyclonedx-plugin = "1.10.0"
+
+sonar-php = "3.53.0.15220"
+
+mcp-server = "0.17.0"
+commons-lang3 = "3.20.0"
+commons-text = "1.14.0"
+ayza = "10.0.2"
+logback = "1.5.21"
+jetty = "12.1.4"
+jsonschema-generator = "4.38.0"
+
+junit = "5.14.1"
+junit-launcher = "1.14.1"
+mockito = "5.20.0"
+assertj = "3.27.6"
+awaitility = "4.3.0"
+wiremock = "3.13.2"
+
+[libraries]
+sonarlint-java-client-utils = { module = "org.sonarsource.sonarlint.core:sonarlint-java-client-utils", version.ref = "sonarlint-core" }
+sonarlint-rpc-java-client = { module = "org.sonarsource.sonarlint.core:sonarlint-rpc-java-client", version.ref = "sonarlint-core" }
+sonarlint-rpc-impl = { module = "org.sonarsource.sonarlint.core:sonarlint-rpc-impl", version.ref = "sonarlint-core" }
+
+sonar-php = { module = "org.sonarsource.php:sonar-php-plugin", version.ref = "sonar-php" }
+
+mcp-server = { module = "io.modelcontextprotocol.sdk:mcp", version.ref = "mcp-server" }
+commons-langs3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3" }
+commons-text = { module = "org.apache.commons:commons-text", version.ref = "commons-text" }
+ayza = { module = "io.github.hakky54:ayza", version.ref = "ayza" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+jsonschema-generator = { module = "com.github.victools:jsonschema-generator", version.ref = "jsonschema-generator" }
+jsonschema-module-jackson = { module = "com.github.victools:jsonschema-module-jackson", version.ref = "jsonschema-generator" }
+
+jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
+jetty-ee10-servlet = { module = "org.eclipse.jetty.ee10:jetty-ee10-servlet", version.ref = "jetty" }
+
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-launcher" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
+wiremock-jetty12 = { module = "org.wiremock:wiremock-jetty12", version.ref = "wiremock" }
+
+[bundles]
+sonar-analyzers = ["sonar-php"]
+
+[plugins]
+license = { id = "com.github.hierynomus.license", version.ref = "license-plugin" }
+artifactory = { id = "com.jfrog.artifactory", version.ref = "artifactory-plugin" }
+cyclonedx = { id = "org.cyclonedx.bom", version.ref = "cyclonedx-plugin" }
+sonarqube = { id = "org.sonarqube", version.ref = "sonarqube" }
