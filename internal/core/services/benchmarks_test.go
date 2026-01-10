@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/poyrazk/thecloud/internal/repositories/noop"
@@ -58,6 +59,59 @@ func BenchmarkVPCServiceGet(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = svc.GetVPC(ctx, id.String())
+	}
+}
+
+func BenchmarkInstanceServiceCreate(b *testing.B) {
+	repo := &noop.NoopInstanceRepository{}
+	vpcRepo := &noop.NoopVpcRepository{}
+	subnetRepo := &noop.NoopSubnetRepository{}
+	volumeRepo := &noop.NoopVolumeRepository{}
+	compute := &noop.NoopComputeBackend{}
+	network := &noop.NoopNetworkAdapter{}
+	eventSvc := &noop.NoopEventService{}
+	auditSvc := &noop.NoopAuditService{}
+	logger := slog.Default()
+
+	svc := services.NewInstanceService(services.InstanceServiceParams{
+		Repo:       repo,
+		VpcRepo:    vpcRepo,
+		SubnetRepo: subnetRepo,
+		VolumeRepo: volumeRepo,
+		Compute:    compute,
+		Network:    network,
+		EventSvc:   eventSvc,
+		AuditSvc:   auditSvc,
+		Logger:     logger,
+	})
+
+	ctx := context.Background()
+	// CreateInstance needs a user ID in context usually
+	ctx = appcontext.WithUserID(ctx, uuid.New())
+
+	subnetID := uuid.New()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = svc.LaunchInstance(ctx, "test", "alpine", "80:80", nil, &subnetID, nil)
+	}
+}
+
+func BenchmarkFunctionServiceInvoke(b *testing.B) {
+	repo := &noop.NoopFunctionRepository{}
+	compute := &noop.NoopComputeBackend{}
+	fileStore := &noop.NoopFileStore{}
+	auditSvc := &noop.NoopAuditService{}
+	logger := slog.Default()
+
+	svc := services.NewFunctionService(repo, compute, fileStore, auditSvc, logger)
+
+	ctx := context.Background()
+	id := uuid.New()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = svc.InvokeFunction(ctx, id, []byte("{}"), false)
 	}
 }
 
