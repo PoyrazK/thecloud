@@ -21,6 +21,9 @@ spec:
         imagePullPolicy: IfNotPresent # Use local image
         ports:
         - containerPort: 8080
+        env:
+        - name: ROLE
+          value: "api"
         envFrom:
         - configMapRef:
             name: cloud-config

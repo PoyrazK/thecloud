@@ -15,26 +15,32 @@ spec:
     spec:
       containers:
       - name: pgbouncer
-        image: bitnami/pgbouncer:latest
+        image: edoburu/pgbouncer:latest
         ports:
-        - containerPort: 6432
+        - containerPort: 5432
         env:
-        - name: POSTGRESQL_HOST
+        - name: DB_HOST
           value: postgres-service
-        - name: POSTGRESQL_PORT
+        - name: DB_PORT
           value: "5432"
-        - name: POSTGRESQL_USERNAME
+        - name: DB_USER
           value: cloud
-        - name: POSTGRESQL_PASSWORD
+        - name: DB_PASSWORD
           value: cloud
-        - name: POSTGRESQL_DATABASE
+        - name: DB_NAME
           value: thecloud
-        - name: PGBOUNCER_POOL_MODE
+        - name: POOL_MODE
           value: transaction
-        - name: PGBOUNCER_MAX_CLIENT_CONN
+        - name: MAX_CLIENT_CONN
           value: "10000"
-        - name: PGBOUNCER_DEFAULT_POOL_SIZE
+        - name: DEFAULT_POOL_SIZE
           value: "100"
+        - name: AUTH_TYPE
+          value: "plain" # Trust auth from internal clients, or use 'md5'/'scram-sha-256' matching PG. 'plain' is easiest for k8s internal.
+          
+          # Edoburu image uses slightly different env vars:
+          # DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+          # POOL_MODE, MAX_CLIENT_CONN, DEFAULT_POOL_SIZE
         resources:
           requests:
             cpu: "100m"
@@ -51,6 +57,6 @@ metadata:
 spec:
   ports:
   - port: 5432     # Expose as standard PG port internally
-    targetPort: 6432
+    targetPort: 5432
   selector:
     app: pgbouncer
