@@ -93,7 +93,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*domai
 	s.mu.Unlock()
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
-	if err != nil {
+	if err != nil || user == nil {
 		s.incrementFailure(email)
 		platform.AuthAttemptsTotal.WithLabelValues("failure_not_found").Inc()
 		return nil, "", errors.New(errors.Unauthorized, "invalid email or password")
