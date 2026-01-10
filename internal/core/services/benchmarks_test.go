@@ -58,3 +58,39 @@ func BenchmarkVPCServiceGet(b *testing.B) {
 		_, _ = svc.GetVPC(ctx, id.String())
 	}
 }
+
+func BenchmarkDatabaseServiceList(b *testing.B) {
+	repo := &noop.NoopDatabaseRepository{}
+	compute := &noop.NoopComputeBackend{}
+	vpcRepo := &noop.NoopVpcRepository{}
+	eventSvc := &noop.NoopEventService{}
+	auditSvc := &noop.NoopAuditService{}
+	logger := slog.Default()
+
+	svc := services.NewDatabaseService(repo, compute, vpcRepo, eventSvc, auditSvc, logger)
+
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = svc.ListDatabases(ctx)
+	}
+}
+
+func BenchmarkCacheServiceList(b *testing.B) {
+	repo := &noop.NoopCacheRepository{}
+	compute := &noop.NoopComputeBackend{}
+	vpcRepo := &noop.NoopVpcRepository{}
+	eventSvc := &noop.NoopEventService{}
+	auditSvc := &noop.NoopAuditService{}
+	logger := slog.Default()
+
+	svc := services.NewCacheService(repo, compute, vpcRepo, eventSvc, auditSvc, logger)
+
+	ctx := context.Background()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = svc.ListCaches(ctx)
+	}
+}

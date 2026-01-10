@@ -141,3 +141,30 @@ func (a *NoopAuditService) Log(ctx context.Context, userID uuid.UUID, action, re
 func (a *NoopAuditService) ListLogs(ctx context.Context, userID uuid.UUID, limit int) ([]*domain.AuditLog, error) {
 	return []*domain.AuditLog{}, nil
 }
+
+type NoopDatabaseRepository struct{}
+
+func (r *NoopDatabaseRepository) Create(ctx context.Context, db *domain.Database) error { return nil }
+func (r *NoopDatabaseRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Database, error) {
+	return &domain.Database{ID: id}, nil
+}
+func (r *NoopDatabaseRepository) List(ctx context.Context) ([]*domain.Database, error) {
+	return []*domain.Database{}, nil
+}
+func (r *NoopDatabaseRepository) Update(ctx context.Context, db *domain.Database) error { return nil }
+func (r *NoopDatabaseRepository) Delete(ctx context.Context, id uuid.UUID) error        { return nil }
+
+type NoopCacheRepository struct{}
+
+func (r *NoopCacheRepository) Create(ctx context.Context, cache *domain.Cache) error { return nil }
+func (r *NoopCacheRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Cache, error) {
+	return &domain.Cache{ID: id}, nil
+}
+func (r *NoopCacheRepository) GetByName(ctx context.Context, userID uuid.UUID, name string) (*domain.Cache, error) {
+	return &domain.Cache{ID: uuid.New(), Name: name, UserID: userID}, nil
+}
+func (r *NoopCacheRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Cache, error) {
+	return []*domain.Cache{}, nil
+}
+func (r *NoopCacheRepository) Update(ctx context.Context, cache *domain.Cache) error { return nil }
+func (r *NoopCacheRepository) Delete(ctx context.Context, id uuid.UUID) error        { return nil }
