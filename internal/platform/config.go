@@ -16,6 +16,8 @@ type Config struct {
 	DefaultVPCCIDR       string
 	NetworkPoolStart     string
 	NetworkPoolEnd       string
+	DBMaxConns           string
+	DBMinConns           string
 }
 
 func NewConfig() (*Config, error) {
@@ -30,6 +32,8 @@ func NewConfig() (*Config, error) {
 		DefaultVPCCIDR:       getEnv("DEFAULT_VPC_CIDR", "10.0.0.0/16"),
 		NetworkPoolStart:     getEnv("NETWORK_POOL_START", "192.168.100.0"),
 		NetworkPoolEnd:       getEnv("NETWORK_POOL_END", "192.168.200.255"),
+		DBMaxConns:           getEnv("DB_MAX_CONNS", "20"),
+		DBMinConns:           getEnv("DB_MIN_CONNS", "2"),
 	}, nil
 }
 

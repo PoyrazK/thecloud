@@ -17,7 +17,7 @@ import (
 
 // InitDatabase initializes the database connection
 func InitDatabase(ctx context.Context, cfg *platform.Config, logger *slog.Logger) (*pgxpool.Pool, error) {
-	db, err := platform.NewDatabase(ctx, cfg.DatabaseURL, logger)
+	db, err := platform.NewDatabase(ctx, cfg, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
