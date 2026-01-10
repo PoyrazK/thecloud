@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func setupInstanceServiceTest(t *testing.T) (*MockInstanceRepo, *MockVpcRepo, *MockSubnetRepo, *MockVolumeRepo, *MockComputeBackend, *MockNetworkBackend, *MockEventService, *MockAuditService, *noopTaskQueue, ports.InstanceService) {
+func setupInstanceServiceTest(t *testing.T) (*MockInstanceRepo, *MockVpcRepo, *MockSubnetRepo, *MockVolumeRepo, *MockComputeBackend, *MockNetworkBackend, *MockEventService, *MockAuditService, *services.TaskQueueStub, ports.InstanceService) {
 	repo := new(MockInstanceRepo)
 	vpcRepo := new(MockVpcRepo)
 	subnetRepo := new(MockSubnetRepo)
@@ -25,7 +25,7 @@ func setupInstanceServiceTest(t *testing.T) (*MockInstanceRepo, *MockVpcRepo, *M
 	network := new(MockNetworkBackend)
 	eventSvc := new(MockEventService)
 	auditSvc := new(MockAuditService)
-	taskQueue := new(noopTaskQueue)
+	taskQueue := new(services.TaskQueueStub)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	svc := services.NewInstanceService(services.InstanceServiceParams{
