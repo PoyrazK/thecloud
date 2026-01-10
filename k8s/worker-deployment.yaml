@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloud-worker
+  namespace: thecloud
+  labels:
+    app: cloud-worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cloud-worker
+  template:
+    metadata:
+      labels:
+        app: cloud-worker
+    spec:
+      containers:
+      - name: worker
+        image: thecloud-api:latest # Reuse same image, just different entrypoint if needed, or same main with args
+        args: ["worker"] # Assuming the binary can take a 'worker' arg or we set env var to enable worker mode only?
+        # Current main.go runs everything. Ideally we split it, but for now running instances is fine as long as they consume queues.
+        # Actually, main.go starts workers in goroutines.
+        # To scale workers independently, we typically want a dedicated "worker mode".
+        # For now, we'll run the full app but only for its worker side-effects (API port won't be exposed by Service).
+        # Optimization: Add env var `ENABLE_API_SERVER=false` to main.go later.
+        envFrom:
+        - configMapRef:
+            name: cloud-config
+        - secretRef:
+            name: cloud-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"

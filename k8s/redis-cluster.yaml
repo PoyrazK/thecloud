@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cloud-redis
+  namespace: thecloud
+spec:
+  serviceName: redis-headless
+  replicas: 6
+  selector:
+    matchLabels:
+      app: cloud-redis
+  template:
+    metadata:
+      labels:
+        app: cloud-redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command: ["redis-server"]
+        args:
+        - "--cluster-enabled"
+        - "yes"
+        - "--cluster-config-file"
+        - "nodes.conf"
+        - "--cluster-node-timeout"
+        - "5000"
+        - "--appendonly"
+        - "yes"
+        ports:
+        - containerPort: 6379
+          name: client
+        - containerPort: 16379
+          name: gossip
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 100Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: thecloud
+spec:
+  ports:
+  - port: 6379
+    name: client
+  - port: 16379
+    name: gossip
+  clusterIP: None
+  selector:
+    app: cloud-redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: thecloud
+spec:
+  ports:
+  - port: 6379
+    targetPort: 6379
+  selector:
+    app: cloud-redis
