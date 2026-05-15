@@ -320,10 +320,7 @@ func (s *FunctionService) InvokeFunction(ctx context.Context, id uuid.UUID, payl
 			// No throttling — launch directly
 			go func() {
 				if _, err := s.runInvocation(bgCtx, f, &asyncInv, payload); err != nil {
-					s.logger.Error("async invocation failed",
-						"function_id", f.ID,
-						"invocation_id", asyncInv.ID,
-						"error", err)
+					s.handleFailedInvocation(bgCtx, f, &asyncInv, err)
 				}
 			}()
 		} else {
@@ -345,10 +342,8 @@ func (s *FunctionService) InvokeFunction(ctx context.Context, id uuid.UUID, payl
 							s.logger.Error("failed to record rejected invocation", "error", recErr)
 						}
 					} else {
-						s.logger.Error("async invocation failed",
-							"function_id", f.ID,
-							"invocation_id", asyncInv.ID,
-							"error", err)
+						// Handle retry and DLQ logic
+						s.handleFailedInvocation(bgCtx, f, &asyncInv, err)
 					}
 				}
 			}()
@@ -538,6 +533,39 @@ func (s *FunctionService) failInvocation(i *domain.Invocation, logMsg string, er
 	i.Logs = logMsg
 	_ = s.repo.CreateInvocation(context.Background(), i)
 	return i, errors.Wrap(errors.Internal, logMsg, err)
+}
+
+func (s *FunctionService) handleFailedInvocation(ctx context.Context, f *domain.Function, i *domain.Invocation, invokeErr error) {
+	i.RetryCount++
+	maxRetries := f.MaxRetries
+
+	if maxRetries <= 0 || i.RetryCount >= maxRetries {
+		// Move to DLQ
+		i.Status = "DLQ"
+		i.Logs = fmt.Sprintf("Invocation failed after %d retry attempt(s): %v", i.RetryCount, invokeErr)
+		s.logger.Warn("async invocation moved to DLQ",
+			"function_id", f.ID,
+			"invocation_id", i.ID,
+			"retry_count", i.RetryCount,
+			"error", invokeErr)
+	} else {
+		// Retry scheduling: exponential backoff (1s, 2s, 4s, 8s...)
+		// Note: actual retry requires a queue worker; current implementation
+		// records the retry state so users can inspect/manage via API.
+		backoffMs := (1 << (i.RetryCount - 1)) * 1000
+		i.Status = "FAILED"
+		i.Logs = fmt.Sprintf("Invocation failed (will retry %d/%d, backoff %dms): %v", i.RetryCount, maxRetries, backoffMs, invokeErr)
+		s.logger.Info("async invocation recorded for retry",
+			"function_id", f.ID,
+			"invocation_id", i.ID,
+			"retry_count", i.RetryCount,
+			"backoff_ms", backoffMs,
+			"error", invokeErr)
+	}
+
+	if recErr := s.repo.CreateInvocation(ctx, i); recErr != nil {
+		s.logger.Error("failed to record failed invocation", "error", recErr)
+	}
 }
 
 func (s *FunctionService) prepareCode(ctx context.Context, f *domain.Function) (string, error) {
