@@ -104,7 +104,7 @@ func TestIAMHandler_Simulate(t *testing.T) {
 	require.NoError(t, err)
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "Allow", data["decision"])
-	assert.Equal(t, float64(1), data["evaluated"])
+	assert.InDelta(t, 1, data["evaluated"], 0)
 	svc.AssertExpectations(t)
 }
 

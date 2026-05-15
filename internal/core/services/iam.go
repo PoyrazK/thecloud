@@ -168,11 +168,12 @@ func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Princip
 	var policies []*domain.Policy
 	var err error
 
-	if principal.UserID != nil {
+	switch {
+	case principal.UserID != nil:
 		policies, err = s.repo.GetPoliciesForUser(ctx, tenantID, *principal.UserID)
-	} else if principal.ServiceAccountID != nil {
+	case principal.ServiceAccountID != nil:
 		policies, err = s.repo.GetPoliciesForServiceAccount(ctx, tenantID, *principal.ServiceAccountID)
-	} else {
+	default:
 		return nil, errors.New(errors.InvalidInput, "no principal specified")
 	}
 	if err != nil {
