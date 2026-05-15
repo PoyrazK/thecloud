@@ -40,12 +40,14 @@ type CreateFunctionRequest struct {
 
 // UpdateFunctionRequest is the payload for function update.
 type UpdateFunctionRequest struct {
-	Handler  *string          `json:"handler,omitempty"`
-	Timeout  *int             `json:"timeout,omitempty"`
-	MemoryMB *int             `json:"memory_mb,omitempty"`
-	CPUs     *float64         `json:"cpus,omitempty"`
-	Status   string           `json:"status,omitempty"`
-	EnvVars  []*domain.EnvVar `json:"env_vars,omitempty"`
+	Handler                  *string          `json:"handler,omitempty"`
+	Timeout                  *int             `json:"timeout,omitempty"`
+	MemoryMB                 *int             `json:"memory_mb,omitempty"`
+	CPUs                     *float64         `json:"cpus,omitempty"`
+	Status                   string           `json:"status,omitempty"`
+	EnvVars                  []*domain.EnvVar `json:"env_vars,omitempty"`
+	MaxConcurrentInvocations *int             `json:"max_concurrent_invocations,omitempty"`
+	MaxQueueDepth            *int             `json:"max_queue_depth,omitempty"`
 }
 
 func (h *FunctionHandler) Create(c *gin.Context) {
@@ -121,12 +123,14 @@ func (h *FunctionHandler) Update(c *gin.Context) {
 	}
 
 	fn, err := h.svc.UpdateFunction(c.Request.Context(), id, &domain.FunctionUpdate{
-		Handler:  req.Handler,
-		Timeout:  req.Timeout,
-		MemoryMB: req.MemoryMB,
-		CPUs:     req.CPUs,
-		Status:   req.Status,
-		EnvVars:  req.EnvVars,
+		Handler:                  req.Handler,
+		Timeout:                  req.Timeout,
+		MemoryMB:                 req.MemoryMB,
+		CPUs:                     req.CPUs,
+		Status:                   req.Status,
+		EnvVars:                  req.EnvVars,
+		MaxConcurrentInvocations: req.MaxConcurrentInvocations,
+		MaxQueueDepth:            req.MaxQueueDepth,
 	})
 	if err != nil {
 		httputil.Error(c, err)

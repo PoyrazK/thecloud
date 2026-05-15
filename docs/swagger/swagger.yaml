@@ -8265,6 +8265,49 @@ paths:
       summary: Get VPC details
       tags:
       - vpcs
+    patch:
+      consumes:
+      - application/json
+      description: Modifies an existing VPC's name
+      parameters:
+      - description: VPC ID or Name
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: VPC update request
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.VPC'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Update a VPC
+      tags:
+      - vpcs
 securityDefinitions:
   APIKeyAuth:
     in: header

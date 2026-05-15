@@ -50,6 +50,33 @@ func TestFunctionUpdateValidate(t *testing.T) {
 		assert.Contains(t, err.Error(), "cpu")
 	})
 
+	t.Run("max_concurrent_invocation_too_low", func(t *testing.T) {
+		mci := -1
+		err := (&FunctionUpdate{MaxConcurrentInvocations: &mci}).Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_concurrent_invocations")
+	})
+
+	t.Run("max_concurrent_invocation_too_high", func(t *testing.T) {
+		mci := 1001
+		err := (&FunctionUpdate{MaxConcurrentInvocations: &mci}).Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_concurrent_invocations")
+	})
+
+	t.Run("max_queue_depth_too_low", func(t *testing.T) {
+		mqd := -1
+		err := (&FunctionUpdate{MaxQueueDepth: &mqd}).Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_queue_depth")
+	})
+
+	t.Run("valid_max_concurrent_invocation_within_bounds", func(t *testing.T) {
+		mci := 500
+		err := (&FunctionUpdate{MaxConcurrentInvocations: &mci}).Validate()
+		assert.NoError(t, err)
+	})
+
 	t.Run("valid_timeout_memory_cpu", func(t *testing.T) {
 		timeout := 300
 		mem := 256

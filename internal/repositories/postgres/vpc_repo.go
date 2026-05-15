@@ -108,3 +108,17 @@ func (r *VpcRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+// Update modifies an existing VPC record.
+func (r *VpcRepository) Update(ctx context.Context, vpc *domain.VPC) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `UPDATE vpcs SET name = $1 WHERE id = $2 AND tenant_id = $3`
+	cmd, err := r.db.Exec(ctx, query, vpc.Name, vpc.ID, tenantID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to update vpc", err)
+	}
+	if cmd.RowsAffected() == 0 {
+		return errors.New(errors.NotFound, "vpc not found")
+	}
+	return nil
+}

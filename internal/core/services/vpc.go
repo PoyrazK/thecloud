@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -222,6 +223,38 @@ func (s *VpcService) ListVPCs(ctx context.Context) ([]*domain.VPC, error) {
 	}
 
 	return s.repo.List(ctx)
+}
+
+// UpdateVPC modifies an existing VPC's name.
+func (s *VpcService) UpdateVPC(ctx context.Context, idOrName, name string) (*domain.VPC, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcUpdate, idOrName); err != nil {
+		return nil, err
+	}
+
+	vpc, err := s.GetVPC(ctx, idOrName)
+	if err != nil {
+		return nil, err
+	}
+
+	vpc.Name = name
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New(errors.InvalidInput, "name cannot be empty or whitespace")
+	}
+	if err := s.repo.Update(ctx, vpc); err != nil {
+		return nil, err
+	}
+
+	if err := s.auditSvc.Log(ctx, vpc.UserID, "vpc.update", "vpc", vpc.ID.String(), map[string]interface{}{
+		"name": vpc.Name,
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "action", "vpc.update", "vpc_id", vpc.ID, "error", err)
+	}
+
+	s.logger.Info("vpc updated", "id", vpc.ID, "name", name)
+	return vpc, nil
 }
 
 // DeleteVPC removes a VPC, its associated OVS bridge, and all related database records.

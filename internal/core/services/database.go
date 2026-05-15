@@ -390,6 +390,9 @@ func (s *DatabaseService) ModifyDatabase(ctx context.Context, req ports.ModifyDa
 	}
 
 	if req.AllocatedStorage != nil {
+		if *req.AllocatedStorage <= 0 {
+			return nil, errors.New(errors.InvalidInput, "allocated storage must be a positive integer (GB)")
+		}
 		if *req.AllocatedStorage < db.AllocatedStorage {
 			return nil, errors.New(errors.InvalidInput, "cannot decrease allocated storage")
 		}
@@ -980,6 +983,9 @@ func (s *DatabaseService) doRotateCredentials(ctx context.Context, id uuid.UUID,
 func (s *DatabaseService) validateCreationRequest(req ports.CreateDatabaseRequest, engine domain.DatabaseEngine) error {
 	if !s.isValidEngine(engine) {
 		return errors.New(errors.InvalidInput, "unsupported database engine")
+	}
+	if req.AllocatedStorage <= 0 {
+		return errors.New(errors.InvalidInput, "allocated storage must be a positive integer (GB)")
 	}
 	if req.AllocatedStorage < 10 {
 		return errors.New(errors.InvalidInput, "allocated storage must be at least 10GB")

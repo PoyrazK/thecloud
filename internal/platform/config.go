@@ -35,6 +35,10 @@ type Config struct {
 	StorageTLSCertFile string
 	// StorageTLSKeyFile is the path to the PEM key file for TLS
 	StorageTLSKeyFile string
+	// StorageTLSCACertFile is the path to the CA certificate for verifying server certs
+	StorageTLSCACertFile string
+	// StorageTLSSkipVerify skips certificate verification (use only in dev)
+	StorageTLSSkipVerify bool
 	// WSAllowedOrigins is a comma-separated allowlist of Origin headers
 	// permitted to open a WebSocket connection. Empty means deny all
 	// cross-origin upgrades. See #249.
@@ -87,6 +91,8 @@ func NewConfig() (*Config, error) {
 		StorageTLSEnabled:       getEnv("STORAGE_TLS_ENABLED", "false") == "true",
 		StorageTLSCertFile:      os.Getenv("STORAGE_TLS_CERT_FILE"),
 		StorageTLSKeyFile:       os.Getenv("STORAGE_TLS_KEY_FILE"),
+		StorageTLSCACertFile:    os.Getenv("STORAGE_TLS_CA_CERT_FILE"),
+		StorageTLSSkipVerify:    getEnv("STORAGE_TLS_SKIP_VERIFY", "false") == "true",
 		WSAllowedOrigins:        os.Getenv("WS_ALLOWED_ORIGINS"),
 		DashboardAllowedOrigins: os.Getenv("DASHBOARD_ALLOWED_ORIGINS"),
 		LvmVgName:               getEnv("LVM_VG_NAME", "thecloud-vg"),

@@ -7,6 +7,7 @@ import (
 
 	"github.com/poyrazk/thecloud/internal/platform"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInitIdentityServices(t *testing.T) {
@@ -37,4 +38,47 @@ func TestInitRBACServices(t *testing.T) {
 	})
 
 	assert.NotNil(t, svc)
+}
+
+func TestBuildStorageDialOpts_InsecureDefault(t *testing.T) {
+	cfg := &platform.Config{StorageTLSEnabled: false}
+	dialOpts, err := buildStorageDialOpts(cfg)
+	require.NoError(t, err)
+	require.Len(t, dialOpts, 1)
+	// Should use insecure credentials - just verify it doesn't error
+}
+
+func TestBuildStorageDialOpts_TLSEnabled(t *testing.T) {
+	cfg := &platform.Config{
+		StorageTLSEnabled: true,
+		StorageTLSCertFile: "testdata/tls/test-cert.pem",
+		StorageTLSKeyFile:  "testdata/tls/test-key.pem",
+	}
+	dialOpts, err := buildStorageDialOpts(cfg)
+	require.NoError(t, err)
+	require.Len(t, dialOpts, 1)
+}
+
+func TestBuildStorageDialOpts_TLSEnabledWithCA(t *testing.T) {
+	cfg := &platform.Config{
+		StorageTLSEnabled:   true,
+		StorageTLSCertFile:  "testdata/tls/test-cert.pem",
+		StorageTLSKeyFile:   "testdata/tls/test-key.pem",
+		StorageTLSCACertFile: "testdata/tls/ca-cert.pem",
+	}
+	dialOpts, err := buildStorageDialOpts(cfg)
+	require.NoError(t, err)
+	require.Len(t, dialOpts, 1)
+}
+
+func TestBuildStorageDialOpts_TLSEnabledWithSkipVerify(t *testing.T) {
+	cfg := &platform.Config{
+		StorageTLSEnabled:   true,
+		StorageTLSCertFile:  "testdata/tls/test-cert.pem",
+		StorageTLSKeyFile:   "testdata/tls/test-key.pem",
+		StorageTLSSkipVerify: true,
+	}
+	dialOpts, err := buildStorageDialOpts(cfg)
+	require.NoError(t, err)
+	require.Len(t, dialOpts, 1)
 }

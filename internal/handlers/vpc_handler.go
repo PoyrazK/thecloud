@@ -93,6 +93,39 @@ func (h *VpcHandler) Get(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, vpc)
 }
 
+// Update updates a VPC's name
+// @Summary Update a VPC
+// @Description Modifies an existing VPC's name
+// @Tags vpcs
+// @Accept json
+// @Produce json
+// @Security APIKeyAuth
+// @Param id path string true "VPC ID or Name"
+// @Param request body object{name=string} true "VPC update request"
+// @Success 200 {object} domain.VPC
+// @Failure 400 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Failure 500 {object} httputil.Response
+// @Router /vpcs/{id} [patch]
+func (h *VpcHandler) Update(c *gin.Context) {
+	idOrName := c.Param("id")
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	vpc, err := h.svc.UpdateVPC(c.Request.Context(), idOrName, req.Name)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, vpc)
+}
+
 // Delete deletes a VPC
 // @Summary Delete a VPC
 // @Description Removes a VPC network (must be empty of instances)

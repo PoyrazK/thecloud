@@ -233,7 +233,6 @@ func (g *GossipProtocol) gossip() {
 func (g *GossipProtocol) sendGossip(targetID string, msg *pb.GossipMessage) {
 	g.mu.RLock()
 	member, memberOK := g.members[targetID]
-	p, peerOK := g.peers[targetID]
 	g.mu.RUnlock()
 
 	if !memberOK {
@@ -241,38 +240,43 @@ func (g *GossipProtocol) sendGossip(targetID string, msg *pb.GossipMessage) {
 	}
 	targetAddr := member.Address
 
-	if !peerOK {
-		conn, err := grpc.NewClient(targetAddr, g.dialOpts...)
-		if err != nil {
-			g.logger.Error("failed to connect to peer", "peer", targetID, "error", err)
-			return
-		}
-		newPeer := &peerClient{conn: conn, client: pb.NewStorageNodeClient(conn)}
+	// Attempt dial while lock-free — avoid holding mutex during I/O.
+	// After the write lock, we re-check g.peers; if a peer already exists
+	// (created by a concurrent sendGossip), we close our new conn and
+	// use the existing one to send gossip.
+	conn, err := grpc.NewClient(targetAddr, g.dialOpts...)
+	if err != nil {
+		g.logger.Error("failed to connect to peer", "peer", targetID, "error", err)
+		return
+	}
+	newPeer := &peerClient{conn: conn, client: pb.NewStorageNodeClient(conn)}
 
-		g.mu.Lock()
-		// Re-check under the write lock: another goroutine may have created
-		// the peer concurrently, or the member may have been purged.
-		if existing, ok := g.peers[targetID]; ok {
-			g.mu.Unlock()
-			_ = conn.Close()
-			p = existing
-		} else if _, stillMember := g.members[targetID]; !stillMember {
-			g.mu.Unlock()
-			_ = conn.Close()
-			return
-		} else {
-			g.peers[targetID] = newPeer
-			p = newPeer
-			g.mu.Unlock()
-		}
+	// Acquire write lock for the critical section. detectFailures also holds
+	// the write lock when it runs, so they are mutually exclusive — no race
+	// can occur between detectFailures closing a peer and us re-checking.
+	g.mu.Lock()
+	var peerToUse *peerClient
+	if existing, ok := g.peers[targetID]; ok {
+		// Another goroutine beat us to it
+		g.mu.Unlock()
+		_ = conn.Close()
+		peerToUse = existing
+	} else if _, stillMember := g.members[targetID]; !stillMember {
+		// Member was purged while we were connecting — abort
+		g.mu.Unlock()
+		_ = conn.Close()
+		return
+	} else {
+		g.peers[targetID] = newPeer
+		g.mu.Unlock()
+		peerToUse = newPeer
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	if _, err := p.client.Gossip(ctx, msg); err != nil {
+	if _, err := peerToUse.client.Gossip(ctx, msg); err != nil {
 		g.logger.Warn("gossip failed", "target", targetID, "error", err)
-		// Mark as suspect if needed (Phase 2 enhancement)
 	}
 }
 

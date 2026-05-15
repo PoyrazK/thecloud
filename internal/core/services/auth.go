@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -252,6 +253,9 @@ func (s *AuthService) incrementFailure(email string) {
 }
 
 // purgeExpiredLocked removes expired lockouts and stale failure records.
+// If the maps are still over their hard caps after expiry-based purging,
+// evict the oldest lockout entries (and their paired failedAttempts) and
+// the highest-count failedAttempts entries until back under the caps.
 // Caller must hold s.mu.
 func (s *AuthService) purgeExpiredLocked() {
 	now := time.Now()
@@ -268,6 +272,61 @@ func (s *AuthService) purgeExpiredLocked() {
 		if count > lockoutThreshold*10 {
 			delete(s.failedAttempts, email)
 		}
+	}
+
+	// Hard-cap eviction: if expiry purging left us above the cap (e.g. an
+	// attacker is filling the map with unexpired lockouts faster than they
+	// expire), evict the earliest-locked entries until we're back under the
+	// limit. This bounds memory at O(cap) regardless of failure traffic.
+	if len(s.lockouts) > maxLockoutsMap {
+		evictOldestLockoutsLocked(s.lockouts, s.failedAttempts, maxLockoutsMap)
+	}
+	if len(s.failedAttempts) > maxFailedAttemptsMap {
+		evictHighestFailureCountsLocked(s.failedAttempts, maxFailedAttemptsMap)
+	}
+}
+
+// evictOldestLockoutsLocked drops the lockouts (and paired failedAttempts)
+// with the earliest unlock-time until the map is at most targetSize.
+func evictOldestLockoutsLocked(lockouts map[string]time.Time, failedAttempts map[string]int, targetSize int) {
+	excess := len(lockouts) - targetSize
+	if excess <= 0 {
+		return
+	}
+	type entry struct {
+		email string
+		t     time.Time
+	}
+	entries := make([]entry, 0, len(lockouts))
+	for email, t := range lockouts {
+		entries = append(entries, entry{email, t})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].t.Before(entries[j].t) })
+	for i := 0; i < excess && i < len(entries); i++ {
+		delete(lockouts, entries[i].email)
+		delete(failedAttempts, entries[i].email)
+	}
+}
+
+// evictHighestFailureCountsLocked drops the highest-count failedAttempts
+// entries first — those are the addresses most likely already locked-out
+// or being abused — until the map is at most targetSize.
+func evictHighestFailureCountsLocked(failedAttempts map[string]int, targetSize int) {
+	excess := len(failedAttempts) - targetSize
+	if excess <= 0 {
+		return
+	}
+	type entry struct {
+		email string
+		count int
+	}
+	entries := make([]entry, 0, len(failedAttempts))
+	for email, c := range failedAttempts {
+		entries = append(entries, entry{email, c})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].count > entries[j].count })
+	for i := 0; i < excess && i < len(entries); i++ {
+		delete(failedAttempts, entries[i].email)
 	}
 }
 
