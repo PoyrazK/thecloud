@@ -12977,6 +12977,9 @@ const docTemplate = `{
         "httphandlers.StatementMatch": {
             "type": "object",
             "properties": {
+                "action": {
+                    "type": "string"
+                },
                 "effect": {
                     "type": "string"
                 },
@@ -12987,6 +12990,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "reason": {
+                    "type": "string"
+                },
+                "resource": {
                     "type": "string"
                 },
                 "statement_sid": {

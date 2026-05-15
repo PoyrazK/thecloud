@@ -180,6 +180,11 @@ func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Princip
 		return nil, err
 	}
 
+	const maxSimulatePairs = 100
+	if len(actions)*len(resources) > maxSimulatePairs {
+		return nil, errors.New(errors.InvalidInput, "too many action-resource pairs (max 100)")
+	}
+
 	result := &ports.SimulateResult{Evaluated: 0}
 
 	for _, action := range actions {
@@ -193,22 +198,26 @@ func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Princip
 			if evalResult.Effect == domain.EffectDeny {
 				result.Decision = domain.EffectDeny
 				result.Matched = &ports.StatementMatch{
-					PolicyID:     evalResult.PolicyID,
-					PolicyName:   evalResult.PolicyName,
+					Action:      action,
+					Resource:    resource,
+					PolicyID:    evalResult.PolicyID,
+					PolicyName:  evalResult.PolicyName,
 					StatementSid: evalResult.StatementSid,
-					Effect:       domain.EffectDeny,
-					Reason:       evalResult.Reason,
+					Effect:      domain.EffectDeny,
+					Reason:      evalResult.Reason,
 				}
 				return result, nil
 			}
 			if evalResult.Effect == domain.EffectAllow {
 				result.Decision = domain.EffectAllow
 				result.Matched = &ports.StatementMatch{
-					PolicyID:     evalResult.PolicyID,
-					PolicyName:   evalResult.PolicyName,
+					Action:      action,
+					Resource:    resource,
+					PolicyID:    evalResult.PolicyID,
+					PolicyName:  evalResult.PolicyName,
 					StatementSid: evalResult.StatementSid,
-					Effect:       domain.EffectAllow,
-					Reason:       evalResult.Reason,
+					Effect:      domain.EffectAllow,
+					Reason:      evalResult.Reason,
 				}
 			}
 		}

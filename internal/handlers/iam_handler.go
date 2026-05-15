@@ -596,11 +596,13 @@ type SimulateResponse struct {
 
 // StatementMatch describes which statement allowed or denied the request.
 type StatementMatch struct {
-	PolicyID     uuid.UUID `json:"policy_id"`
-	PolicyName   string    `json:"policy_name"`
+	Action      string    `json:"action,omitempty"`
+	Resource    string    `json:"resource,omitempty"`
+	PolicyID    uuid.UUID `json:"policy_id"`
+	PolicyName  string    `json:"policy_name"`
 	StatementSid string    `json:"statement_sid,omitempty"`
-	Effect       string    `json:"effect"`
-	Reason       string    `json:"reason"`
+	Effect      string    `json:"effect"`
+	Reason      string    `json:"reason"`
 }
 
 // Simulate godoc
@@ -647,11 +649,13 @@ func (h *IAMHandler) Simulate(c *gin.Context) {
 	}
 	if result.Matched != nil {
 		response.Matched = &StatementMatch{
-			PolicyID:     result.Matched.PolicyID,
-			PolicyName:   result.Matched.PolicyName,
+			Action:      result.Matched.Action,
+			Resource:    result.Matched.Resource,
+			PolicyID:    result.Matched.PolicyID,
+			PolicyName:  result.Matched.PolicyName,
 			StatementSid: result.Matched.StatementSid,
-			Effect:       string(result.Matched.Effect),
-			Reason:       result.Matched.Reason,
+			Effect:      string(result.Matched.Effect),
+			Reason:      result.Matched.Reason,
 		}
 	}
 
@@ -665,6 +669,9 @@ func buildSimulateCtx(c *gin.Context, overrides map[string]interface{}) map[stri
 	}
 	if ip := c.ClientIP(); ip != "" {
 		ctx["aws:SourceIp"] = ip
+	}
+	if ua := c.GetHeader("User-Agent"); ua != "" {
+		ctx["aws:UserAgent"] = ua
 	}
 	for k, v := range overrides {
 		ctx[k] = v
