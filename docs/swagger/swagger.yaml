@@ -2640,6 +2640,60 @@ definitions:
     required:
     - replicas
     type: object
+  httphandlers.SimulateRequest:
+    properties:
+      actions:
+        description: Actions to simulate (e.g., ["compute:instance:launch"]).
+        items:
+          type: string
+        minItems: 1
+        type: array
+      context:
+        additionalProperties: true
+        description: |-
+          Context overrides for condition evaluation.
+          Keys: aws:SourceIp, aws:CurrentTime, thecloud:TenantId, etc.
+        type: object
+      resources:
+        description: Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]).
+        items:
+          type: string
+        minItems: 1
+        type: array
+      service_account_id:
+        type: string
+      user_id:
+        description: |-
+          Principal identifies whose policies to simulate.
+          Exactly one of UserID or ServiceAccountID must be set.
+        type: string
+    required:
+    - actions
+    - resources
+    type: object
+  httphandlers.SimulateResponse:
+    properties:
+      decision:
+        description: '"allow" or "deny"'
+        type: string
+      evaluated:
+        type: integer
+      matched:
+        $ref: '#/definitions/httphandlers.StatementMatch'
+    type: object
+  httphandlers.StatementMatch:
+    properties:
+      effect:
+        type: string
+      policy_id:
+        type: string
+      policy_name:
+        type: string
+      reason:
+        type: string
+      statement_sid:
+        type: string
+    type: object
   httphandlers.TokenResponse:
     properties:
       access_token:
@@ -5362,6 +5416,48 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Attach IAM Policy to Service Account
+      tags:
+      - iam
+  /iam/simulate:
+    post:
+      consumes:
+      - application/json
+      description: Evaluates what actions and resources would be allowed or denied
+        by attached policies
+      parameters:
+      - description: Simulation parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.SimulateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputil.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/httphandlers.SimulateResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Simulate IAM policy decision
       tags:
       - iam
   /iam/users/{userId}/policies:

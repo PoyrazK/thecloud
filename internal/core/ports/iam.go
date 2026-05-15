@@ -51,6 +51,32 @@ type IAMService interface {
 	AttachPolicyToServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error
 	DetachPolicyFromServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error
 	GetPoliciesForServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.Policy, error)
+
+	// SimulatePolicy evaluates what-if actions/resources against the given principal's policies.
+	// Returns the decision and which statement matched, for debugging.
+	SimulatePolicy(ctx context.Context, principal Principal, actions []string, resources []string, evalCtx map[string]interface{}) (*SimulateResult, error)
+}
+
+// Principal identifies the actor whose policies will be evaluated in a simulation.
+type Principal struct {
+	UserID           *uuid.UUID
+	ServiceAccountID *uuid.UUID
+}
+
+// SimulateResult is the outcome of a policy simulation.
+type SimulateResult struct {
+	Decision  domain.PolicyEffect
+	Matched   *StatementMatch
+	Evaluated int
+}
+
+// StatementMatch describes which statement allowed or denied the request.
+type StatementMatch struct {
+	PolicyID     uuid.UUID
+	PolicyName   string
+	StatementSid string
+	Effect       domain.PolicyEffect
+	Reason       string
 }
 
 // PolicyEvaluator defines the logic for evaluating access based on a set of policies.
