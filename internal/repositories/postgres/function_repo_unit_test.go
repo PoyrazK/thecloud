@@ -139,3 +139,56 @@ func TestFunctionRepositoryUpdate(t *testing.T) {
 	err = repo.Update(ctx, id, &domain.FunctionUpdate{Timeout: &timeout})
 	require.NoError(t, err)
 }
+
+func TestFunctionRepositoryGetDLQInvocations(t *testing.T) {
+	t.Parallel()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := NewFunctionRepository(mock)
+	functionID := uuid.New()
+	tenantID := uuid.New()
+	ctx := appcontext.WithTenantID(context.Background(), tenantID)
+	now := time.Now()
+
+	mock.ExpectQuery("SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries FROM invocations WHERE function_id = \\$1 AND status = 'DLQ'").
+		WithArgs(functionID).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "function_id", "status", "started_at", "ended_at", "duration_ms", "status_code", "logs", "retry_count", "max_retries"}).
+			AddRow(uuid.New(), functionID, "DLQ", now, nil, 500, 1, "failed after 3 retries", 3, 3))
+
+	invocations, err := repo.GetDLQInvocations(ctx, functionID)
+	require.NoError(t, err)
+	require.Len(t, invocations, 1)
+	assert.Equal(t, "DLQ", invocations[0].Status)
+	assert.Equal(t, 3, invocations[0].RetryCount)
+}
+
+func TestFunctionRepositoryUpdateInvocation(t *testing.T) {
+	t.Parallel()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := NewFunctionRepository(mock)
+	id := uuid.New()
+	tenantID := uuid.New()
+	ctx := appcontext.WithTenantID(context.Background(), tenantID)
+	now := time.Now()
+	endedAt := now
+
+	inv := &domain.Invocation{
+		ID:         id,
+		FunctionID: uuid.New(),
+		Status:     "PENDING",
+		RetryCount: 0,
+		EndedAt:    &endedAt,
+	}
+
+	mock.ExpectExec("UPDATE invocations SET").
+		WithArgs("PENDING", &endedAt, 0, 0, "", 0, id).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	err = repo.UpdateInvocation(ctx, inv)
+	require.NoError(t, err)
+}

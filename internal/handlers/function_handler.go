@@ -48,6 +48,7 @@ type UpdateFunctionRequest struct {
 	EnvVars                  []*domain.EnvVar `json:"env_vars,omitempty"`
 	MaxConcurrentInvocations *int             `json:"max_concurrent_invocations,omitempty"`
 	MaxQueueDepth            *int             `json:"max_queue_depth,omitempty"`
+	MaxRetries               *int             `json:"max_retries,omitempty"`
 }
 
 func (h *FunctionHandler) Create(c *gin.Context) {
@@ -131,6 +132,7 @@ func (h *FunctionHandler) Update(c *gin.Context) {
 		EnvVars:                  req.EnvVars,
 		MaxConcurrentInvocations: req.MaxConcurrentInvocations,
 		MaxQueueDepth:            req.MaxQueueDepth,
+		MaxRetries:               req.MaxRetries,
 	})
 	if err != nil {
 		httputil.Error(c, err)
@@ -194,4 +196,34 @@ func (h *FunctionHandler) GetLogs(c *gin.Context) {
 		return
 	}
 	httputil.Success(c, http.StatusOK, logs)
+}
+
+func (h *FunctionHandler) GetDLQ(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, invalidFunctionIDMsg))
+		return
+	}
+
+	invocations, err := h.svc.GetDLQInvocations(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, invocations)
+}
+
+func (h *FunctionHandler) RetryDLQ(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, invalidFunctionIDMsg))
+		return
+	}
+
+	invocation, err := h.svc.RetryDLQInvocation(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, invocation)
 }

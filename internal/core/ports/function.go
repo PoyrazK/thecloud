@@ -26,6 +26,10 @@ type FunctionRepository interface {
 	CreateInvocation(ctx context.Context, i *domain.Invocation) error
 	// GetInvocations retrieves a history of executions for a specific function.
 	GetInvocations(ctx context.Context, functionID uuid.UUID, limit int) ([]*domain.Invocation, error)
+	// GetDLQInvocations retrieves all DLQ (Dead Letter Queue) invocations for a specific function.
+	GetDLQInvocations(ctx context.Context, functionID uuid.UUID) ([]*domain.Invocation, error)
+	// UpdateInvocation updates an existing invocation record.
+	UpdateInvocation(ctx context.Context, i *domain.Invocation) error
 }
 
 // FunctionService provides business logic for FaaS (Function-as-a-Service) management and execution.
@@ -44,4 +48,8 @@ type FunctionService interface {
 	InvokeFunction(ctx context.Context, id uuid.UUID, payload []byte, async bool) (*domain.Invocation, error)
 	// GetFunctionLogs retrieves execution history and results for a function.
 	GetFunctionLogs(ctx context.Context, id uuid.UUID, limit int) ([]*domain.Invocation, error)
+	// GetDLQInvocations retrieves all DLQ (Dead Letter Queue) invocations for a specific function.
+	GetDLQInvocations(ctx context.Context, id uuid.UUID) ([]*domain.Invocation, error)
+	// RetryDLQInvocation retries a DLQ invocation by resetting its status to PENDING.
+	RetryDLQInvocation(ctx context.Context, invocationID uuid.UUID) (*domain.Invocation, error)
 }

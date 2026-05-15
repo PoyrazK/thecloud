@@ -150,6 +150,24 @@ func (r *FunctionRepository) GetInvocations(ctx context.Context, functionID uuid
 	return r.scanInvocations(rows)
 }
 
+func (r *FunctionRepository) GetDLQInvocations(ctx context.Context, functionID uuid.UUID) ([]*domain.Invocation, error) {
+	query := `SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries FROM invocations WHERE function_id = $1 AND status = 'DLQ' ORDER BY started_at DESC`
+	rows, err := r.db.Query(ctx, query, functionID)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to get DLQ invocations", err)
+	}
+	return r.scanInvocations(rows)
+}
+
+func (r *FunctionRepository) UpdateInvocation(ctx context.Context, i *domain.Invocation) error {
+	query := `UPDATE invocations SET status = $1, ended_at = $2, duration_ms = $3, status_code = $4, logs = $5, retry_count = $6 WHERE id = $7`
+	_, err := r.db.Exec(ctx, query, i.Status, i.EndedAt, i.DurationMs, i.StatusCode, i.Logs, i.RetryCount, i.ID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to update invocation", err)
+	}
+	return nil
+}
+
 func (r *FunctionRepository) scanFunction(row pgx.Row) (*domain.Function, error) {
 	f := &domain.Function{}
 	var envVarsJSON []byte

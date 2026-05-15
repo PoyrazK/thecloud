@@ -684,3 +684,41 @@ func (s *FunctionService) extractZipFile(file *zip.File, tmpDir string) error {
 	}
 	return nil
 }
+
+func (s *FunctionService) GetDLQInvocations(ctx context.Context, id uuid.UUID) ([]*domain.Invocation, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
+		return nil, err
+	}
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionFunctionRead, id.String()); err != nil {
+		return nil, err
+	}
+	return s.repo.GetDLQInvocations(ctx, id)
+}
+
+func (s *FunctionService) RetryDLQInvocation(ctx context.Context, invocationID uuid.UUID) (*domain.Invocation, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	invocations, err := s.repo.GetDLQInvocations(ctx, invocationID)
+	if err != nil {
+		return nil, err
+	}
+	if len(invocations) == 0 {
+		return nil, errors.New(errors.NotFound, "DLQ invocation not found")
+	}
+	inv := invocations[0]
+	if _, err := s.repo.GetByID(ctx, inv.FunctionID); err != nil {
+		return nil, err
+	}
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionFunctionInvoke, inv.FunctionID.String()); err != nil {
+		return nil, err
+	}
+	inv.Status = "PENDING"
+	inv.RetryCount = 0
+	inv.EndedAt = nil
+	if err := s.repo.UpdateInvocation(ctx, inv); err != nil {
+		return nil, err
+	}
+	return inv, nil
+}
