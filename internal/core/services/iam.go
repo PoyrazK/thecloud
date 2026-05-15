@@ -184,25 +184,31 @@ func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Princip
 
 	for _, action := range actions {
 		for _, resource := range resources {
-			effect, err := s.evaluator.Evaluate(ctx, policies, action, resource, evalCtx)
+			evalResult, err := s.evaluator.Evaluate(ctx, policies, action, resource, evalCtx)
 			if err != nil {
 				return nil, err
 			}
 			result.Evaluated++
 
-			if effect == domain.EffectDeny {
+			if evalResult.Effect == domain.EffectDeny {
 				result.Decision = domain.EffectDeny
 				result.Matched = &ports.StatementMatch{
-					Effect: domain.EffectDeny,
-					Reason: "deny statement matched",
+					PolicyID:     evalResult.PolicyID,
+					PolicyName:   evalResult.PolicyName,
+					StatementSid: evalResult.StatementSid,
+					Effect:       domain.EffectDeny,
+					Reason:       evalResult.Reason,
 				}
 				return result, nil
 			}
-			if effect == domain.EffectAllow {
+			if evalResult.Effect == domain.EffectAllow {
 				result.Decision = domain.EffectAllow
 				result.Matched = &ports.StatementMatch{
-					Effect: domain.EffectAllow,
-					Reason: "allow statement matched",
+					PolicyID:     evalResult.PolicyID,
+					PolicyName:   evalResult.PolicyName,
+					StatementSid: evalResult.StatementSid,
+					Effect:       domain.EffectAllow,
+					Reason:       evalResult.Reason,
 				}
 			}
 		}

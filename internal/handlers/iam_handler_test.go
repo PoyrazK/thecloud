@@ -103,7 +103,7 @@ func TestIAMHandler_Simulate(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	data := resp["data"].(map[string]interface{})
-	assert.Equal(t, "Allow", data["decision"])
+	assert.Equal(t, "allow", data["decision"])
 	assert.InDelta(t, 1, data["evaluated"], 0)
 	svc.AssertExpectations(t)
 }
@@ -132,7 +132,7 @@ func TestIAMHandler_SimulateDeny(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	require.NoError(t, err)
 	data := resp["data"].(map[string]interface{})
-	assert.Equal(t, "Deny", data["decision"])
+	assert.Equal(t, "deny", data["decision"])
 	svc.AssertExpectations(t)
 }
 

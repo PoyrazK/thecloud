@@ -192,15 +192,15 @@ func (s *rbacService) checkRoleIAMPolicies(ctx context.Context, tenantID uuid.UU
 // stop=true means a final decision (Allow or Deny) was reached.
 // If evaluation fails, returns an error via the logger and (false, false) to continue to next policy source.
 func (s *rbacService) evaluatePolicies(ctx context.Context, policies []*domain.Policy, permission domain.Permission, resource string, evalCtx map[string]interface{}) (bool, bool) {
-	effect, err := s.evaluator.Evaluate(ctx, policies, string(permission), resource, evalCtx)
+	result, err := s.evaluator.Evaluate(ctx, policies, string(permission), resource, evalCtx)
 	if err != nil {
 		s.logger.Error("RBAC: IAM policy evaluation failed, falling through to next policy source", "error", err, "permission", permission, "resource", resource)
 		return false, false
 	}
-	if effect == domain.EffectAllow {
+	if result.Effect == domain.EffectAllow {
 		return true, true
 	}
-	if effect == domain.EffectDeny {
+	if result.Effect == domain.EffectDeny {
 		return false, true
 	}
 	return false, false
@@ -316,11 +316,11 @@ func (s *rbacService) EvaluatePolicy(ctx context.Context, userID uuid.UUID, acti
 	if len(policies) == 0 {
 		return false, nil
 	}
-	effect, err := s.evaluator.Evaluate(ctx, policies, action, resource, evalCtx)
+	result, err := s.evaluator.Evaluate(ctx, policies, action, resource, evalCtx)
 	if err != nil {
 		return false, err
 	}
-	return effect == domain.EffectAllow, nil
+	return result.Effect == domain.EffectAllow, nil
 }
 
 func (s *rbacService) AuthorizeServiceAccount(ctx context.Context, saID uuid.UUID, tenantID uuid.UUID, permission domain.Permission, resource string) error {

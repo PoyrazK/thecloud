@@ -3,6 +3,7 @@ package httphandlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -641,7 +642,7 @@ func (h *IAMHandler) Simulate(c *gin.Context) {
 	}
 
 	response := SimulateResponse{
-		Decision:  string(result.Decision),
+		Decision:  strings.ToLower(string(result.Decision)),
 		Evaluated: result.Evaluated,
 	}
 	if result.Matched != nil {

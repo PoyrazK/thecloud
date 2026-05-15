@@ -45,3 +45,12 @@ type RolePolicy struct {
 	RoleName string    `json:"role_name"`
 	PolicyID uuid.UUID `json:"policy_id"`
 }
+
+// EvalResult is the outcome of a policy evaluation with match metadata.
+type EvalResult struct {
+	Effect       PolicyEffect
+	PolicyID     uuid.UUID
+	PolicyName   string
+	StatementSid string
+	Reason       string
+}
