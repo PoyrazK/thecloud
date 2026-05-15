@@ -46,14 +46,7 @@ func TestEnsureClusterSecurityGroup_CreateSuccess(t *testing.T) {
 	err := prov.ensureClusterSecurityGroup(context.Background(), cluster)
 	require.NoError(t, err)
 	mockedSG.AssertCalled(t, "CreateGroup", mock.Anything, cluster.VpcID, "sg-k8s-"+cluster.Name, mock.Anything)
-	// Count AddRule calls
-	addRuleCalls := 0
-	for _, call := range mockedSG.Calls {
-		if call.Method == "AddRule" {
-			addRuleCalls++
-		}
-	}
-	assert.Equal(t, 4, addRuleCalls)
+	mockedSG.AssertNumberOfCalls(t, "AddRule", 4)
 }
 
 func TestEnsureClusterSecurityGroup_CreateFails(t *testing.T) {

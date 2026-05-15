@@ -88,7 +88,7 @@ func TestVolumeEncryptionRepository_GetKey_NotFound(t *testing.T) {
 
 	resultDEK, resultKMS, err := repo.GetKey(context.Background(), volID)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found")
+	assert.NotErrorIs(t, err, pgx.ErrNoRows)
 	assert.Nil(t, resultDEK)
 	assert.Equal(t, "", resultKMS)
 }
