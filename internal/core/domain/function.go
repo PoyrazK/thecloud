@@ -114,7 +114,7 @@ type Function struct {
 	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
 	MaxConcurrentInvocations int       `json:"max_concurrent_invocations"` // 0 = unlimited
 	MaxQueueDepth            int       `json:"max_queue_depth"`            // 0 = no queue (fail fast)
-	MaxRetries               int       `json:"max_retries"`              // 0 = no retries, -1 = infinite retries
+	MaxRetries               int       `json:"max_retries"`                // 0 = no retries, -1 = infinite retries
 	CreatedAt                time.Time `json:"created_at"`
 	UpdatedAt                time.Time `json:"updated_at"`
 }
