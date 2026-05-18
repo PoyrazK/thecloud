@@ -50,16 +50,6 @@ jobs:
               labels.push('database');
             }
 
-            // Config
-            if (title.includes('config') || title.includes('settings') || title.includes('configuration')) {
-              labels.push('config');
-            }
-
-            // Build
-            if (title.includes('build') || title.includes('docker') || title.includes('compile')) {
-              labels.push('build');
-            }
-
             // Area detection based on keywords in title
             if (title.includes('cli') || title.includes('command') || title.includes('terminal')) {
               labels.push('area/cli');
@@ -102,3 +92,4 @@ jobs:
                 labels: labels
               });
             }
+

@@ -65,19 +65,9 @@ jobs:
               labels.push('api-change');
             }
 
-            // Config
-            if (title.includes('config') || title.includes('settings')) {
-              labels.push('config');
-            }
-
             // Deps
             if (body.includes('dependency') || body.includes('bump') || title.includes('update deps')) {
               labels.push('deps');
-            }
-
-            // Build
-            if (title.includes('docker') || title.includes('build') || title.includes('compile')) {
-              labels.push('build');
             }
 
             // Size detection based on files changed
