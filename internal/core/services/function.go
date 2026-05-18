@@ -530,7 +530,7 @@ func (s *FunctionService) captureInvocationResults(i *domain.Invocation, contain
 
 func (s *FunctionService) failInvocation(i *domain.Invocation, logMsg string, err error) (*domain.Invocation, error) {
 	i.Status = "FAILED"
-	i.Logs = logMsg
+	i.Logs = fmt.Sprintf("%s: %v", logMsg, err)
 	_ = s.repo.CreateInvocation(context.Background(), i)
 	return i, errors.Wrap(errors.Internal, logMsg, err)
 }
