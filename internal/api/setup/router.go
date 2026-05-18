@@ -106,7 +106,7 @@ func InitHandlers(svcs *Services, cfg *platform.Config, logger *slog.Logger) *Ha
 		Queue:         httphandlers.NewQueueHandler(svcs.Queue),
 		Notify:        httphandlers.NewNotifyHandler(svcs.Notify),
 		Cron:          httphandlers.NewCronHandler(svcs.Cron),
-		Gateway:       httphandlers.NewGatewayHandler(svcs.Gateway, logger),
+		Gateway:       nil, // re-init'd in SetupRouter with per-route limiter
 		Container:     httphandlers.NewContainerHandler(svcs.Container),
 		Pipeline:      httphandlers.NewPipelineHandler(svcs.Pipeline),
 		Health:        httphandlers.NewHealthHandler(svcs.Health),
@@ -154,6 +154,9 @@ func SetupRouter(cfg *platform.Config, logger *slog.Logger, handlers *Handlers, 
 	limiter := ratelimit.NewIPRateLimiter(rate.Limit(globalRPS), globalRPS*2, logger)
 	r.Use(ratelimit.Middleware(limiter))
 	r.Use(httputil.Metrics())
+
+	// Re-init Gateway handler with per-route limiter
+	handlers.Gateway = httphandlers.NewGatewayHandler(services.Gateway, limiter, logger)
 
 	// 6. Routes
 	r.GET("/health/live", handlers.Health.Live)
