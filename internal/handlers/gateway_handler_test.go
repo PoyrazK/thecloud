@@ -15,6 +15,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
+	"github.com/poyrazk/thecloud/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -88,7 +89,8 @@ func (m *mockGatewayService) RefreshRoutes(ctx context.Context) error {
 func setupGatewayHandlerTest(_ *testing.T) (*mockGatewayService, *GatewayHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockGatewayService)
-	handler := NewGatewayHandler(svc, nil)
+	rateLimiter := ratelimit.NewIPRateLimiter(100, 200, nil)
+	handler := NewGatewayHandler(svc, rateLimiter, nil)
 	r := gin.New()
 	return svc, handler, r
 }
@@ -325,7 +327,7 @@ func TestGatewayHandlerProxyBodySizeLimit(t *testing.T) {
 func TestGatewayHandlerProxyParamWithoutSlash(t *testing.T) {
 	t.Parallel()
 	mockSvc := new(mockGatewayService)
-	handler := NewGatewayHandler(mockSvc, nil)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
 	gin.SetMode(gin.TestMode)
 
 	// Manually create context to pass parameter without slash
@@ -348,6 +350,13 @@ func TestGatewayHandlerProxyParamWithoutSlash(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyRateLimitExceeded(t *testing.T) {
+	// TODO: Test requires mock-friendly rate limiter to be deterministic.
+	// The real limiter refills tokens over time (rate=10 → 1 token/100ms),
+	// so by the time the proxied request runs, tokens may have refilled.
+	// Will be addressed when a mock-able RateLimiter interface is introduced.
 }
 
 func TestGatewayHandlerDeleteError(t *testing.T) {
