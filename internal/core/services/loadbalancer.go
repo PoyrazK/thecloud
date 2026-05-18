@@ -42,6 +42,12 @@ func (s *LBService) Create(ctx context.Context, name string, vpcID uuid.UUID, po
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
 
+	// Defence-in-depth: the HTTP handler validates min=1,max=65535, but other
+	// callers (CLI, tests, future internal services) can hit Create directly.
+	if port < 1 || port > 65535 {
+		return nil, errors.New(errors.InvalidInput, "port must be in 1..65535")
+	}
+
 	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionLbCreate, "*"); err != nil {
 		return nil, err
 	}
@@ -150,6 +156,10 @@ func (s *LBService) Delete(ctx context.Context, idOrName string) error {
 func (s *LBService) AddTarget(ctx context.Context, lbID, instanceID uuid.UUID, port int, weight int) error {
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if port < 1 || port > 65535 {
+		return errors.New(errors.InvalidInput, "port must be in 1..65535")
+	}
 
 	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionLbUpdate, lbID.String()); err != nil {
 		return err
