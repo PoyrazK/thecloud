@@ -276,11 +276,18 @@ func (s *iamService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UU
 		return err
 	}
 
-	// Update the current policy row to match
+	// Sync the current policy row to match the rollback target (no new version)
 	current.Statements = pv.Statements
 	current.Name = pv.Name
 	current.Description = pv.Description
-	if err := s.repo.UpdatePolicy(ctx, tenantID, current); err != nil {
+	if err := s.repo.SyncPolicyCurrentState(ctx, tenantID, &domain.PolicyVersion{
+		ID:            newVersion.ID,
+		PolicyID:      policyID,
+		VersionNumber: newVersion.VersionNumber,
+		Name:          pv.Name,
+		Description:   pv.Description,
+		Statements:    pv.Statements,
+	}); err != nil {
 		return err
 	}
 

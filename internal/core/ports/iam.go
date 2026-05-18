@@ -20,6 +20,7 @@ type IAMRepository interface {
 	ListPolicyVersions(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID) ([]*domain.PolicyVersion, error)
 	GetPolicyVersion(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error)
 	InsertPolicyVersion(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error
+	SyncPolicyCurrentState(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error
 
 	// User Policy Assignment
 	AttachPolicyToUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, policyID uuid.UUID) error

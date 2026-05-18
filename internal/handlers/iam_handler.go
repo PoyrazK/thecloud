@@ -194,6 +194,12 @@ func (h *IAMHandler) GetPolicyVersions(c *gin.Context) {
 		return
 	}
 
+	// Validate policy exists under this tenant before listing versions
+	if _, err := h.svc.GetPolicyByID(c.Request.Context(), id); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
 	versions, err := h.svc.ListPolicyVersions(c.Request.Context(), id)
 	if err != nil {
 		httputil.Error(c, err)

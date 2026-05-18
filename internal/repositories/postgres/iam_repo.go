@@ -101,14 +101,6 @@ func (r *iamRepository) ListPolicies(ctx context.Context, tenantID uuid.UUID) ([
 }
 
 func (r *iamRepository) UpdatePolicy(ctx context.Context, tenantID uuid.UUID, policy *domain.Policy) error {
-	// Get current max version number for this policy
-	var maxVersion int
-	err := r.db.QueryRow(ctx, "SELECT COALESCE(MAX(version_number), 0) FROM policy_versions WHERE policy_id = $1", policy.ID).Scan(&maxVersion)
-	if err != nil {
-		return err
-	}
-	newVersion := maxVersion + 1
-
 	statementsJSON, err := json.Marshal(policy.Statements)
 	if err != nil {
 		return fmt.Errorf("failed to marshal statements: %w", err)
@@ -120,11 +112,17 @@ func (r *iamRepository) UpdatePolicy(ctx context.Context, tenantID uuid.UUID, po
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Insert new version row
+	// Atomically get max version and insert new version row using CTE
+	// This prevents race conditions where two concurrent updates both read the same max.
 	_, err = tx.Exec(ctx, `
+		WITH max_version AS (
+			SELECT COALESCE(MAX(version_number), 0) + 1 AS new_version
+			FROM policy_versions
+			WHERE policy_id = $1
+		)
 		INSERT INTO policy_versions (id, policy_id, version_number, name, description, statements)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, uuid.New(), policy.ID, newVersion, policy.Name, policy.Description, statementsJSON)
+		SELECT $2, $1, new_version, $3, $4, $5 FROM max_version
+	`, policy.ID, uuid.New(), policy.Name, policy.Description, statementsJSON)
 	if err != nil {
 		return err
 	}
@@ -135,6 +133,42 @@ func (r *iamRepository) UpdatePolicy(ctx context.Context, tenantID uuid.UUID, po
 		SET name = $1, description = $2, statements = $3, updated_at = NOW()
 		WHERE id = $4 AND tenant_id = $5
 	`, policy.Name, policy.Description, statementsJSON, policy.ID, tenantID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// SyncPolicyCurrentState updates the policies table and inserts a new version row
+// without incrementing the version number (used by rollback to sync to a specific version).
+func (r *iamRepository) SyncPolicyCurrentState(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	statementsJSON, err := json.Marshal(pv.Statements)
+	if err != nil {
+		return fmt.Errorf("failed to marshal statements: %w", err)
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Insert version row
+	_, err = tx.Exec(ctx, `
+		INSERT INTO policy_versions (id, policy_id, version_number, name, description, statements)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, pv.ID, pv.PolicyID, pv.VersionNumber, pv.Name, pv.Description, statementsJSON)
+	if err != nil {
+		return err
+	}
+
+	// Update current policy row for fast lookups
+	_, err = tx.Exec(ctx, `
+		UPDATE policies
+		SET name = $1, description = $2, statements = $3, updated_at = NOW()
+		WHERE id = $4 AND tenant_id = $5
+	`, pv.Name, pv.Description, statementsJSON, pv.PolicyID, tenantID)
 	if err != nil {
 		return err
 	}

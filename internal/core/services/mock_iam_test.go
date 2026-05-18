@@ -157,6 +157,9 @@ func (m *MockIAMRepository) GetPolicyVersion(ctx context.Context, tenantID, poli
 func (m *MockIAMRepository) InsertPolicyVersion(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
 	return m.Called(ctx, tenantID, pv).Error(0)
 }
+func (m *MockIAMRepository) SyncPolicyCurrentState(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	return m.Called(ctx, tenantID, pv).Error(0)
+}
 
 // MockIdentityService
 type MockIdentityService struct {

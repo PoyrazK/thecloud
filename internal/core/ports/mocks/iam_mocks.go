@@ -106,6 +106,11 @@ func (m *IAMRepository) InsertPolicyVersion(ctx context.Context, tenantID uuid.U
 	return args.Error(0)
 }
 
+func (m *IAMRepository) SyncPolicyCurrentState(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	args := m.Called(ctx, tenantID, pv)
+	return args.Error(0)
+}
+
 // IAMService is a mock for ports.IAMService
 type IAMService struct {
 	mock.Mock

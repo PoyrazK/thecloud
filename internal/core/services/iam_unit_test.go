@@ -10,6 +10,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/core/services"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -197,5 +198,58 @@ func TestIAMService_Unit(t *testing.T) {
 		assert.Equal(t, "FirstAllow", result.Matched.PolicyName) // First allow wins (allowResult is set once and not overwritten)
 		assert.Equal(t, 1, result.Evaluated)
 		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestIAMService_Unit_RollbackPolicyVersion(t *testing.T) {
+	mockRepo := new(MockIAMRepository)
+	mockAuditSvc := new(MockAuditService)
+	mockEventSvc := new(MockEventService)
+	svc := services.NewIAMService(mockRepo, mockAuditSvc, mockEventSvc, slog.Default())
+
+	ctx := context.Background()
+	tenantID := uuid.New()
+	ctx = appcontext.WithTenantID(ctx, tenantID)
+
+	policyID := uuid.New()
+
+	t.Run("successful rollback to older version", func(t *testing.T) {
+		targetVersion := &domain.PolicyVersion{
+			ID:            uuid.New(),
+			PolicyID:      policyID,
+			VersionNumber: 2,
+			Name:          "OldName",
+			Description:   "OldDesc",
+			Statements:    []domain.Statement{{Effect: domain.EffectAllow, Action: []string{"*"}}},
+		}
+		currentPolicy := &domain.Policy{
+			ID:          policyID,
+			TenantID:    tenantID,
+			Name:        "NewName",
+			Description: "NewDesc",
+			Statements:  []domain.Statement{{Effect: domain.EffectDeny, Action: []string{"compute:*"}}},
+		}
+		existingVersions := []*domain.PolicyVersion{
+			{VersionNumber: 3}, {VersionNumber: 2},
+		}
+
+		mockRepo.On("GetPolicyVersion", mock.Anything, tenantID, policyID, 2).Return(targetVersion, nil).Once()
+		mockRepo.On("GetPolicyByID", mock.Anything, tenantID, policyID).Return(currentPolicy, nil).Once()
+		mockRepo.On("ListPolicyVersions", mock.Anything, tenantID, policyID).Return(existingVersions, nil).Once()
+		mockRepo.On("InsertPolicyVersion", mock.Anything, tenantID, mock.AnythingOfType("*domain.PolicyVersion")).Return(nil).Once()
+		mockRepo.On("SyncPolicyCurrentState", mock.Anything, tenantID, mock.AnythingOfType("*domain.PolicyVersion")).Return(nil).Once()
+		mockEventSvc.On("RecordEvent", mock.Anything, "IAM_POLICY_ROLLBACK", policyID.String(), "POLICY", mock.Anything).Return(nil).Once()
+
+		err := svc.RollbackPolicyVersion(ctx, policyID, 2)
+		require.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("returns not found when target version does not exist", func(t *testing.T) {
+		mockRepo.On("GetPolicyVersion", mock.Anything, tenantID, policyID, 99).Return(nil, errors.New(errors.NotFound, "policy version not found")).Once()
+
+		err := svc.RollbackPolicyVersion(ctx, policyID, 99)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
 	})
 }

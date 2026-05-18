@@ -146,13 +146,9 @@ func TestIAMRepository_UpdatePolicy_CreatesVersion(t *testing.T) {
 
 	t.Run("creates new version on update", func(t *testing.T) {
 		updatedStatementsJSON, _ := json.Marshal(updatedPolicy.Statements)
-		mock.ExpectQuery("SELECT COALESCE").
-			WithArgs(policyID).
-			WillReturnRows(pgxmock.NewRows([]string{"max"}).AddRow(2))
-
 		mock.ExpectBegin()
-		mock.ExpectExec("INSERT INTO policy_versions").
-			WithArgs(pgxmock.AnyArg(), policyID, 3, updatedPolicy.Name, updatedPolicy.Description, updatedStatementsJSON).
+		mock.ExpectExec("WITH max_version").
+			WithArgs(policyID, pgxmock.AnyArg(), updatedPolicy.Name, updatedPolicy.Description, updatedStatementsJSON).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 		mock.ExpectExec("UPDATE policies").
 			WithArgs(updatedPolicy.Name, updatedPolicy.Description, updatedStatementsJSON, policyID, tenantID).
