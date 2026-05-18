@@ -72,13 +72,13 @@ type SimulateResult struct {
 
 // StatementMatch describes which statement allowed or denied the request.
 type StatementMatch struct {
-	Action      string
-	Resource    string
-	PolicyID    uuid.UUID
-	PolicyName  string
+	Action       string
+	Resource     string
+	PolicyID     uuid.UUID
+	PolicyName   string
 	StatementSid string
-	Effect      domain.PolicyEffect
-	Reason      string
+	Effect       domain.PolicyEffect
+	Reason       string
 }
 
 // PolicyEvaluator defines the logic for evaluating access based on a set of policies.

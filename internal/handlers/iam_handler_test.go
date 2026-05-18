@@ -165,8 +165,8 @@ func TestIAMHandler_SimulateServiceAccount(t *testing.T) {
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"service_account_id": saID.String(),
-		"actions":           []string{"compute:instance:launch"},
-		"resources":         []string{"arn:thecloud:compute:us-east-1:*:instance/*"},
+		"actions":            []string{"compute:instance:launch"},
+		"resources":          []string{"arn:thecloud:compute:us-east-1:*:instance/*"},
 	})
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/iam/simulate", bytes.NewBuffer(body))

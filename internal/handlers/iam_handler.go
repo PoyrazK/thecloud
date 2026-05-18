@@ -591,20 +591,20 @@ type SimulateRequest struct {
 
 // SimulateResponse is the result of a policy simulation.
 type SimulateResponse struct {
-	Decision  string            `json:"decision"` // "allow" or "deny"
-	Matched   *StatementMatch  `json:"matched,omitempty"`
-	Evaluated int              `json:"evaluated"`
+	Decision  string          `json:"decision"` // "allow" or "deny"
+	Matched   *StatementMatch `json:"matched,omitempty"`
+	Evaluated int             `json:"evaluated"`
 }
 
 // StatementMatch describes which statement allowed or denied the request.
 type StatementMatch struct {
-	Action      string    `json:"action,omitempty"`
-	Resource    string    `json:"resource,omitempty"`
-	PolicyID    uuid.UUID `json:"policy_id"`
-	PolicyName  string    `json:"policy_name"`
+	Action       string    `json:"action,omitempty"`
+	Resource     string    `json:"resource,omitempty"`
+	PolicyID     uuid.UUID `json:"policy_id"`
+	PolicyName   string    `json:"policy_name"`
 	StatementSid string    `json:"statement_sid,omitempty"`
-	Effect      string    `json:"effect"`
-	Reason      string    `json:"reason"`
+	Effect       string    `json:"effect"`
+	Reason       string    `json:"reason"`
 }
 
 // Simulate godoc
@@ -651,13 +651,13 @@ func (h *IAMHandler) Simulate(c *gin.Context) {
 	}
 	if result.Matched != nil {
 		response.Matched = &StatementMatch{
-			Action:      result.Matched.Action,
-			Resource:    result.Matched.Resource,
-			PolicyID:    result.Matched.PolicyID,
-			PolicyName:  result.Matched.PolicyName,
+			Action:       result.Matched.Action,
+			Resource:     result.Matched.Resource,
+			PolicyID:     result.Matched.PolicyID,
+			PolicyName:   result.Matched.PolicyName,
 			StatementSid: result.Matched.StatementSid,
-			Effect:      string(result.Matched.Effect),
-			Reason:      result.Matched.Reason,
+			Effect:       string(result.Matched.Effect),
+			Reason:       result.Matched.Reason,
 		}
 	}
 
