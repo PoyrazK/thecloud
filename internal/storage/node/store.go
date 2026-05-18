@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,10 @@ type LocalStore struct {
 }
 
 const maxObjectSize = 5 * 1024 * 1024 * 1024 // 5 GB
+
+// maxReadBytes is the maximum size for the Read() convenience method.
+// Files larger than this should use ReadStream() to avoid memory exhaustion.
+const maxReadBytes = 100 * 1024 * 1024 // 100 MB
 
 // NewLocalStore initializes a new local storage backend.
 func NewLocalStore(dataDir string) (*LocalStore, error) {
@@ -130,14 +135,50 @@ func (s *LocalStore) ReadStream(bucket, key string) (io.ReadCloser, int64, error
 }
 
 // Read retrieves data from disk.
+// Warning: for large files (>maxReadBytes), use ReadStream() instead to avoid memory exhaustion.
 func (s *LocalStore) Read(bucket, key string) ([]byte, int64, error) {
-	rc, timestamp, err := s.ReadStream(bucket, key)
+	s.mu.RLock()
+	path, err := s.getObjectPath(bucket, key)
+	s.mu.RUnlock()
 	if err != nil {
 		return nil, 0, err
 	}
-	defer func() { _ = rc.Close() }()
 
-	data, err := io.ReadAll(rc)
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Check size on the opened file to avoid TOCTOU with ReadStream's separate open
+	info, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, 0, err
+	}
+	if info.Size() > maxReadBytes {
+		_ = f.Close()
+		return nil, 0, fmt.Errorf("file too large (%d bytes, max %d) for Read(), use ReadStream() for large files", info.Size(), maxReadBytes)
+	}
+
+	// Read metadata
+	var timestamp int64
+	metaPath := filepath.Clean(path + ".meta")
+	metaBytes, err := os.ReadFile(metaPath)
+	if err == nil && len(metaBytes) >= 8 {
+		uVal := binary.LittleEndian.Uint64(metaBytes)
+		if uVal > math.MaxInt64 {
+			timestamp = math.MaxInt64
+		} else {
+			timestamp = int64(uVal)
+		}
+	} else {
+		timestamp = info.ModTime().UnixNano()
+	}
+
+	// Use LimitedReader to prevent reading more than maxReadBytes even if file grows
+	lr := io.LimitedReader{R: f, N: maxReadBytes + 1}
+	data, err := io.ReadAll(&lr)
+	_ = f.Close()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -278,8 +319,9 @@ func (s *LocalStore) getObjectPath(bucket, key string) (string, error) {
 	fullPath := filepath.Join(bucketDir, cleanKey)
 
 	// Verify it's within bucketDir (strict isolation)
+	// Must be a child path - not the directory itself, not parent
 	rel, err := filepath.Rel(bucketDir, fullPath)
-	if err != nil || len(rel) < 2 && rel == ".." || (len(rel) >= 2 && rel[:2] == "..") {
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
 		return "", os.ErrPermission
 	}
 

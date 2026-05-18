@@ -32,6 +32,8 @@ type CacheService interface {
 	FlushCache(ctx context.Context, idOrName string) error
 	// GetCacheStats retrieves real-time performance metrics from the engine.
 	GetCacheStats(ctx context.Context, idOrName string) (*CacheStats, error)
+	// ResizeCache changes the memory allocation of a running cache instance.
+	ResizeCache(ctx context.Context, idOrName string, newMemoryMB int) error
 }
 
 // CacheRepository handles the persistence of cache metadata.

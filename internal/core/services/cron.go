@@ -106,6 +106,21 @@ func (s *CronService) GetJob(ctx context.Context, id uuid.UUID) (*domain.CronJob
 	return s.repo.GetJobByID(ctx, id, userID)
 }
 
+func (s *CronService) GetJobRuns(ctx context.Context, id uuid.UUID, limit int) ([]*domain.CronJobRun, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionCronRead, id.String()); err != nil {
+		return nil, err
+	}
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	return s.repo.GetJobRuns(ctx, id, limit)
+}
+
 func (s *CronService) PauseJob(ctx context.Context, id uuid.UUID) error {
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
@@ -168,4 +183,55 @@ func (s *CronService) DeleteJob(ctx context.Context, id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (s *CronService) UpdateJob(ctx context.Context, id uuid.UUID, name, schedule, targetURL, targetMethod, targetPayload string) (*domain.CronJob, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionCronUpdate, id.String()); err != nil {
+		return nil, err
+	}
+
+	job, err := s.repo.GetJobByID(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if name != "" {
+		job.Name = name
+	}
+	if schedule != "" {
+		sched, err := s.parser.Parse(schedule)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cron schedule: %w", err)
+		}
+		job.Schedule = schedule
+		job.NextRunAt = pointerTime(sched.Next(time.Now()))
+	}
+	if targetURL != "" {
+		job.TargetURL = targetURL
+	}
+	if targetMethod != "" {
+		job.TargetMethod = targetMethod
+	}
+	if targetPayload != "" {
+		job.TargetPayload = targetPayload
+	}
+
+	if err := s.repo.UpdateJob(ctx, job); err != nil {
+		return nil, err
+	}
+
+	if err := s.auditSvc.Log(ctx, job.UserID, "cron.job_update", "cron_job", job.ID.String(), map[string]interface{}{
+		"name": job.Name,
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "action", "cron.job_update", "job_id", job.ID, "error", err)
+	}
+
+	return job, nil
+}
+
+func pointerTime(t time.Time) *time.Time {
+	return &t
 }

@@ -40,11 +40,15 @@ type CreateFunctionRequest struct {
 
 // UpdateFunctionRequest is the payload for function update.
 type UpdateFunctionRequest struct {
-	Handler  *string          `json:"handler,omitempty"`
-	Timeout  *int             `json:"timeout,omitempty"`
-	MemoryMB *int             `json:"memory_mb,omitempty"`
-	Status   string           `json:"status,omitempty"`
-	EnvVars  []*domain.EnvVar `json:"env_vars,omitempty"`
+	Handler                  *string          `json:"handler,omitempty"`
+	Timeout                  *int             `json:"timeout,omitempty"`
+	MemoryMB                 *int             `json:"memory_mb,omitempty"`
+	CPUs                     *float64         `json:"cpus,omitempty"`
+	Status                   string           `json:"status,omitempty"`
+	EnvVars                  []*domain.EnvVar `json:"env_vars,omitempty"`
+	MaxConcurrentInvocations *int             `json:"max_concurrent_invocations,omitempty"`
+	MaxQueueDepth            *int             `json:"max_queue_depth,omitempty"`
+	MaxRetries               *int             `json:"max_retries,omitempty"`
 }
 
 func (h *FunctionHandler) Create(c *gin.Context) {
@@ -120,11 +124,15 @@ func (h *FunctionHandler) Update(c *gin.Context) {
 	}
 
 	fn, err := h.svc.UpdateFunction(c.Request.Context(), id, &domain.FunctionUpdate{
-		Handler:  req.Handler,
-		Timeout:  req.Timeout,
-		MemoryMB: req.MemoryMB,
-		Status:   req.Status,
-		EnvVars:  req.EnvVars,
+		Handler:                  req.Handler,
+		Timeout:                  req.Timeout,
+		MemoryMB:                 req.MemoryMB,
+		CPUs:                     req.CPUs,
+		Status:                   req.Status,
+		EnvVars:                  req.EnvVars,
+		MaxConcurrentInvocations: req.MaxConcurrentInvocations,
+		MaxQueueDepth:            req.MaxQueueDepth,
+		MaxRetries:               req.MaxRetries,
 	})
 	if err != nil {
 		httputil.Error(c, err)
@@ -188,4 +196,54 @@ func (h *FunctionHandler) GetLogs(c *gin.Context) {
 		return
 	}
 	httputil.Success(c, http.StatusOK, logs)
+}
+
+// @Summary Get DLQ invocations
+// @Description Gets all dead letter queue invocations for a function
+// @Param id path string true "Function ID"
+// @Success 200 {array} domain.Invocation
+// @Failure 400 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /functions/{id}/dlq [get]
+func (h *FunctionHandler) GetDLQ(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, invalidFunctionIDMsg))
+		return
+	}
+
+	invocations, err := h.svc.GetDLQInvocations(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, invocations)
+}
+
+// @Summary Retry DLQ invocation
+// @Description Retries a failed invocation from the dead letter queue by resetting its status to PENDING
+// @Param id path string true "Function ID"
+// @Param invocation_id path string true "Invocation ID"
+// @Success 200 {object} domain.Invocation
+// @Failure 400 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /functions/{id}/dlq/{invocation_id}/retry [post]
+func (h *FunctionHandler) RetryDLQ(c *gin.Context) {
+	functionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, invalidFunctionIDMsg))
+		return
+	}
+	invocationID, err := uuid.Parse(c.Param("invocation_id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid invocation id"))
+		return
+	}
+
+	invocation, err := h.svc.RetryDLQInvocation(c.Request.Context(), functionID, invocationID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, invocation)
 }

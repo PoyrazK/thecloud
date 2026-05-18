@@ -51,5 +51,22 @@ func (m *MockFunctionRepo) GetInvocations(ctx context.Context, functionID uuid.U
 	}
 	return args.Get(0).([]*domain.Invocation), args.Error(1)
 }
+func (m *MockFunctionRepo) GetDLQInvocations(ctx context.Context, functionID uuid.UUID) ([]*domain.Invocation, error) {
+	args := m.Called(ctx, functionID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Invocation), args.Error(1)
+}
+func (m *MockFunctionRepo) GetInvocationByID(ctx context.Context, invocationID uuid.UUID) (*domain.Invocation, error) {
+	args := m.Called(ctx, invocationID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Invocation), args.Error(1)
+}
+func (m *MockFunctionRepo) UpdateInvocation(ctx context.Context, i *domain.Invocation) error {
+	return m.Called(ctx, i).Error(0)
+}
 
 type MockFunctionRepository = MockFunctionRepo

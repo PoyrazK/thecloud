@@ -90,6 +90,24 @@ func (m *mockFunctionService) UpdateFunction(ctx context.Context, id uuid.UUID, 
 	return r0, args.Error(1)
 }
 
+func (m *mockFunctionService) GetDLQInvocations(ctx context.Context, id uuid.UUID) ([]*domain.Invocation, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.Invocation)
+	return r0, args.Error(1)
+}
+
+func (m *mockFunctionService) RetryDLQInvocation(ctx context.Context, functionID, invocationID uuid.UUID) (*domain.Invocation, error) {
+	args := m.Called(ctx, functionID, invocationID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.Invocation)
+	return r0, args.Error(1)
+}
+
 func setupFunctionHandlerTest(_ *testing.T) (*mockFunctionService, *FunctionHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockFunctionService)

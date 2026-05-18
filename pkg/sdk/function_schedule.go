@@ -84,7 +84,14 @@ func (c *Client) ListFunctionSchedules() ([]*FunctionSchedule, error) {
 	return resp.Data, nil
 }
 
-func (c *Client) GetFunctionSchedule(id string) (*FunctionSchedule, error) {
+func (c *Client) GetFunctionSchedule(idOrName string) (*FunctionSchedule, error) {
+	id, err := c.resolveID("function-schedule", func() ([]interface{}, error) {
+		schedules, err := c.ListFunctionSchedules()
+		return interfaceSlicePtr(schedules), err
+	}, func(v interface{}) string { return v.(*FunctionSchedule).ID }, func(v interface{}) string { return v.(*FunctionSchedule).Name }, idOrName)
+	if err != nil {
+		return nil, err
+	}
 	var resp Response[FunctionSchedule]
 	if err := c.get(functionSchedulesPath+"/"+id, &resp); err != nil {
 		return nil, err
@@ -92,21 +99,49 @@ func (c *Client) GetFunctionSchedule(id string) (*FunctionSchedule, error) {
 	return &resp.Data, nil
 }
 
-func (c *Client) DeleteFunctionSchedule(id string) error {
+func (c *Client) DeleteFunctionSchedule(idOrName string) error {
+	id, err := c.resolveID("function-schedule", func() ([]interface{}, error) {
+		schedules, err := c.ListFunctionSchedules()
+		return interfaceSlicePtr(schedules), err
+	}, func(v interface{}) string { return v.(*FunctionSchedule).ID }, func(v interface{}) string { return v.(*FunctionSchedule).Name }, idOrName)
+	if err != nil {
+		return err
+	}
 	return c.delete(functionSchedulesPath+"/"+id, nil)
 }
 
-func (c *Client) PauseFunctionSchedule(id string) error {
+func (c *Client) PauseFunctionSchedule(idOrName string) error {
+	id, err := c.resolveID("function-schedule", func() ([]interface{}, error) {
+		schedules, err := c.ListFunctionSchedules()
+		return interfaceSlicePtr(schedules), err
+	}, func(v interface{}) string { return v.(*FunctionSchedule).ID }, func(v interface{}) string { return v.(*FunctionSchedule).Name }, idOrName)
+	if err != nil {
+		return err
+	}
 	var resp Response[any]
 	return c.post(functionSchedulesPath+"/"+id+"/pause", nil, &resp)
 }
 
-func (c *Client) ResumeFunctionSchedule(id string) error {
+func (c *Client) ResumeFunctionSchedule(idOrName string) error {
+	id, err := c.resolveID("function-schedule", func() ([]interface{}, error) {
+		schedules, err := c.ListFunctionSchedules()
+		return interfaceSlicePtr(schedules), err
+	}, func(v interface{}) string { return v.(*FunctionSchedule).ID }, func(v interface{}) string { return v.(*FunctionSchedule).Name }, idOrName)
+	if err != nil {
+		return err
+	}
 	var resp Response[any]
 	return c.post(functionSchedulesPath+"/"+id+"/resume", nil, &resp)
 }
 
-func (c *Client) GetFunctionScheduleRuns(id string) ([]*FunctionScheduleRun, error) {
+func (c *Client) GetFunctionScheduleRuns(idOrName string) ([]*FunctionScheduleRun, error) {
+	id, err := c.resolveID("function-schedule", func() ([]interface{}, error) {
+		schedules, err := c.ListFunctionSchedules()
+		return interfaceSlicePtr(schedules), err
+	}, func(v interface{}) string { return v.(*FunctionSchedule).ID }, func(v interface{}) string { return v.(*FunctionSchedule).Name }, idOrName)
+	if err != nil {
+		return nil, err
+	}
 	var resp Response[[]*FunctionScheduleRun]
 	if err := c.get(functionSchedulesPath+"/"+id+"/runs", &resp); err != nil {
 		return nil, err

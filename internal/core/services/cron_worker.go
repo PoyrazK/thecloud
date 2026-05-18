@@ -15,7 +15,15 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-const ClaimTimeout = 5 * time.Minute
+const (
+	ClaimTimeout = 5 * time.Minute
+
+	// perJobTimeout bounds how long a single cron job's HTTP call may run,
+	// independent of the http.Client's idle/read deadlines. Without it a
+	// slow target endpoint could pin a worker goroutine until the surrounding
+	// process context is cancelled.
+	perJobTimeout = 30 * time.Second
+)
 
 // CronWorker executes scheduled jobs and records run results.
 type CronWorker struct {
@@ -71,7 +79,10 @@ func (w *CronWorker) ProcessJobs(ctx context.Context) {
 func (w *CronWorker) runJob(ctx context.Context, job *domain.CronJob) {
 	start := time.Now()
 
-	req, err := http.NewRequestWithContext(ctx, job.TargetMethod, job.TargetURL, bytes.NewBufferString(job.TargetPayload))
+	jobCtx, cancel := context.WithTimeout(ctx, perJobTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(jobCtx, job.TargetMethod, job.TargetURL, bytes.NewBufferString(job.TargetPayload))
 	if err != nil {
 		w.completeRun(ctx, job, "FAILED", 0, err.Error(), time.Since(start))
 		return

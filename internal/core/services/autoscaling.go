@@ -145,10 +145,17 @@ func (s *AutoScalingService) DeleteGroup(ctx context.Context, id uuid.UUID) erro
 		return err
 	}
 
-	// Mark as DELETING to let worker handle cleanup asynchronously
+	// Mark as DELETING to let worker handle cleanup asynchronously.
+	//
+	// MinInstances and DesiredCount are forced to 0 here as a deletion signal,
+	// NOT to represent "this group is unscaled". Callers must always check
+	// group.Status before interpreting these counts: a group in
+	// ScalingGroupStatusDeleting with zero counts is being torn down by the
+	// scaling worker, not idling. GetGroup returns the Status field so
+	// downstream code can distinguish.
 	group.Status = domain.ScalingGroupStatusDeleting
-	group.MinInstances = 0 // Allow desired to be 0
-	group.DesiredCount = 0 // Stop scaling out immediately
+	group.MinInstances = 0
+	group.DesiredCount = 0
 	if err := s.repo.UpdateGroup(ctx, group); err != nil {
 		return err
 	}
@@ -174,6 +181,10 @@ func (s *AutoScalingService) SetDesiredCapacity(ctx context.Context, groupID uui
 	group, err := s.repo.GetGroupByID(ctx, groupID)
 	if err != nil {
 		return err
+	}
+
+	if group.Status == domain.ScalingGroupStatusDeleting {
+		return errors.New(errors.InvalidInput, "cannot set desired capacity: group is being deleted")
 	}
 
 	if desired < group.MinInstances || desired > group.MaxInstances {

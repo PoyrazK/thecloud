@@ -52,7 +52,7 @@ func setupAuthServiceTest(t *testing.T) (*pgxpool.Pool, *services.AuthService, *
 		RBACSvc:  rbacSvc,
 		Logger:   slog.Default(),
 	})
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc, tenantSvc, slog.Default())
+	svc := services.NewAuthService(userRepo, identitySvc, auditSvc, tenantSvc, db, slog.Default())
 
 	return db, svc, userRepo, identitySvc
 }

@@ -23,11 +23,12 @@ func NewLifecycleRepository(db DB) *LifecycleRepository {
 }
 
 func (r *LifecycleRepository) Create(ctx context.Context, rule *domain.LifecycleRule) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		INSERT INTO lifecycle_rules (id, user_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO lifecycle_rules (id, user_id, tenant_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	_, err := r.db.Exec(ctx, query, rule.ID, rule.UserID, rule.BucketName, rule.Prefix, rule.ExpirationDays, rule.Enabled, rule.CreatedAt, rule.UpdatedAt)
+	_, err := r.db.Exec(ctx, query, rule.ID, rule.UserID, tenantID, rule.BucketName, rule.Prefix, rule.ExpirationDays, rule.Enabled, rule.CreatedAt, rule.UpdatedAt)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to create lifecycle rule", err)
 	}
@@ -35,15 +36,16 @@ func (r *LifecycleRepository) Create(ctx context.Context, rule *domain.Lifecycle
 }
 
 func (r *LifecycleRepository) Get(ctx context.Context, id uuid.UUID) (*domain.LifecycleRule, error) {
-	userId := appcontext.UserIDFromContext(ctx)
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, user_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at
+		SELECT id, user_id, tenant_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at
 		FROM lifecycle_rules
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1 AND user_id = $2 AND tenant_id = $3
 	`
 	var rule domain.LifecycleRule
-	err := r.db.QueryRow(ctx, query, id, userId).Scan(
-		&rule.ID, &rule.UserID, &rule.BucketName, &rule.Prefix, &rule.ExpirationDays, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt,
+	err := r.db.QueryRow(ctx, query, id, userID, tenantID).Scan(
+		&rule.ID, &rule.UserID, &rule.TenantID, &rule.BucketName, &rule.Prefix, &rule.ExpirationDays, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt,
 	)
 	if err != nil {
 		if stdlib_errors.Is(err, pgx.ErrNoRows) {
@@ -55,23 +57,24 @@ func (r *LifecycleRepository) Get(ctx context.Context, id uuid.UUID) (*domain.Li
 }
 
 func (r *LifecycleRepository) List(ctx context.Context, bucketName string) ([]*domain.LifecycleRule, error) {
-	userId := appcontext.UserIDFromContext(ctx)
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, user_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at
+		SELECT id, user_id, tenant_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at
 		FROM lifecycle_rules
-		WHERE bucket_name = $1 AND user_id = $2
+		WHERE bucket_name = $1 AND user_id = $2 AND tenant_id = $3
 		ORDER BY created_at DESC
 	`
-	rows, err := r.db.Query(ctx, query, bucketName, userId)
+	rows, err := r.db.Query(ctx, query, bucketName, userID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list lifecycle rules", err)
 	}
 	defer rows.Close()
 
-	var rules []*domain.LifecycleRule
+	rules := make([]*domain.LifecycleRule, 0)
 	for rows.Next() {
 		var rule domain.LifecycleRule
-		if err := rows.Scan(&rule.ID, &rule.UserID, &rule.BucketName, &rule.Prefix, &rule.ExpirationDays, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt); err != nil {
+		if err := rows.Scan(&rule.ID, &rule.UserID, &rule.TenantID, &rule.BucketName, &rule.Prefix, &rule.ExpirationDays, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt); err != nil {
 			return nil, errors.Wrap(errors.Internal, "failed to scan lifecycle rule", err)
 		}
 		rules = append(rules, &rule)
@@ -80,9 +83,10 @@ func (r *LifecycleRepository) List(ctx context.Context, bucketName string) ([]*d
 }
 
 func (r *LifecycleRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	userId := appcontext.UserIDFromContext(ctx)
-	query := `DELETE FROM lifecycle_rules WHERE id = $1 AND user_id = $2`
-	cmd, err := r.db.Exec(ctx, query, id, userId)
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `DELETE FROM lifecycle_rules WHERE id = $1 AND user_id = $2 AND tenant_id = $3`
+	cmd, err := r.db.Exec(ctx, query, id, userID, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete lifecycle rule", err)
 	}
@@ -96,7 +100,7 @@ func (r *LifecycleRepository) Delete(ctx context.Context, id uuid.UUID) error {
 // This is intended for background workers and does not filter by user.
 func (r *LifecycleRepository) GetEnabledRules(ctx context.Context) ([]*domain.LifecycleRule, error) {
 	query := `
-		SELECT id, user_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at
+		SELECT id, user_id, tenant_id, bucket_name, prefix, expiration_days, enabled, created_at, updated_at
 		FROM lifecycle_rules
 		WHERE enabled = TRUE
 	`
@@ -106,10 +110,10 @@ func (r *LifecycleRepository) GetEnabledRules(ctx context.Context) ([]*domain.Li
 	}
 	defer rows.Close()
 
-	var rules []*domain.LifecycleRule
+	rules := make([]*domain.LifecycleRule, 0)
 	for rows.Next() {
 		var rule domain.LifecycleRule
-		if err := rows.Scan(&rule.ID, &rule.UserID, &rule.BucketName, &rule.Prefix, &rule.ExpirationDays, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt); err != nil {
+		if err := rows.Scan(&rule.ID, &rule.UserID, &rule.TenantID, &rule.BucketName, &rule.Prefix, &rule.ExpirationDays, &rule.Enabled, &rule.CreatedAt, &rule.UpdatedAt); err != nil {
 			return nil, errors.Wrap(errors.Internal, "failed to scan lifecycle rule", err)
 		}
 		rules = append(rules, &rule)

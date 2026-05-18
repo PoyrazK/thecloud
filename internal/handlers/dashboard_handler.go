@@ -16,7 +16,7 @@ import (
 // DashboardHandler handles dashboard API endpoints.
 type DashboardHandler struct {
 	svc            ports.DashboardService
-	logger        *slog.Logger
+	logger         *slog.Logger
 	allowedOrigins []string
 }
 

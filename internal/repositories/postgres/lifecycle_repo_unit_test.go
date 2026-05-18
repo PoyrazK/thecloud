@@ -22,7 +22,9 @@ func TestLifecycleRepository(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	userID := uuid.New()
+	tenantID := uuid.New()
 	ctx = appcontext.WithUserID(ctx, userID)
+	ctx = appcontext.WithTenantID(ctx, tenantID)
 	bucketName := "test-bucket"
 
 	t.Run("Create", func(t *testing.T) {
@@ -42,7 +44,7 @@ func TestLifecycleRepository(t *testing.T) {
 		}
 
 		mock.ExpectExec("INSERT INTO lifecycle_rules").
-			WithArgs(rule.ID, rule.UserID, rule.BucketName, rule.Prefix, rule.ExpirationDays, rule.Enabled, rule.CreatedAt, rule.UpdatedAt).
+			WithArgs(rule.ID, rule.UserID, tenantID, rule.BucketName, rule.Prefix, rule.ExpirationDays, rule.Enabled, rule.CreatedAt, rule.UpdatedAt).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		err := repo.Create(ctx, rule)
@@ -57,9 +59,9 @@ func TestLifecycleRepository(t *testing.T) {
 		id := uuid.New()
 
 		mock.ExpectQuery(selectLifecycleRules).
-			WithArgs(id, userID).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "bucket_name", "prefix", "expiration_days", "enabled", "created_at", "updated_at"}).
-				AddRow(id, userID, bucketName, testLifecyclePrefix, 30, true, time.Now(), time.Now()))
+			WithArgs(id, userID, tenantID).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "bucket_name", "prefix", "expiration_days", "enabled", "created_at", "updated_at"}).
+				AddRow(id, userID, tenantID, bucketName, testLifecyclePrefix, 30, true, time.Now(), time.Now()))
 
 		rule, err := repo.Get(ctx, id)
 		require.NoError(t, err)
@@ -74,7 +76,7 @@ func TestLifecycleRepository(t *testing.T) {
 		id := uuid.New()
 
 		mock.ExpectExec("DELETE FROM lifecycle_rules").
-			WithArgs(id, userID).
+			WithArgs(id, userID, tenantID).
 			WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
 		err := repo.Delete(ctx, id)

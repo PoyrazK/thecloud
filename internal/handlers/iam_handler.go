@@ -14,12 +14,13 @@ import (
 
 // IAMHandler handles HTTP requests for identity and access management.
 type IAMHandler struct {
-	svc ports.IAMService
+	svc         ports.IAMService
+	identitySvc ports.IdentityService
 }
 
 // NewIAMHandler creates a new IAM handler.
-func NewIAMHandler(svc ports.IAMService) *IAMHandler {
-	return &IAMHandler{svc: svc}
+func NewIAMHandler(svc ports.IAMService, identitySvc ports.IdentityService) *IAMHandler {
+	return &IAMHandler{svc: svc, identitySvc: identitySvc}
 }
 
 // CreatePolicy creates a new IAM policy.
@@ -283,4 +284,288 @@ func (h *IAMHandler) validatePolicy(policy *domain.Policy) error {
 		}
 	}
 	return nil
+}
+
+// CreateServiceAccount creates a new service account.
+// @Summary Create Service Account
+// @Description Create a new service account with credentials for M2M authentication.
+// @Tags iam
+// @Security APIKeyAuth
+// @Accept json
+// @Produce json
+// @Param request body CreateServiceAccountRequest true "Service account details"
+// @Success 201 {object} domain.ServiceAccountWithSecret
+// @Failure 400 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts [post]
+func (h *IAMHandler) CreateServiceAccount(c *gin.Context) {
+	var req CreateServiceAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, err.Error()))
+		return
+	}
+
+	tenantID := httputil.GetTenantID(c)
+	sa, err := h.identitySvc.CreateServiceAccount(c.Request.Context(), tenantID, req.Name, req.Role)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusCreated, sa)
+}
+
+// CreateServiceAccountRequest is the payload for service account creation.
+type CreateServiceAccountRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Role        string `json:"role" binding:"required"`
+	Description string `json:"description"`
+}
+
+// ListServiceAccounts returns all service accounts for the tenant.
+// @Summary List Service Accounts
+// @Description List all service accounts for the tenant.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Success 200 {array} domain.ServiceAccount
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts [get]
+func (h *IAMHandler) ListServiceAccounts(c *gin.Context) {
+	tenantID := httputil.GetTenantID(c)
+	accounts, err := h.identitySvc.ListServiceAccounts(c.Request.Context(), tenantID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, accounts)
+}
+
+// GetServiceAccount returns a specific service account.
+// @Summary Get Service Account
+// @Description Get details of a specific service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Service Account ID"
+// @Success 200 {object} domain.ServiceAccount
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/service-accounts/{id} [get]
+func (h *IAMHandler) GetServiceAccount(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	sa, err := h.identitySvc.GetServiceAccount(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, sa)
+}
+
+// DeleteServiceAccount removes a service account.
+// @Summary Delete Service Account
+// @Description Delete an existing service account and all its secrets.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Service Account ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/service-accounts/{id} [delete]
+func (h *IAMHandler) DeleteServiceAccount(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.identitySvc.DeleteServiceAccount(c.Request.Context(), id); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// RevokeServiceAccountSecret invalidates a secret.
+// @Summary Revoke Service Account Secret
+// @Description Revoke a specific secret from a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Service Account ID"
+// @Param secretId path string true "Secret ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{id}/secrets/{secretId} [post]
+func (h *IAMHandler) RevokeServiceAccountSecret(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	secretID, err := uuid.Parse(c.Param("secretId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.identitySvc.RevokeServiceAccountSecret(c.Request.Context(), saID, secretID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "revoked"})
+}
+
+// ListServiceAccountSecrets returns all secrets for a service account.
+// @Summary List Service Account Secrets
+// @Description List all secrets for a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Service Account ID"
+// @Success 200 {array} domain.ServiceAccountSecret
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{id}/secrets [get]
+func (h *IAMHandler) ListServiceAccountSecrets(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	secrets, err := h.identitySvc.ListServiceAccountSecrets(c.Request.Context(), saID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, secrets)
+}
+
+// RotateServiceAccountSecret rotates the secret and returns new plaintext.
+// @Summary Rotate Service Account Secret
+// @Description Rotate the secret for a service account, returns new plaintext.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Service Account ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{id}/rotate-secret [post]
+func (h *IAMHandler) RotateServiceAccountSecret(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	secret, err := h.identitySvc.RotateServiceAccountSecret(c.Request.Context(), saID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"secret": secret})
+}
+
+// AttachPolicyToServiceAccount attaches a policy to a service account.
+// @Summary Attach IAM Policy to Service Account
+// @Description Attach a specific IAM policy to a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param saId path string true "Service Account ID"
+// @Param policyId path string true "Policy ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{saId}/policies/{policyId} [post]
+func (h *IAMHandler) AttachPolicyToServiceAccount(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("saId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	policyID, err := uuid.Parse(c.Param("policyId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.AttachPolicyToServiceAccount(c.Request.Context(), saID, policyID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "attached"})
+}
+
+// DetachPolicyFromServiceAccount removes a policy from a service account.
+// @Summary Detach IAM Policy from Service Account
+// @Description Remove a specific IAM policy assignment from a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param saId path string true "Service Account ID"
+// @Param policyId path string true "Policy ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{saId}/policies/{policyId} [delete]
+func (h *IAMHandler) DetachPolicyFromServiceAccount(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("saId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	policyID, err := uuid.Parse(c.Param("policyId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.DetachPolicyFromServiceAccount(c.Request.Context(), saID, policyID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "detached"})
+}
+
+// GetServiceAccountPolicies lists all policies attached to a specific service account.
+// @Summary List Service Account IAM Policies
+// @Description List all IAM policies currently attached to a specific service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param saId path string true "Service Account ID"
+// @Success 200 {array} domain.Policy
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{saId}/policies [get]
+func (h *IAMHandler) GetServiceAccountPolicies(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("saId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	policies, err := h.svc.GetPoliciesForServiceAccount(c.Request.Context(), saID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, policies)
 }

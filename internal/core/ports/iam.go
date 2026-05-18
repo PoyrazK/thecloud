@@ -16,10 +16,20 @@ type IAMRepository interface {
 	UpdatePolicy(ctx context.Context, tenantID uuid.UUID, policy *domain.Policy) error
 	DeletePolicy(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
 
-	// Policy Assignment
+	// User Policy Assignment
 	AttachPolicyToUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, policyID uuid.UUID) error
 	DetachPolicyFromUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, policyID uuid.UUID) error
 	GetPoliciesForUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) ([]*domain.Policy, error)
+
+	// Role Policy Assignment
+	AttachPolicyToRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error
+	DetachPolicyFromRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error
+	GetPoliciesForRole(ctx context.Context, tenantID uuid.UUID, roleName string) ([]*domain.Policy, error)
+
+	// Service Account Policy Assignment
+	AttachPolicyToServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error
+	DetachPolicyFromServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error
+	GetPoliciesForServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID) ([]*domain.Policy, error)
 }
 
 // IAMService defines the business logic for IAM management.
@@ -33,6 +43,14 @@ type IAMService interface {
 	AttachPolicyToUser(ctx context.Context, userID uuid.UUID, policyID uuid.UUID) error
 	DetachPolicyFromUser(ctx context.Context, userID uuid.UUID, policyID uuid.UUID) error
 	GetPoliciesForUser(ctx context.Context, userID uuid.UUID) ([]*domain.Policy, error)
+
+	AttachPolicyToRole(ctx context.Context, roleName string, policyID uuid.UUID) error
+	DetachPolicyFromRole(ctx context.Context, roleName string, policyID uuid.UUID) error
+	GetPoliciesForRole(ctx context.Context, roleName string) ([]*domain.Policy, error)
+
+	AttachPolicyToServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error
+	DetachPolicyFromServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error
+	GetPoliciesForServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.Policy, error)
 }
 
 // PolicyEvaluator defines the logic for evaluating access based on a set of policies.

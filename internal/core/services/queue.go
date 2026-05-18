@@ -11,6 +11,7 @@ import (
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/platform"
 )
 
@@ -48,7 +49,7 @@ func (s *QueueService) CreateQueue(ctx context.Context, name string, opts *ports
 		return nil, err
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("queue with name %s already exists", name)
+		return nil, errors.New(errors.Conflict, fmt.Sprintf("queue with name %s already exists", name))
 	}
 
 	qID := uuid.New()
@@ -108,7 +109,7 @@ func (s *QueueService) GetQueue(ctx context.Context, id uuid.UUID) (*domain.Queu
 		return nil, err
 	}
 	if q == nil {
-		return nil, fmt.Errorf("queue not found")
+		return nil, errors.New(errors.NotFound, "queue not found")
 	}
 
 	return q, nil
@@ -138,7 +139,7 @@ func (s *QueueService) DeleteQueue(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	if q == nil {
-		return fmt.Errorf("queue not found")
+		return errors.New(errors.NotFound, "queue not found")
 	}
 
 	if err := s.repo.Delete(ctx, q.ID, tenantID); err != nil {
@@ -171,11 +172,11 @@ func (s *QueueService) SendMessage(ctx context.Context, queueID uuid.UUID, body 
 		return nil, err
 	}
 	if q == nil {
-		return nil, fmt.Errorf("queue not found")
+		return nil, errors.New(errors.NotFound, "queue not found")
 	}
 
 	if len(body) > q.MaxMessageSize {
-		return nil, fmt.Errorf("message size exceeds limit of %d bytes", q.MaxMessageSize)
+		return nil, errors.New(errors.InvalidInput, fmt.Sprintf("message size exceeds limit of %d bytes", q.MaxMessageSize))
 	}
 
 	m, err := s.repo.SendMessage(ctx, q.ID, body)
@@ -205,7 +206,7 @@ func (s *QueueService) ReceiveMessages(ctx context.Context, queueID uuid.UUID, m
 		return nil, err
 	}
 	if q == nil {
-		return nil, fmt.Errorf("queue not found")
+		return nil, errors.New(errors.NotFound, "queue not found")
 	}
 
 	if maxMessages <= 0 {
@@ -243,7 +244,7 @@ func (s *QueueService) DeleteMessage(ctx context.Context, queueID uuid.UUID, rec
 		return err
 	}
 	if q == nil {
-		return fmt.Errorf("queue not found")
+		return errors.New(errors.NotFound, "queue not found")
 	}
 
 	if err := s.repo.DeleteMessage(ctx, q.ID, receiptHandle); err != nil {
@@ -272,7 +273,7 @@ func (s *QueueService) PurgeQueue(ctx context.Context, queueID uuid.UUID) error 
 		return err
 	}
 	if q == nil {
-		return fmt.Errorf("queue not found")
+		return errors.New(errors.NotFound, "queue not found")
 	}
 
 	_, err = s.repo.PurgeMessages(ctx, q.ID)

@@ -182,6 +182,63 @@ func TestSecurityGroupRepositoryGetByName(t *testing.T) {
 	})
 }
 
+func TestSecurityGroupRepositoryGetByNameAcrossVPCs(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := NewSecurityGroupRepository(mock)
+		id := uuid.New()
+		userID := uuid.New()
+		tenantID := uuid.New()
+		vpcID := uuid.New()
+		ctx := appcontext.WithTenantID(appcontext.WithUserID(context.Background(), userID), tenantID)
+		now := time.Now()
+		name := testSgName
+
+		mock.ExpectQuery(selectSg).
+			WithArgs(name, tenantID).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "vpc_id", "name", "description", "arn", "created_at"}).
+				AddRow(id, userID, tenantID, vpcID, name, "desc", "arn", now))
+
+		mock.ExpectQuery(selectRule).
+			WithArgs(id).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "group_id", "direction", "protocol", "port_min", "port_max", "cidr", "priority", "created_at"}).
+				AddRow(uuid.New(), id, string(domain.RuleIngress), "tcp", 80, 80, testutil.TestAnyCIDR, 100, now))
+
+		sg, err := repo.GetByNameAcrossVPCs(ctx, name)
+		require.NoError(t, err)
+		assert.NotNil(t, sg)
+		assert.Equal(t, id, sg.ID)
+	})
+
+	t.Run(testNotFound, func(t *testing.T) {
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := NewSecurityGroupRepository(mock)
+		userID := uuid.New()
+		tenantID := uuid.New()
+		ctx := appcontext.WithTenantID(appcontext.WithUserID(context.Background(), userID), tenantID)
+		name := testSgName
+
+		mock.ExpectQuery(selectSg).
+			WithArgs(name, tenantID).
+			WillReturnError(pgx.ErrNoRows)
+
+		sg, err := repo.GetByNameAcrossVPCs(ctx, name)
+		require.Error(t, err)
+		assert.Nil(t, sg)
+		var target *theclouderrors.Error
+		ok := errors.As(err, &target)
+		if ok {
+			assert.Equal(t, theclouderrors.NotFound, target.Type)
+		}
+	})
+}
+
 func TestSecurityGroupRepositoryListByVPC(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		mock, err := pgxmock.NewPool()

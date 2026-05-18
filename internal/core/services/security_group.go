@@ -174,12 +174,17 @@ func (s *SecurityGroupService) DeleteGroup(ctx context.Context, id uuid.UUID) er
 	return nil
 }
 
-func (s *SecurityGroupService) AddRule(ctx context.Context, groupID uuid.UUID, rule domain.SecurityRule) (*domain.SecurityRule, error) {
+func (s *SecurityGroupService) AddRule(ctx context.Context, idOrName string, rule domain.SecurityRule) (*domain.SecurityRule, error) {
 	ctx, span := otel.Tracer(securityGroupTracer).Start(ctx, "AddRule")
 	defer span.End()
 
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	groupID, err := s.resolveGroupID(ctx, idOrName)
+	if err != nil {
+		return nil, err
+	}
 
 	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionSgUpdate, groupID.String()); err != nil {
 		return nil, err
@@ -218,6 +223,21 @@ func (s *SecurityGroupService) AddRule(ctx context.Context, groupID uuid.UUID, r
 	}
 
 	return &rule, nil
+}
+
+func (s *SecurityGroupService) resolveGroupID(ctx context.Context, idOrName string) (uuid.UUID, error) {
+	id, err := uuid.Parse(idOrName)
+	if err == nil {
+		return id, nil
+	}
+	sg, err := s.repo.GetByNameAcrossVPCs(ctx, idOrName)
+	if err != nil {
+		if errors.Is(err, errors.NotFound) {
+			return uuid.Nil, errors.Wrap(errors.NotFound, "security group not found", err)
+		}
+		return uuid.Nil, err
+	}
+	return sg.ID, nil
 }
 
 func (s *SecurityGroupService) RemoveRule(ctx context.Context, ruleID uuid.UUID) error {

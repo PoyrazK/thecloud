@@ -4,9 +4,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/poyrazk/thecloud/pkg/sdk"
 	"github.com/spf13/cobra"
 )
 
@@ -82,7 +85,8 @@ var getCacheCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := createClient(opts)
-		cache, err := client.GetCache(args[0])
+		cacheID := resolveCacheID(args[0], client)
+		cache, err := client.GetCache(cacheID)
 		if err != nil {
 			fmt.Printf("Error getting cache: %v\n", err)
 			return
@@ -109,7 +113,8 @@ var deleteCacheCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := createClient(opts)
-		if err := client.DeleteCache(args[0]); err != nil {
+		cacheID := resolveCacheID(args[0], client)
+		if err := client.DeleteCache(cacheID); err != nil {
 			fmt.Printf("Error deleting cache: %v\n", err)
 			return
 		}
@@ -123,7 +128,8 @@ var connectionCacheCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := createClient(opts)
-		connStr, err := client.GetCacheConnectionString(args[0])
+		cacheID := resolveCacheID(args[0], client)
+		connStr, err := client.GetCacheConnectionString(cacheID)
 		if err != nil {
 			fmt.Printf("Error getting connection string: %v\n", err)
 			return
@@ -138,7 +144,8 @@ var statsCacheCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := createClient(opts)
-		stats, err := client.GetCacheStats(args[0])
+		cacheID := resolveCacheID(args[0], client)
+		stats, err := client.GetCacheStats(cacheID)
 		if err != nil {
 			fmt.Printf("Error getting stats: %v\n", err)
 			return
@@ -163,12 +170,46 @@ var flushCacheCmd = &cobra.Command{
 		}
 
 		client := createClient(opts)
-		if err := client.FlushCache(args[0]); err != nil {
+		cacheID := resolveCacheID(args[0], client)
+		if err := client.FlushCache(cacheID); err != nil {
 			fmt.Printf("Error flushing cache: %v\n", err)
 			return
 		}
 		fmt.Println("Cache flushed successfully")
 	},
+}
+
+var resizeCacheCmd = &cobra.Command{
+	Use:   "resize [id] [memoryMB]",
+	Short: "Resize cache memory allocation",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := createClient(opts)
+		cacheID := resolveCacheID(args[0], client)
+		memory, _ := strconv.Atoi(args[1])
+		if err := client.ResizeCache(cacheID, memory); err != nil {
+			fmt.Printf("Error resizing cache: %v\n", err)
+			return
+		}
+		fmt.Printf("[SUCCESS] Cache %s resized to %d MB.\n", cacheID, memory)
+	},
+}
+
+// resolveCacheID resolves a cache ID or name to a full UUID.
+func resolveCacheID(idOrName string, client *sdk.Client) string {
+	if _, err := uuid.Parse(idOrName); err == nil {
+		return idOrName // Already a valid UUID
+	}
+	caches, err := client.ListCaches()
+	if err != nil {
+		return idOrName // Fallback
+	}
+	for _, c := range caches {
+		if c.Name == idOrName {
+			return c.ID
+		}
+	}
+	return idOrName
 }
 
 func init() {
@@ -188,6 +229,7 @@ func init() {
 	cacheCmd.AddCommand(connectionCacheCmd)
 	cacheCmd.AddCommand(statsCacheCmd)
 	cacheCmd.AddCommand(flushCacheCmd)
+	cacheCmd.AddCommand(resizeCacheCmd)
 }
 
 func formatBytes(b int64) string {

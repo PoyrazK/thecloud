@@ -233,7 +233,7 @@ func (s *stackService) createVPC(ctx context.Context, stackID uuid.UUID, logical
 	}
 	cidr, _ := props["CIDRBlock"].(string)
 
-	vpc, err := s.vpcSvc.CreateVPC(ctx, name, cidr)
+	vpc, err := s.vpcSvc.CreateVPC(ctx, name, cidr, "")
 	if err != nil {
 		return uuid.Nil, err
 	}

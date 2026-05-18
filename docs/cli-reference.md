@@ -22,8 +22,11 @@ Available for all commands:
 | Flag | Short | Description | Example |
 |------|-------|-------------|---------|
 | `--api-key` | `-k` | API key for authentication | `-k thecloud_abc123...` |
+| `--api-url` | | API server URL | `--api-url http://localhost:8080` |
 | `--tenant` | | Tenant ID to use for requests | `--tenant uuid` |
-| `--json` | `-j` | Output in JSON format | `-j` |
+| `--output` | `-o` | Output format (table, json, yaml) | `--output json` |
+| `--json` | `-j` | Output in JSON format (deprecated, use --output=json) | `-j` |
+| `--debug` | `-d` | Enable debug mode | `-d` |
 | `--help` | `-h` | Show command help | `-h` |
 
 ## Configuration
@@ -32,8 +35,69 @@ The CLI stores configuration in `~/.cloud/config.json`:
 
 ```json
 {
-  "api_key": "thecloud_xxxxx"
+  "api_key": "thecloud_xxxxx",
+  "api_url": "http://localhost:8080",
+  "output": "table",
+  "tenant": "",
+  "debug": false
 }
+```
+
+### `config` Command
+
+Manage CLI configuration:
+
+```bash
+# Show current configuration
+cloud config show
+
+# Set a config value
+cloud config set api-url http://localhost:8080
+cloud config set output table
+
+# Unset a config value
+cloud config unset tenant
+```
+
+---
+
+## Pagination
+
+List commands support `--limit` and `--offset` flags for pagination:
+
+```bash
+# Get first 10 results
+cloud instance list --limit 10
+
+# Get results with offset
+cloud instance list --limit 10 --offset 10
+
+# Works with all list commands
+cloud function list --limit 20
+cloud container list --limit 50 --offset 100
+cloud storage list --limit 25
+```
+
+When paginated results are available, the CLI shows:
+```
+Showing 10 of 50 total (more available)
+```
+
+---
+
+## Shell Completion
+
+Generate shell completion scripts:
+
+```bash
+# Bash
+cloud completion bash > /etc/bash/completion.d/cloud
+
+# Zsh
+cloud completion zsh > ~/.zsh/completions/_cloud
+
+# Fish
+cloud completion fish > ~/.config/fish/completions/cloud.fish
 ```
 
 ---
@@ -137,7 +201,14 @@ List all instances in the current tenant.
 ```bash
 cloud instance list
 cloud instance list --json  # JSON output
+cloud instance list --limit 10 --offset 0  # Pagination
 ```
+
+**Flags**:
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | `0` | Maximum number of results (0 = use server default) |
+| `--offset` | `0` | Number of results to skip |
 
 **Standard Output**:
 ```
@@ -212,12 +283,80 @@ Terminate and remove an instance. (Alias: `delete`)
 cloud instance rm my-server
 ```
 
+### `instance resize <id> <instance-type>`
+
+Resize an instance to a new instance type.
+
+```bash
+cloud instance resize my-server basic-4
+```
+
+**Examples**:
+```bash
+# Resize to a larger instance type
+cloud instance resize my-server standard-2
+
+# Resize to a smaller instance type
+cloud instance resize my-server basic-1
+```
+
 ### `instance stats <id>`
 
 Show real-time resource usage.
 
 ```bash
 cloud instance stats my-server
+```
+
+---
+
+## Container Commands
+
+Manage container deployments.
+
+### `container list`
+
+List all container deployments.
+
+```bash
+cloud container list
+cloud container list --limit 10 --offset 0  # Pagination
+```
+
+**Flags**:
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | `0` | Maximum number of results (0 = use server default) |
+| `--offset` | `0` | Number of results to skip |
+
+### `container deploy <name> <image>`
+
+Create a new container deployment.
+
+```bash
+cloud container deploy my-app nginx:latest --replicas 3 --ports 80:80
+```
+
+**Flags**:
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--replicas` | `-r` | `1` | Number of replicas |
+| `--ports` | `-p` | - | Ports to expose (e.g., 80:80) |
+
+### `container scale <id> <replicas>`
+
+Scale a deployment.
+
+```bash
+cloud container scale dep-uuid 5
+```
+
+### `container rm <id>`
+
+Delete a container deployment.
+
+```bash
+cloud container rm dep-uuid
 ```
 
 ---
@@ -238,7 +377,14 @@ List all registered SSH keys.
 
 ```bash
 cloud ssh-key list
+cloud ssh-key list --limit 10 --offset 0  # Pagination
 ```
+
+**Flags**:
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | `0` | Maximum number of results (0 = use server default) |
+| `--offset` | `0` | Number of results to skip |
 
 ---
 
@@ -274,6 +420,14 @@ Delete a volume. (Alias: `delete`)
 
 ```bash
 cloud volume rm my-data
+```
+
+### `volume resize <id/name> <sizeGB>`
+
+Resize a volume to a larger size.
+
+```bash
+cloud volume resize my-data 50
 ```
 
 ---
@@ -662,7 +816,14 @@ List all buckets, or objects within a specific bucket.
 ```bash
 cloud storage list
 cloud storage list my-bucket
+cloud storage list --limit 20 --offset 0  # Pagination (buckets only)
 ```
+
+**Flags** (for bucket listing):
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | `0` | Maximum number of results (0 = use server default) |
+| `--offset` | `0` | Number of results to skip |
 
 ### `storage download <bucket> <key> <dest>`
 
@@ -780,8 +941,16 @@ cloud db list
 Create a new managed database.
 
 ```bash
-cloud db create --name my-db --engine postgres --version 16
+cloud db create --name my-db --engine postgres --version 16 --size 20
 ```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--name` | `-n` | | Database name (required) |
+| `--engine` | `-e` | `postgres` | Database engine (postgres/mysql) |
+| `--version` | `-v` | `16` | Engine version |
+| `--vpc` | `-V` | | VPC ID to attach to |
+| `--size` | | `10` | Allocated storage in GB (minimum 10GB) |
 
 ### `db connection <id>`
 
@@ -805,6 +974,14 @@ Delete a database instance. (Alias: `delete`)
 
 ```bash
 cloud db rm db-uuid
+```
+
+### `db resize <id> <sizeGB>`
+
+Resize the allocated storage for a database instance.
+
+```bash
+cloud db resize db-uuid 100
 ```
 
 ---
@@ -835,6 +1012,14 @@ Delete a cache instance. (Alias: `delete`)
 
 ```bash
 cloud cache rm redis-uuid
+```
+
+### `cache resize <id> <memoryMB>`
+
+Resize a cache instance's memory allocation (requires docker compute backend).
+
+```bash
+cloud cache resize redis-uuid 512
 ```
 
 ---
@@ -917,7 +1102,14 @@ List all functions.
 
 ```bash
 cloud function list
+cloud function list --limit 20 --offset 0  # Pagination
 ```
+
+**Flags**:
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--limit` | `0` | Maximum number of results (0 = use server default) |
+| `--offset` | `0` | Number of results to skip |
 
 ### `function create`
 
@@ -1010,6 +1202,58 @@ Delete a function schedule.
 
 ```bash
 cloud fn-schedule rm [schedule-id]
+```
+
+---
+
+## CloudNotify Commands
+
+Manage pub/sub messaging topics and subscriptions.
+
+### `notify create-topic <name>`
+
+Create a new notification topic.
+
+```bash
+cloud notify create-topic my-topic
+```
+
+### `notify list-topics`
+
+List all notification topics.
+
+```bash
+cloud notify list-topics
+```
+
+### `notify subscribe <topic-id>`
+
+Subscribe to a topic to receive notifications.
+
+```bash
+cloud notify subscribe topic-uuid --endpoint https://example.com/webhook
+```
+
+**Flags**:
+| Flag | Short | Required | Default | Description |
+|------|-------|----------|---------|-------------|
+| `--protocol` | `-p` | No | `webhook` | Protocol (webhook or queue) |
+| `--endpoint` | `-e` | Yes | - | Endpoint URL or queue ID |
+
+### `notify unsubscribe <subscription-id>`
+
+Unsubscribe from a topic.
+
+```bash
+cloud notify unsubscribe subscription-uuid
+```
+
+### `notify publish <topic-id> <message>`
+
+Publish a message to a topic.
+
+```bash
+cloud notify publish topic-uuid "Hello, world!"
 ```
 
 ---

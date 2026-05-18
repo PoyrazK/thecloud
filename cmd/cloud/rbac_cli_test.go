@@ -39,8 +39,13 @@ func TestCreateRoleCmd(t *testing.T) {
 	saveConfig(rbacTestAPIKey)
 
 	oldURL := opts.APIURL
+	oldKey := opts.APIKey
 	opts.APIURL = server.URL
-	defer func() { opts.APIURL = oldURL }()
+	opts.APIKey = rbacTestAPIKey
+	defer func() {
+		opts.APIURL = oldURL
+		opts.APIKey = oldKey
+	}()
 
 	_ = createRoleCmd.Flags().Set("description", "read-only")
 	_ = createRoleCmd.Flags().Set("permissions", string(domain.PermissionInstanceRead))
@@ -77,8 +82,13 @@ func TestListRolesCmd(t *testing.T) {
 	saveConfig(rbacTestAPIKey)
 
 	oldURL := opts.APIURL
+	oldKey := opts.APIKey
 	opts.APIURL = server.URL
-	defer func() { opts.APIURL = oldURL }()
+	opts.APIKey = rbacTestAPIKey
+	defer func() {
+		opts.APIURL = oldURL
+		opts.APIKey = oldKey
+	}()
 
 	out := captureStdout(t, func() {
 		listRolesCmd.Run(listRolesCmd, nil)
@@ -103,8 +113,13 @@ func TestBindRoleCmd(t *testing.T) {
 	saveConfig(rbacTestAPIKey)
 
 	oldURL := opts.APIURL
+	oldKey := opts.APIKey
 	opts.APIURL = server.URL
-	defer func() { opts.APIURL = oldURL }()
+	opts.APIKey = rbacTestAPIKey
+	defer func() {
+		opts.APIURL = oldURL
+		opts.APIKey = oldKey
+	}()
 
 	out := captureStdout(t, func() {
 		bindRoleCmd.Run(bindRoleCmd, []string{"user@example.com", rbacTestRoleName})
@@ -130,8 +145,13 @@ func TestDeleteRoleCmd(t *testing.T) {
 	saveConfig(rbacTestAPIKey)
 
 	oldURL := opts.APIURL
+	oldKey := opts.APIKey
 	opts.APIURL = server.URL
-	defer func() { opts.APIURL = oldURL }()
+	opts.APIKey = rbacTestAPIKey
+	defer func() {
+		opts.APIURL = oldURL
+		opts.APIKey = oldKey
+	}()
 
 	out := captureStdout(t, func() {
 		deleteRoleCmd.Run(deleteRoleCmd, []string{roleID.String()})

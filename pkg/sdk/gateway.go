@@ -46,9 +46,12 @@ func (c *Client) CreateGatewayRoute(name, prefix, target string, methods []strin
 }
 
 func (c *Client) ListGatewayRoutes() ([]GatewayRoute, error) {
-	var routes []GatewayRoute
-	err := c.get("/gateway/routes", &routes)
-	return routes, err
+	var res Response[[]GatewayRoute]
+	err := c.get("/gateway/routes", &res)
+	if err != nil {
+		return nil, err
+	}
+	return res.Data, nil
 }
 
 func (c *Client) DeleteGatewayRoute(id string) error {

@@ -167,11 +167,13 @@ func (h *SecurityGroupHandler) Delete(c *gin.Context) {
 // @Failure 500 {object} httputil.Response
 // @Router /security-groups/{id}/rules [post]
 func (h *SecurityGroupHandler) AddRule(c *gin.Context) {
-	groupIDStr := c.Param("id")
-	groupID, err := uuid.Parse(groupIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid group_id"})
-		return
+	idOrName := c.Param("id")
+
+	if idOrName != "" {
+		if _, err := uuid.Parse(idOrName); err != nil && isUUIDLike(idOrName) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid group_id"})
+			return
+		}
 	}
 
 	var req domain.SecurityRule
@@ -180,13 +182,25 @@ func (h *SecurityGroupHandler) AddRule(c *gin.Context) {
 		return
 	}
 
-	rule, err := h.svc.AddRule(c.Request.Context(), groupID, req)
+	rule, err := h.svc.AddRule(c.Request.Context(), idOrName, req)
 	if err != nil {
 		httputil.Error(c, err)
 		return
 	}
 
 	httputil.Success(c, http.StatusCreated, rule)
+}
+
+func isUUIDLike(s string) bool {
+	if len(s) < 8 || len(s) > 36 {
+		return false
+	}
+	for _, c := range s {
+		if c != '-' && (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // Attach attaches a security group to an instance

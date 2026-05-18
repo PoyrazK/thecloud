@@ -82,6 +82,10 @@ func (s *CacheService) CreateCache(ctx context.Context, name, version string, me
 		return nil, err
 	}
 
+	if s.compute.Type() == "libvirt" {
+		return nil, errors.New(errors.InvalidInput, "managed cache requires docker compute backend (COMPUTE_BACKEND=libvirt is not supported)")
+	}
+
 	password, err := util.GenerateRandomPassword(16)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to generate password", err)
@@ -151,6 +155,8 @@ func (s *CacheService) CreateCache(ctx context.Context, name, version string, me
 
 // parseAllocatedPort extracts the host port from allocated port mapping strings.
 // Expected format is "hostPort:containerPort" (e.g. "8080:6379").
+//
+//nolint:unparam // targetPort is always defaultRedisPort but kept as param for future extensibility
 func (s *CacheService) parseAllocatedPort(allocatedPorts []string, targetPort string) (int, error) {
 	for _, p := range allocatedPorts {
 		parts := strings.Split(p, ":")
@@ -173,10 +179,6 @@ func (s *CacheService) resolveNetworkID(ctx context.Context, vpcID *uuid.UUID) (
 	if err != nil {
 		s.logger.Error("failed to get VPC", "vpc_id", vpcID, "error", err)
 		return "", err
-	}
-	// For Docker backend with OVS networks, don't pass br-vpc-* networks
-	if s.compute != nil && s.compute.Type() == "docker" && strings.HasPrefix(vpc.NetworkID, "br-vpc-") {
-		return "", nil
 	}
 	return vpc.NetworkID, nil
 }
@@ -333,6 +335,10 @@ func (s *CacheService) FlushCache(ctx context.Context, idOrName string) error {
 		return errors.New(errors.InstanceNotRunning, "cache is not running")
 	}
 
+	if s.compute.Type() == "libvirt" {
+		return errors.New(errors.InvalidInput, "cache flush requires docker compute backend (COMPUTE_BACKEND=libvirt is not supported)")
+	}
+
 	// Exec FLUSHALL inside the container
 	// We need to pass the password if set.
 	cmd := []string{"redis-cli"}
@@ -376,6 +382,10 @@ func (s *CacheService) GetCacheStats(ctx context.Context, idOrName string) (*por
 
 	if cache.Status != domain.CacheStatusRunning {
 		return nil, errors.New(errors.InstanceNotRunning, "cache is not running")
+	}
+
+	if s.compute.Type() == "libvirt" {
+		return nil, errors.New(errors.InvalidInput, "cache stats requires docker compute backend (COMPUTE_BACKEND=libvirt is not supported)")
 	}
 
 	stream, err := s.compute.GetInstanceStats(ctx, cache.ContainerID)
@@ -450,6 +460,94 @@ func parseRedisClients(info string) int {
 		}
 	}
 	return 0
+}
+
+func (s *CacheService) ResizeCache(ctx context.Context, idOrName string, newMemoryMB int) error {
+	tracer := otel.Tracer(tracerNameCache)
+	_, span := tracer.Start(ctx, "CacheService.ResizeCache",
+		trace.WithAttributes(
+			attribute.String("cache.id_or_name", idOrName),
+			attribute.Int("cache.new_memory_mb", newMemoryMB),
+		))
+	defer span.End()
+
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionCacheUpdate, idOrName); err != nil {
+		span.RecordError(err)
+		return err
+	}
+
+	cache, err := s.getCacheByIDOrName(ctx, idOrName)
+	if err != nil {
+		span.RecordError(err)
+		return err
+	}
+
+	if newMemoryMB <= cache.MemoryMB {
+		return errors.New(errors.InvalidInput, "new memory must be larger than current memory")
+	}
+
+	if s.compute.Type() != "docker" {
+		return errors.New(errors.InvalidInput, "cache memory resize requires docker compute backend")
+	}
+
+	networkID, err := s.resolveNetworkID(ctx, cache.VpcID)
+	if err != nil {
+		return err
+	}
+
+	// Stop and delete old container
+	var oldContainerID string
+	if cache.ContainerID != "" {
+		oldContainerID = cache.ContainerID
+		if err := s.compute.StopInstance(ctx, cache.ContainerID); err != nil {
+			s.logger.Error("failed to stop cache container for resize", "container_id", cache.ContainerID, "error", err)
+		}
+		if err := s.compute.DeleteInstance(ctx, cache.ContainerID); err != nil {
+			s.logger.Error("failed to delete cache container for resize", "container_id", cache.ContainerID, "error", err)
+		}
+	}
+
+	// Relaunch with new memory limit
+	containerID, allocatedPorts, err := s.launchCacheContainer(ctx, cache, networkID)
+	if err != nil {
+		// Rollback: attempt to restart old container
+		if oldContainerID != "" {
+			s.logger.Warn("resize failed, rolling back container", "old_container_id", oldContainerID)
+			if restartErr := s.compute.StopInstance(ctx, oldContainerID); restartErr != nil {
+				s.logger.Error("failed to stop old container during rollback", "container_id", oldContainerID, "error", restartErr)
+			}
+			if startErr := s.compute.StartInstance(ctx, oldContainerID); startErr != nil {
+				s.logger.Error("failed to restart old container during rollback", "container_id", oldContainerID, "error", startErr)
+			}
+		}
+		return errors.Wrap(errors.Internal, "failed to relaunch cache with new memory", err)
+	}
+
+	port, _ := s.parseAllocatedPort(allocatedPorts, defaultRedisPort)
+	if port == 0 {
+		port, _ = s.compute.GetInstancePort(ctx, containerID, defaultRedisPort)
+	}
+
+	cache.ContainerID = containerID
+	cache.Port = port
+	cache.MemoryMB = newMemoryMB
+	cache.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, cache); err != nil {
+		return fmt.Errorf("failed to update cache record in database: %w", err)
+	}
+
+	if err := s.auditSvc.Log(ctx, cache.UserID, "cache.resize", "cache", cache.ID.String(), map[string]interface{}{
+		"name":          cache.Name,
+		"old_memory_mb": cache.MemoryMB,
+		"new_memory_mb": newMemoryMB,
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "cache_id", cache.ID, "error", err)
+	}
+
+	return nil
 }
 
 func parseRedisKeys(info string) int64 {

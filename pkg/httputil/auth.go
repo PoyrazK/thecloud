@@ -3,6 +3,7 @@ package httputil
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -12,25 +13,55 @@ import (
 	"github.com/poyrazk/thecloud/internal/errors"
 )
 
-// Auth enforces API key authentication and injects user context.
+// Auth enforces API key or Bearer token authentication and injects context.
 func Auth(svc ports.IdentityService, tenantSvc ports.TenantService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		ctx := c.Request.Context()
+		sourceIP := c.ClientIP()
+		if sourceIP == "" {
+			sourceIP = c.Request.RemoteAddr
+		}
+		ctx = appcontext.WithSourceIP(ctx, sourceIP)
+
+		// Check for Bearer token first
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			claims, err := svc.ValidateAccessToken(ctx, token)
+			if err != nil {
+				Error(c, errors.New(errors.Unauthorized, "invalid access token"))
+				c.Abort()
+				return
+			}
+
+			// Service account context
+			ctx = appcontext.WithServiceAccountID(ctx, claims.ServiceAccountID)
+			ctx = appcontext.WithTenantID(ctx, claims.TenantID)
+			c.Set("tenantID", claims.TenantID)
+			c.Set("serviceAccountID", claims.ServiceAccountID)
+			c.Set("serviceAccountRole", claims.Role)
+			c.Request = c.Request.WithContext(ctx)
+			c.Next()
+			return
+		}
+
+		// Fall back to API key
 		apiKey := c.GetHeader("X-API-Key")
 		if apiKey == "" {
-			Error(c, errors.New(errors.Unauthorized, "API key required"))
+			Error(c, errors.New(errors.Unauthorized, "API key or Bearer token required"))
 			c.Abort()
 			return
 		}
 
-		apiKeyObj, err := svc.ValidateAPIKey(c.Request.Context(), apiKey)
+		apiKeyObj, err := svc.ValidateAPIKey(ctx, apiKey)
 		if err != nil {
 			Error(c, errors.New(errors.Unauthorized, "invalid API key"))
 			c.Abort()
 			return
 		}
 
-		// Wrap the request context with UserID
-		ctx := appcontext.WithUserID(c.Request.Context(), apiKeyObj.UserID)
+		// User context
+		ctx = appcontext.WithUserID(ctx, apiKeyObj.UserID)
 
 		tenantID, err := resolveAndVerifyTenant(ctx, c.GetHeader("X-Tenant-ID"), apiKeyObj.DefaultTenantID, apiKeyObj.UserID, tenantSvc)
 		if err != nil {
@@ -45,8 +76,7 @@ func Auth(svc ports.IdentityService, tenantSvc ports.TenantService) gin.HandlerF
 		}
 
 		c.Request = c.Request.WithContext(ctx)
-
-		c.Set("userID", apiKeyObj.UserID) // Also keep in Gin context for convenience
+		c.Set("userID", apiKeyObj.UserID)
 		c.Next()
 	}
 }
@@ -77,18 +107,40 @@ func GetUserID(c *gin.Context) uuid.UUID {
 	return userID
 }
 
+// GetServiceAccountID returns the authenticated service account ID from the request context.
+func GetServiceAccountID(c *gin.Context) uuid.UUID {
+	val, exists := c.Get("serviceAccountID")
+	if !exists {
+		return uuid.Nil
+	}
+	saID, ok := val.(uuid.UUID)
+	if !ok {
+		return uuid.Nil
+	}
+	return saID
+}
+
 // Permission enforces RBAC checks for the provided permission.
 func Permission(rbac ports.RBACService, permission domain.Permission) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := GetUserID(c)
+		saID := GetServiceAccountID(c)
 		tenantID := GetTenantID(c)
-		if userID == uuid.Nil {
+
+		if userID == uuid.Nil && saID == uuid.Nil {
 			Error(c, errors.New(errors.Unauthorized, "authentication required"))
 			c.Abort()
 			return
 		}
 
-		if err := rbac.Authorize(c.Request.Context(), userID, tenantID, permission, "*"); err != nil {
+		var err error
+		if saID != uuid.Nil {
+			err = rbac.AuthorizeServiceAccount(c.Request.Context(), saID, tenantID, permission, "*")
+		} else {
+			err = rbac.Authorize(c.Request.Context(), userID, tenantID, permission, "*")
+		}
+
+		if err != nil {
 			Error(c, errors.New(errors.Forbidden, "permission denied"))
 			c.Abort()
 			return

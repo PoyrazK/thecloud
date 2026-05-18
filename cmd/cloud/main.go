@@ -25,6 +25,26 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.AddCommand(&cobra.Command{
+		Use:       "completion [bash|zsh|fish|powershell]",
+		Short:     "Generate shell completion script",
+		Args:      cobra.ExactArgs(1),
+		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return rootCmd.GenBashCompletion(os.Stdout)
+			case "zsh":
+				return rootCmd.GenZshCompletion(os.Stdout)
+			case "fish":
+				return rootCmd.GenFishCompletion(os.Stdout, true)
+			case "powershell":
+				return rootCmd.GenPowerShellCompletion(os.Stdout)
+			}
+			return fmt.Errorf("unsupported shell: %s", args[0])
+		},
+	})
+
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(instanceCmd)
 	rootCmd.AddCommand(authCmd)
@@ -61,11 +81,14 @@ func init() {
 	rootCmd.AddCommand(igwCmd)
 	rootCmd.AddCommand(natGatewayCmd)
 	rootCmd.AddCommand(routeTableCmd)
+	rootCmd.AddCommand(configCmd)
 
-	rootCmd.PersistentFlags().BoolVarP(&opts.JSON, "json", "j", false, "Output in JSON format")
+	rootCmd.PersistentFlags().StringVarP(&opts.Output, "output", "o", "table", "Output format (table, json, yaml)")
+	rootCmd.PersistentFlags().BoolVarP(&opts.JSON, "json", "j", false, "Output in JSON format (deprecated, use --output=json)")
 	rootCmd.PersistentFlags().StringVarP(&opts.APIKey, "api-key", "k", "", "API key for authentication")
 	rootCmd.PersistentFlags().StringVar(&opts.APIURL, "api-url", "http://localhost:8080", "URL of the API server")
 	rootCmd.PersistentFlags().StringVar(&opts.TenantID, "tenant", "", "Tenant ID to use for requests")
+	rootCmd.PersistentFlags().BoolVarP(&opts.Debug, "debug", "d", false, "Enable debug mode")
 }
 
 func main() {

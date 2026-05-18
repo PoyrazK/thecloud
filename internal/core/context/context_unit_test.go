@@ -40,3 +40,10 @@ func TestTenantIDFromContext(t *testing.T) {
 	ctx = WithTenantID(ctx, tenantID)
 	assert.Equal(t, tenantID, TenantIDFromContext(ctx))
 }
+
+func TestSourceIPFromContext_InvalidType(t *testing.T) {
+	// Use the real sourceIPKey to test that invalid type handling works
+	ctx := context.WithValue(context.Background(), sourceIPKey, 12345)
+	got := SourceIPFromContext(ctx)
+	assert.Equal(t, "", got, "should return empty string when value is not a string")
+}

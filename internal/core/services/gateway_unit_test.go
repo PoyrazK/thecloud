@@ -16,6 +16,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	defaultCircuitBreakerThreshold = 5
+	defaultCircuitBreakerTimeout   = 30000 // ms
+	defaultMaxRetries              = 2
+	defaultRetryTimeout            = 5000 // ms
+)
+
 type mockGatewayRepo struct {
 	mock.Mock
 }
@@ -66,6 +73,19 @@ func TestGatewayService_Unit(t *testing.T) {
 
 	ctx := appcontext.WithUserID(context.Background(), uuid.New())
 	userID := appcontext.UserIDFromContext(ctx)
+
+	t.Run("CreateRoute applies default resilience values", func(t *testing.T) {
+		params := ports.CreateRouteParams{Name: "r1", Pattern: "/r1", Target: "http://t1"}
+		repo.On("CreateRoute", ctx, mock.Anything).Return(nil).Once()
+		auditSvc.On("Log", mock.Anything, userID, "gateway.route_create", "gateway", mock.Anything, mock.Anything).Return(nil).Once()
+
+		res, err := svc.CreateRoute(ctx, params)
+		require.NoError(t, err)
+		assert.Equal(t, defaultCircuitBreakerThreshold, res.CircuitBreakerThreshold)
+		assert.Equal(t, int64(defaultCircuitBreakerTimeout), res.CircuitBreakerTimeout)
+		assert.Equal(t, defaultMaxRetries, res.MaxRetries)
+		assert.Equal(t, int64(defaultRetryTimeout), res.RetryTimeout)
+	})
 
 	t.Run("CreateRoute", func(t *testing.T) {
 		params := ports.CreateRouteParams{Name: "r1", Pattern: "/r1", Target: "http://t1"}

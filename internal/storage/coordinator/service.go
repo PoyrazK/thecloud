@@ -31,6 +31,7 @@ type Coordinator struct {
 	clients      map[string]pb.StorageNodeClient
 	replicaCount int
 	writeQuorum  int
+	readQuorum   int
 	stopCh       chan struct{}
 	lastStatus   *domain.StorageCluster
 	mu           sync.RWMutex
@@ -46,6 +47,7 @@ func NewCoordinator(ctx context.Context, ring *ConsistentHashRing, clients map[s
 		clients:      clients,
 		replicaCount: replicaCount,
 		writeQuorum:  (replicaCount / 2) + 1,
+		readQuorum:   (replicaCount / 2) + 1,
 		stopCh:       make(chan struct{}),
 	}
 	go c.startSyncLoop(ctx)
@@ -229,6 +231,7 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 	// 2. Pipe chunks to all streams
 	buf := make([]byte, chunkSize)
 	var totalSize int64
+	failedNodes := make(map[string]bool)
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
@@ -246,6 +249,7 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 				})
 				if errSend != nil {
 					_, _ = streams[i].stream.CloseAndRecv()
+					failedNodes[streams[i].id] = true
 					continue
 				}
 				live = append(live, streams[i])
@@ -267,12 +271,14 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 		resp, err := ns.stream.CloseAndRecv()
 		if err != nil {
 			lastErr = err
+			failedNodes[ns.id] = true
 			continue
 		}
 		if resp.Success {
 			successCount++
 		} else {
 			lastErr = fmt.Errorf("%s: %s", ns.id, resp.Error)
+			failedNodes[ns.id] = true
 		}
 	}
 
@@ -280,6 +286,26 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 	if successCount < c.writeQuorum {
 		platform.StorageOperations.WithLabelValues("cluster_write", bucket, "quorum_failure").Inc()
 		return totalSize, fmt.Errorf("write quorum failed (%d/%d): %w", successCount, c.writeQuorum, lastErr)
+	}
+
+	// 5. Write repair: async repair of failed nodes using a good replica as source
+	if len(failedNodes) > 0 {
+		goodNodes := make([]string, 0, len(streams))
+		for _, ns := range streams {
+			goodNodes = append(goodNodes, ns.id)
+		}
+		repairNodes := make([]string, 0, len(failedNodes))
+		for id := range failedNodes {
+			repairNodes = append(repairNodes, id)
+		}
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					platform.StorageOperations.WithLabelValues("write_repair", bucket, "panic").Inc()
+				}
+			}()
+			c.writeRepair(context.Background(), bucket, key, ts, repairNodes, goodNodes)
+		}()
 	}
 
 	platform.StorageOperations.WithLabelValues("cluster_write", bucket, "success").Inc()
@@ -296,9 +322,9 @@ func (c *Coordinator) Read(ctx context.Context, bucket, key string) (io.ReadClos
 	results := c.collectReadResults(ctx, bucket, key, nodes)
 	winner, repairNodes, foundCount := c.processReadResults(results)
 
-	if foundCount == 0 {
-		platform.StorageOperations.WithLabelValues("cluster_read", bucket, "not_found").Inc()
-		return nil, fmt.Errorf("object not found")
+	if foundCount < c.readQuorum {
+		platform.StorageOperations.WithLabelValues("cluster_read", bucket, "quorum_failure").Inc()
+		return nil, fmt.Errorf("read quorum failed (%d/%d)", foundCount, c.readQuorum)
 	}
 
 	// Wrapper to handle streaming read and async repair
@@ -311,8 +337,11 @@ func (c *Coordinator) Read(ctx context.Context, bucket, key string) (io.ReadClos
 		repairCtx, cancel := context.WithTimeout(ctx, repairTimeout)
 		go func() {
 			defer cancel()
+			// Ensure the pipe reader is closed on every exit path (panic,
+			// early return inside repairNodes, etc.) so the writer side
+			// upstream can unblock.
+			defer func() { _ = pr.Close() }()
 			c.repairNodes(repairCtx, bucket, key, pr, winner.timestamp, repairNodes)
-			_ = pr.Close()
 		}()
 
 		return &repairingReadCloser{
@@ -451,6 +480,11 @@ func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.
 				},
 			})
 			if err != nil {
+				// The stream is half-open: it was created on the server side but the
+				// metadata frame failed. Drain it with CloseAndRecv before cancelling
+				// so the server-side goroutine exits cleanly instead of waiting on
+				// context cancellation.
+				_, _ = st.CloseAndRecv()
 				cancel()
 				continue
 			}
@@ -508,6 +542,98 @@ func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.
 			platform.StorageOperations.WithLabelValues("repair", bucket, "success").Inc()
 		} else {
 			platform.StorageOperations.WithLabelValues("repair", bucket, "failure").Inc()
+		}
+	}
+}
+
+// writeRepair reads the object from a good replica and streams it to failed nodes.
+func (c *Coordinator) writeRepair(ctx context.Context, bucket, key string, timestamp int64, repairNodes []string, goodNodes []string) {
+	if len(repairNodes) == 0 || len(goodNodes) == 0 {
+		return
+	}
+
+	srcNode := goodNodes[0]
+	srcClient, ok := c.clients[srcNode]
+	if !ok {
+		return
+	}
+
+	st, err := srcClient.Retrieve(ctx, &pb.RetrieveRequest{Bucket: bucket, Key: key})
+	if err != nil {
+		platform.StorageOperations.WithLabelValues("write_repair", bucket, "source_error").Inc()
+		return
+	}
+
+	meta, err := st.Recv()
+	if err != nil || meta.GetMetadata() == nil {
+		platform.StorageOperations.WithLabelValues("write_repair", bucket, "source_error").Inc()
+		return
+	}
+
+	type nodeStream struct {
+		id     string
+		stream pb.StorageNode_StoreClient
+	}
+	repairStreams := make([]nodeStream, 0, len(repairNodes))
+	for _, nodeID := range repairNodes {
+		if client, ok := c.clients[nodeID]; ok {
+			storeSt, err := client.Store(ctx)
+			if err != nil {
+				continue
+			}
+			err = storeSt.Send(&pb.StoreRequest{
+				Payload: &pb.StoreRequest_Metadata{
+					Metadata: &pb.StoreMetadata{
+						Bucket:    bucket,
+						Key:       key,
+						Timestamp: timestamp,
+					},
+				},
+			})
+			if err != nil {
+				continue
+			}
+			repairStreams = append(repairStreams, nodeStream{id: nodeID, stream: storeSt})
+		}
+	}
+
+	if len(repairStreams) == 0 {
+		return
+	}
+
+	for {
+		chunk, err := st.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			break
+		}
+		cd := chunk.GetChunkData()
+		if cd == nil {
+			continue
+		}
+
+		live := repairStreams[:0]
+		for i := 0; i < len(repairStreams); i++ {
+			errSend := repairStreams[i].stream.Send(&pb.StoreRequest{
+				Payload: &pb.StoreRequest_ChunkData{ChunkData: cd},
+			})
+			if errSend != nil {
+				_, _ = repairStreams[i].stream.CloseAndRecv()
+				continue
+			}
+			live = append(live, repairStreams[i])
+		}
+		repairStreams = live
+	}
+
+	for _, ns := range repairStreams {
+		resp, err := ns.stream.CloseAndRecv()
+		if err == nil && resp.Success {
+			platform.StorageOperations.WithLabelValues("write_repair", bucket, "success").Inc()
+		} else {
+			platform.StorageOperations.WithLabelValues("write_repair", bucket, "failure").Inc()
 		}
 	}
 }

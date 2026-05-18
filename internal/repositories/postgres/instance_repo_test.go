@@ -193,7 +193,7 @@ func TestInstanceRepositoryList(t *testing.T) {
 			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "name", "image", "container_id", "status", "ports", "vpc_id", "subnet_id", "private_ip", "ovs_port", "instance_type", "volume_binds", "env", "cmd", "cpu_limit", "memory_limit", "disk_limit", "metadata", "labels", "ssh_key_id", "version", "created_at", "updated_at"}).
 				AddRow(uuid.New(), userID, tenantID, testInstanceName, testInstanceImg, "cid-1", string(domain.StatusRunning), "80:80", nil, nil, testutil.TestIPHost, "ovs-1", testInstanceType, []string{}, []string{}, []string{}, int64(0), int64(0), int64(0), map[string]string{}, map[string]string{}, nil, 1, now, now))
 
-		list, err := repo.List(ctx)
+		list, err := repo.List(ctx, nil)
 		require.NoError(t, err)
 		assert.Len(t, list, 1)
 	})
@@ -212,7 +212,7 @@ func TestInstanceRepositoryList(t *testing.T) {
 			WithArgs(tenantID).
 			WillReturnError(errors.New(testDBError))
 
-		list, err := repo.List(ctx)
+		list, err := repo.List(ctx, nil)
 		require.Error(t, err)
 		assert.Nil(t, list)
 	})

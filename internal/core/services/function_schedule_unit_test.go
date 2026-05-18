@@ -232,6 +232,250 @@ func TestFunctionScheduleServiceUnit(t *testing.T) {
 		err := svc2.ResumeSchedule(ctx, schedID)
 		require.Error(t, err)
 	})
+
+	t.Run("CreateSchedule_EventRecordFailure", func(t *testing.T) {
+		fn := &domain.Function{ID: fnID, Name: "test-fn", UserID: userID}
+		fnRepo.On("GetByID", mock.Anything, fnID).Return(fn, nil).Once()
+		repo.On("Create", mock.Anything, mock.Anything).Return(nil).Once()
+		eventSvc.On("RecordEvent", mock.Anything, "FUNCTION_SCHEDULE_CREATED", mock.Anything, "FUNCTION_SCHEDULE", mock.Anything).Return(fmt.Errorf("event svc down")).Once()
+		auditSvc.On("Log", mock.Anything, userID, "function_schedule.create", "function_schedule", mock.Anything, mock.Anything).Return(nil).Once()
+
+		sched, err := svc.CreateSchedule(ctx, fnID, "nightly", "0 2 * * *", []byte(`{}`))
+		require.NoError(t, err)
+		assert.NotNil(t, sched)
+	})
+
+	t.Run("CreateSchedule_AuditLogFailure", func(t *testing.T) {
+		fn := &domain.Function{ID: fnID, Name: "test-fn", UserID: userID}
+		fnRepo.On("GetByID", mock.Anything, fnID).Return(fn, nil).Once()
+		repo.On("Create", mock.Anything, mock.Anything).Return(nil).Once()
+		eventSvc.On("RecordEvent", mock.Anything, "FUNCTION_SCHEDULE_CREATED", mock.Anything, "FUNCTION_SCHEDULE", mock.Anything).Return(nil).Once()
+		auditSvc.On("Log", mock.Anything, userID, "function_schedule.create", "function_schedule", mock.Anything, mock.Anything).Return(fmt.Errorf("audit svc down")).Once()
+
+		sched, err := svc.CreateSchedule(ctx, fnID, "nightly", "0 2 * * *", []byte(`{}`))
+		require.NoError(t, err)
+		assert.NotNil(t, sched)
+	})
+
+	t.Run("ListSchedules_RBACDenied", func(t *testing.T) {
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleRead, "*").Return(fmt.Errorf("access denied")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.ListSchedules(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("ListSchedules_RepoError", func(t *testing.T) {
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil)
+		repo2.On("List", mock.Anything, userID, tenantID).Return(nil, fmt.Errorf("db error")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.ListSchedules(ctx)
+		require.Error(t, err)
+	})
+
+	t.Run("GetSchedule_RBACDenied", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleRead, schedID.String()).Return(fmt.Errorf("access denied")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.GetSchedule(ctx, schedID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("DeleteSchedule_RBACDenied", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleDelete, schedID.String()).Return(fmt.Errorf("access denied")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		err := svc2.DeleteSchedule(ctx, schedID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("PauseSchedule_RBACDenied", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleUpdate, schedID.String()).Return(fmt.Errorf("access denied")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		err := svc2.PauseSchedule(ctx, schedID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("PauseSchedule_NotFound", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleUpdate, schedID.String()).Return(nil).Once()
+		repo2.On("GetByID", mock.Anything, schedID, userID, tenantID).Return(nil, fmt.Errorf("not found")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		err := svc2.PauseSchedule(ctx, schedID)
+		require.Error(t, err)
+	})
+
+	t.Run("PauseSchedule_UpdateError", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		sched := &domain.FunctionSchedule{ID: schedID, UserID: userID, Status: domain.FunctionScheduleStatusActive}
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleUpdate, schedID.String()).Return(nil).Once()
+		repo2.On("GetByID", mock.Anything, schedID, userID, tenantID).Return(sched, nil).Once()
+		repo2.On("Update", mock.Anything, mock.MatchedBy(func(s *domain.FunctionSchedule) bool {
+			return s.Status == domain.FunctionScheduleStatusPaused && s.NextRunAt == nil
+		})).Return(fmt.Errorf("update failed")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		err := svc2.PauseSchedule(ctx, schedID)
+		require.Error(t, err)
+	})
+
+	t.Run("ResumeSchedule_RBACDenied", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleUpdate, schedID.String()).Return(fmt.Errorf("access denied")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		err := svc2.ResumeSchedule(ctx, schedID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("ResumeSchedule_NotFound", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleUpdate, schedID.String()).Return(nil).Once()
+		repo2.On("GetByID", mock.Anything, schedID, userID, tenantID).Return(nil, fmt.Errorf("not found")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		err := svc2.ResumeSchedule(ctx, schedID)
+		require.Error(t, err)
+	})
+
+	t.Run("GetScheduleRuns_RBACDenied", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionFunctionScheduleRead, schedID.String()).Return(fmt.Errorf("access denied")).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.GetScheduleRuns(ctx, schedID, 50)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "access denied")
+	})
+
+	t.Run("GetScheduleRuns_LimitZero", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil)
+		repo2.On("GetByID", mock.Anything, schedID, userID, tenantID).Return(&domain.FunctionSchedule{ID: schedID, UserID: userID}, nil).Once()
+		repo2.On("GetScheduleRuns", mock.Anything, schedID, 50).Return([]*domain.FunctionScheduleRun{}, nil).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.GetScheduleRuns(ctx, schedID, 0)
+		require.NoError(t, err)
+		repo2.AssertCalled(t, "GetScheduleRuns", mock.Anything, schedID, 50)
+	})
+
+	t.Run("GetScheduleRuns_LimitNegative", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil)
+		repo2.On("GetByID", mock.Anything, schedID, userID, tenantID).Return(&domain.FunctionSchedule{ID: schedID, UserID: userID}, nil).Once()
+		repo2.On("GetScheduleRuns", mock.Anything, schedID, 50).Return([]*domain.FunctionScheduleRun{}, nil).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.GetScheduleRuns(ctx, schedID, -10)
+		require.NoError(t, err)
+		repo2.AssertCalled(t, "GetScheduleRuns", mock.Anything, schedID, 50)
+	})
+
+	t.Run("GetScheduleRuns_LimitExceeds500", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil)
+		repo2.On("GetByID", mock.Anything, schedID, userID, tenantID).Return(&domain.FunctionSchedule{ID: schedID, UserID: userID}, nil).Once()
+		repo2.On("GetScheduleRuns", mock.Anything, schedID, 500).Return([]*domain.FunctionScheduleRun{}, nil).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.GetScheduleRuns(ctx, schedID, 1000)
+		require.NoError(t, err)
+		repo2.AssertCalled(t, "GetScheduleRuns", mock.Anything, schedID, 500)
+	})
+
+	t.Run("GetScheduleRuns_LimitUnder500", func(t *testing.T) {
+		schedID := uuid.New()
+		repo2 := new(MockFunctionScheduleRepo)
+		fnRepo2 := new(MockFunctionRepo)
+		rbacSvc2 := new(MockRBACService)
+		eventSvc2 := new(MockEventService)
+		auditSvc2 := new(MockAuditService)
+		rbacSvc2.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe().Return(nil)
+		repo2.On("GetByID", mock.Anything, schedID, userID, tenantID).Return(&domain.FunctionSchedule{ID: schedID, UserID: userID}, nil).Once()
+		repo2.On("GetScheduleRuns", mock.Anything, schedID, 100).Return([]*domain.FunctionScheduleRun{}, nil).Once()
+
+		svc2 := services.NewFunctionScheduleService(repo2, fnRepo2, rbacSvc2, eventSvc2, auditSvc2, slog.Default())
+		_, err := svc2.GetScheduleRuns(ctx, schedID, 100)
+		require.NoError(t, err)
+		repo2.AssertCalled(t, "GetScheduleRuns", mock.Anything, schedID, 100)
+	})
 }
 
 func TestFunctionScheduleWorkerUnit(t *testing.T) {

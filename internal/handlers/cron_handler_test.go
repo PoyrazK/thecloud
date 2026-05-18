@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -71,6 +72,24 @@ func (m *mockCronService) ResumeJob(ctx context.Context, id uuid.UUID) error {
 func (m *mockCronService) DeleteJob(ctx context.Context, id uuid.UUID) error {
 	res := m.Called(ctx, id)
 	return res.Error(0)
+}
+
+func (m *mockCronService) GetJobRuns(ctx context.Context, id uuid.UUID, limit int) ([]*domain.CronJobRun, error) {
+	args := m.Called(ctx, id, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.CronJobRun)
+	return r0, args.Error(1)
+}
+
+func (m *mockCronService) UpdateJob(ctx context.Context, id uuid.UUID, name, schedule, targetURL, targetMethod, targetPayload string) (*domain.CronJob, error) {
+	args := m.Called(ctx, id, name, schedule, targetURL, targetMethod, targetPayload)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.CronJob)
+	return r0, args.Error(1)
 }
 
 func setupCronHandlerTest(_ *testing.T) (*mockCronService, *CronHandler, *gin.Engine) {
@@ -324,6 +343,116 @@ func TestCronHandlerDeleteError(t *testing.T) {
 		id := uuid.New()
 		svc.On("DeleteJob", mock.Anything, id).Return(errors.New(errors.Internal, "error"))
 		req, _ := http.NewRequest(http.MethodDelete, cronPath+"/"+id.String(), nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		svc.AssertExpectations(t)
+	})
+}
+
+func TestCronHandlerGetJobRuns(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupCronHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
+	r.GET(cronPath+"/:id/runs", handler.GetJobRuns)
+
+	id := uuid.New()
+	runs := []*domain.CronJobRun{
+		{ID: uuid.New(), JobID: id, Status: "SUCCESS", StatusCode: 200, DurationMs: 150, StartedAt: time.Now()},
+	}
+	svc.On("GetJobRuns", mock.Anything, id, 50).Return(runs, nil)
+
+	req, err := http.NewRequest(http.MethodGet, cronPath+"/"+id.String()+"/runs?limit=50", nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCronHandlerGetJobRunsError(t *testing.T) {
+	t.Parallel()
+	t.Run("InvalidID", func(t *testing.T) {
+		_, handler, r := setupCronHandlerTest(t)
+		r.GET(cronPath+"/:id/runs", handler.GetJobRuns)
+		req, _ := http.NewRequest(http.MethodGet, cronPath+cronPathInvalid+"/runs", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("ServiceError", func(t *testing.T) {
+		svc, handler, r := setupCronHandlerTest(t)
+		r.GET(cronPath+"/:id/runs", handler.GetJobRuns)
+		id := uuid.New()
+		svc.On("GetJobRuns", mock.Anything, id, 50).Return(nil, errors.New(errors.Internal, "error"))
+		req, _ := http.NewRequest(http.MethodGet, cronPath+"/"+id.String()+"/runs", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		svc.AssertExpectations(t)
+	})
+}
+
+func TestCronHandlerUpdateJob(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupCronHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
+	r.PUT(cronPath+"/:id", handler.UpdateJob)
+
+	id := uuid.New()
+	job := &domain.CronJob{ID: id, Name: "updated-job", Schedule: "0 0 * * *", TargetURL: "http://updated.example.com"}
+	svc.On("UpdateJob", mock.Anything, id, "updated-job", "0 0 * * *", "http://updated.example.com", "GET", "").Return(job, nil)
+
+	body, err := json.Marshal(map[string]interface{}{
+		"name":          "updated-job",
+		"schedule":      "0 0 * * *",
+		"target_url":    "http://updated.example.com",
+		"target_method": "GET",
+	})
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	req, err := http.NewRequest(http.MethodPut, cronPath+"/"+id.String(), bytes.NewBuffer(body))
+	require.NoError(t, err)
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestCronHandlerUpdateJobError(t *testing.T) {
+	t.Parallel()
+	t.Run("InvalidJSON", func(t *testing.T) {
+		_, handler, r := setupCronHandlerTest(t)
+		r.PUT(cronPath+"/:id", handler.UpdateJob)
+		req, _ := http.NewRequest(http.MethodPut, cronPath+"/"+uuid.New().String(), bytes.NewBufferString("invalid"))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("InvalidID", func(t *testing.T) {
+		_, handler, r := setupCronHandlerTest(t)
+		r.PUT(cronPath+"/:id", handler.UpdateJob)
+		req, _ := http.NewRequest(http.MethodPut, cronPath+cronPathInvalid, bytes.NewBufferString("{}"))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("ServiceError", func(t *testing.T) {
+		svc, handler, r := setupCronHandlerTest(t)
+		r.PUT(cronPath+"/:id", handler.UpdateJob)
+		id := uuid.New()
+		svc.On("UpdateJob", mock.Anything, id, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.New(errors.Internal, "error"))
+		body, _ := json.Marshal(map[string]interface{}{
+			"name":       "updated-job",
+			"schedule":   "0 0 * * *",
+			"target_url": "http://updated.example.com",
+		})
+		req, _ := http.NewRequest(http.MethodPut, cronPath+"/"+id.String(), bytes.NewBuffer(body))
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)

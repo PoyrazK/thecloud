@@ -22,20 +22,22 @@ type Database struct {
 
 // CreateDatabaseInput defines parameters for creating a database.
 type CreateDatabaseInput struct {
-	Name    string  `json:"name"`
-	Engine  string  `json:"engine"`
-	Version string  `json:"version"`
-	VpcID   *string `json:"vpc_id,omitempty"`
+	Name             string  `json:"name"`
+	Engine           string  `json:"engine"`
+	Version          string  `json:"version"`
+	VpcID            *string `json:"vpc_id,omitempty"`
+	AllocatedStorage int     `json:"allocated_storage_gb,omitempty"`
 }
 
 const databasesPath = "/databases/"
 
-func (c *Client) CreateDatabase(name, engine, version string, vpcID *string) (*Database, error) {
+func (c *Client) CreateDatabase(name, engine, version string, vpcID *string, allocatedStorageGB int) (*Database, error) {
 	input := CreateDatabaseInput{
-		Name:    name,
-		Engine:  engine,
-		Version: version,
-		VpcID:   vpcID,
+		Name:             name,
+		Engine:           engine,
+		Version:          version,
+		VpcID:            vpcID,
+		AllocatedStorage: allocatedStorageGB,
 	}
 	var resp Response[Database]
 	if err := c.post("/databases", input, &resp); err != nil {
@@ -74,4 +76,9 @@ func (c *Client) GetDatabaseConnectionString(id string) (string, error) {
 
 func (c *Client) RotateDatabaseCredentials(id string) error {
 	return c.post(databasesPath+id+"/rotate-credentials", nil, nil)
+}
+
+func (c *Client) ResizeDatabase(id string, newSizeGB int) error {
+	body := map[string]int{"allocated_storage": newSizeGB}
+	return c.post(databasesPath+id+"/resize", body, nil)
 }

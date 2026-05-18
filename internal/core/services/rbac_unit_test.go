@@ -46,6 +46,7 @@ func TestRBACService_Unit(t *testing.T) {
 	t.Run("HasPermission_AdminRole", func(t *testing.T) {
 		mockTenantRepo.On("GetMembership", mock.Anything, tenantID, userID).Return(&domain.TenantMember{Role: domain.RoleAdmin}, nil).Once()
 		mockIAMRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{}, nil).Once()
+		mockIAMRepo.On("GetPoliciesForRole", mock.Anything, tenantID, domain.RoleAdmin).Return([]*domain.Policy{}, nil).Once()
 		mockRoleRepo.On("GetRoleByName", mock.Anything, domain.RoleAdmin).Return(nil, errors.New(errors.NotFound, "not found")).Once() // Fallback to hardcoded
 
 		allowed, err := svc.HasPermission(ctx, userID, tenantID, domain.PermissionInstanceRead, "*")
@@ -68,6 +69,7 @@ func TestRBACService_Unit(t *testing.T) {
 	t.Run("Authorize_Denied", func(t *testing.T) {
 		mockTenantRepo.On("GetMembership", mock.Anything, tenantID, userID).Return(&domain.TenantMember{Role: domain.RoleViewer}, nil).Once()
 		mockIAMRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{}, nil).Once()
+		mockIAMRepo.On("GetPoliciesForRole", mock.Anything, tenantID, domain.RoleViewer).Return([]*domain.Policy{}, nil).Once()
 		mockRoleRepo.On("GetRoleByName", mock.Anything, domain.RoleViewer).Return(&domain.Role{
 			Name:        domain.RoleViewer,
 			Permissions: []domain.Permission{domain.PermissionInstanceRead},

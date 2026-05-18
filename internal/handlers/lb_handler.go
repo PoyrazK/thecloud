@@ -27,14 +27,14 @@ func NewLBHandler(svc ports.LBService) *LBHandler {
 type CreateLBRequest struct {
 	Name      string `json:"name" binding:"required"`
 	VpcID     string `json:"vpc_id" binding:"required"`
-	Port      int    `json:"port" binding:"required"`
+	Port      int    `json:"port" binding:"required,min=1,max=65535"`
 	Algorithm string `json:"algorithm"`
 }
 
 // AddTargetRequest is the payload for adding a load balancer target.
 type AddTargetRequest struct {
 	InstanceID string `json:"instance_id" binding:"required"`
-	Port       int    `json:"port" binding:"required"`
+	Port       int    `json:"port" binding:"required,min=1,max=65535"`
 	Weight     int    `json:"weight"`
 }
 

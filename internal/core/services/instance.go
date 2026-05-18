@@ -606,8 +606,8 @@ func (s *InstanceService) StopInstance(ctx context.Context, idOrName string) err
 
 	if err := s.compute.StopInstance(ctx, target); err != nil {
 		platform.InstanceOperationsTotal.WithLabelValues("stop", "failure").Inc()
-		s.logger.Error("failed to stop docker container", "container_id", target, "error", err)
-		return errors.Wrap(errors.Internal, "failed to stop container", err)
+		s.logger.Error("failed to stop instance", "backend", s.compute.Type(), "id", target, "error", err)
+		return errors.Wrap(errors.Internal, fmt.Sprintf("failed to stop %s instance", s.compute.Type()), err)
 	}
 
 	platform.InstancesTotal.WithLabelValues("running", s.compute.Type()).Dec()
@@ -761,7 +761,8 @@ func (s *InstanceService) ResumeInstance(ctx context.Context, idOrName string) e
 }
 
 // ListInstances returns all instances owned by the current user.
-func (s *InstanceService) ListInstances(ctx context.Context) ([]*domain.Instance, error) {
+// tagFilter optionally restricts results to instances matching all given label constraints.
+func (s *InstanceService) ListInstances(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
 
@@ -769,7 +770,7 @@ func (s *InstanceService) ListInstances(ctx context.Context) ([]*domain.Instance
 		return nil, err
 	}
 
-	return s.repo.List(ctx)
+	return s.repo.List(ctx, tagFilter)
 }
 
 // GetInstance retrieves an instance by its UUID or name.
@@ -816,7 +817,7 @@ func (s *InstanceService) GetInstanceLogs(ctx context.Context, idOrName string) 
 
 	stream, err := s.compute.GetInstanceLogs(ctx, inst.ContainerID)
 	if err != nil {
-		return "", err
+		return "", errors.Wrap(errors.Internal, "failed to get instance logs", err)
 	}
 	defer func() { _ = stream.Close() }()
 
@@ -853,7 +854,11 @@ func (s *InstanceService) GetConsoleURL(ctx context.Context, idOrName string) (s
 		id = inst.ContainerID
 	}
 
-	return s.compute.GetConsoleURL(ctx, id)
+	url, err := s.compute.GetConsoleURL(ctx, id)
+	if err != nil {
+		return "", errors.Wrap(errors.Internal, "failed to get console URL", err)
+	}
+	return url, nil
 }
 
 func (s *InstanceService) ResizeInstance(ctx context.Context, idOrName, newInstanceType string) (*domain.Instance, error) {
@@ -1218,8 +1223,8 @@ func (s *InstanceService) removeInstanceContainer(ctx context.Context, inst *dom
 	}
 
 	if err := s.compute.DeleteInstance(ctx, containerID); err != nil {
-		s.logger.Warn("failed to remove docker container", "container_id", containerID, "error", err)
-		return errors.Wrap(errors.Internal, "failed to remove container", err)
+		s.logger.Warn("failed to remove instance", "backend", s.compute.Type(), "id", containerID, "error", err)
+		return errors.Wrap(errors.Internal, fmt.Sprintf("failed to remove %s instance", s.compute.Type()), err)
 	}
 
 	s.logger.Info("instance terminated", "instance_id", inst.ID)
@@ -1338,14 +1343,14 @@ func (s *InstanceService) calculateInstanceStats(stats *domain.RawDockerStats) *
 
 	return &domain.InstanceStats{
 		CPUPercentage:      cpuPercent,
-		MemoryUsageBytes:    memUsage,
-		MemoryLimitBytes:    memLimit,
-		MemoryPercentage:    memPercent,
-		NetworkRxBytes:      rxBytes,
-		NetworkTxBytes:      txBytes,
-		DiskReadBytes:       readBytes,
-		DiskWriteBytes:      writeBytes,
-		CPUTimeNanoseconds:  cpuTime,
+		MemoryUsageBytes:   memUsage,
+		MemoryLimitBytes:   memLimit,
+		MemoryPercentage:   memPercent,
+		NetworkRxBytes:     rxBytes,
+		NetworkTxBytes:     txBytes,
+		DiskReadBytes:      readBytes,
+		DiskWriteBytes:     writeBytes,
+		CPUTimeNanoseconds: cpuTime,
 	}
 }
 
@@ -1452,6 +1457,13 @@ func (s *InstanceService) resolveNetworkConfig(ctx context.Context, vpcID, subne
 		if subnetID == nil {
 			return networkID, "", "", nil
 		}
+	}
+
+	// For libvirt compute with no network backend (NETWORK_BACKEND=noop),
+	// return "default" (libvirt's built-in NAT network) instead of OVS bridge.
+	// This avoids libvirt failing to find non-existent OVS bridges.
+	if s.compute.Type() == "libvirt" && s.network == nil && vpcID != nil {
+		return "default", "", "", nil
 	}
 
 	if subnetID == nil || s.network == nil {
@@ -1649,6 +1661,74 @@ func (s *InstanceService) UpdateInstanceMetadata(ctx context.Context, id uuid.UU
 				inst.Labels[k] = v
 			}
 		}
+	}
+
+	return s.repo.Update(ctx, inst)
+}
+
+// GetTags returns the label set for an instance.
+func (s *InstanceService) GetTags(ctx context.Context, id uuid.UUID) (map[string]string, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionInstanceRead, id.String()); err != nil {
+		return nil, err
+	}
+
+	inst, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if inst.Labels == nil {
+		return map[string]string{}, nil
+	}
+	return inst.Labels, nil
+}
+
+// SetTags replaces an instance's labels with the provided map (add/update).
+func (s *InstanceService) SetTags(ctx context.Context, id uuid.UUID, labels map[string]string) error {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionInstanceUpdate, id.String()); err != nil {
+		return err
+	}
+
+	inst, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if inst.Labels == nil {
+		inst.Labels = make(map[string]string)
+	}
+	for k, v := range labels {
+		if v == "" {
+			delete(inst.Labels, k)
+		} else {
+			inst.Labels[k] = v
+		}
+	}
+
+	return s.repo.Update(ctx, inst)
+}
+
+// RemoveTag deletes a single label key from an instance.
+func (s *InstanceService) RemoveTag(ctx context.Context, id uuid.UUID, key string) error {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionInstanceUpdate, id.String()); err != nil {
+		return err
+	}
+
+	inst, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if inst.Labels != nil {
+		delete(inst.Labels, key)
 	}
 
 	return s.repo.Update(ctx, inst)

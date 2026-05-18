@@ -102,15 +102,15 @@ func TestInstanceService_CalculateInstanceStats(t *testing.T) {
 	svc := &InstanceService{}
 
 	cases := []struct {
-		name          string
-		input         *domain.RawDockerStats
-		cpuPercent    float64
-		memPercent    float64
-		netRx         *uint64
-		netTx         *uint64
-		diskRead      *uint64
-		diskWrite     *uint64
-		cpuTime       *uint64
+		name       string
+		input      *domain.RawDockerStats
+		cpuPercent float64
+		memPercent float64
+		netRx      *uint64
+		netTx      *uint64
+		diskRead   *uint64
+		diskWrite  *uint64
+		cpuTime    *uint64
 	}{
 		{
 			name: "Basic CPU and Memory",
@@ -160,7 +160,7 @@ func TestInstanceService_CalculateInstanceStats(t *testing.T) {
 				}
 				return s
 			}(),
-			diskRead: ptrUint64(6000),
+			diskRead:  ptrUint64(6000),
 			diskWrite: ptrUint64(5000),
 		},
 		{
@@ -200,7 +200,7 @@ func TestInstanceService_CalculateInstanceStats(t *testing.T) {
 			netTx:      ptrUint64(250),
 			diskRead:   ptrUint64(2048),
 			diskWrite:  ptrUint64(0),
-			cpuTime:     ptrUint64(3000000000),
+			cpuTime:    ptrUint64(3000000000),
 		},
 	}
 

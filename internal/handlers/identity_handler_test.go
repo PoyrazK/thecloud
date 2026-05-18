@@ -2,7 +2,6 @@ package httphandlers
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -20,56 +19,6 @@ const (
 	authKeysPath = "/auth/keys"
 	testKeyName  = "Test Key"
 )
-
-type mockIdentityService struct {
-	mock.Mock
-}
-
-func (m *mockIdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name string) (*domain.APIKey, error) {
-	args := m.Called(ctx, userID, name)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	r0, _ := args.Get(0).(*domain.APIKey)
-	return r0, args.Error(1)
-}
-
-func (m *mockIdentityService) ValidateAPIKey(ctx context.Context, key string) (*domain.APIKey, error) {
-	args := m.Called(ctx, key)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	r0, _ := args.Get(0).(*domain.APIKey)
-	return r0, args.Error(1)
-}
-func (m *mockIdentityService) GetAPIKeyByID(ctx context.Context, id uuid.UUID) (*domain.APIKey, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	r0, _ := args.Get(0).(*domain.APIKey)
-	return r0, args.Error(1)
-}
-func (m *mockIdentityService) ListKeys(ctx context.Context, userID uuid.UUID) ([]*domain.APIKey, error) {
-	args := m.Called(ctx, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	r0, _ := args.Get(0).([]*domain.APIKey)
-	return r0, args.Error(1)
-}
-func (m *mockIdentityService) RevokeKey(ctx context.Context, userID, id uuid.UUID) error {
-	args := m.Called(ctx, userID, id)
-	return args.Error(0)
-}
-func (m *mockIdentityService) RotateKey(ctx context.Context, userID, id uuid.UUID) (*domain.APIKey, error) {
-	args := m.Called(ctx, userID, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	r0, _ := args.Get(0).(*domain.APIKey)
-	return r0, args.Error(1)
-}
 
 func setupIdentityHandlerTest(userID uuid.UUID) (*mockIdentityService, *IdentityHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)

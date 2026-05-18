@@ -28,7 +28,7 @@ type InternetGateway struct {
 // CreateIGW creates a new internet gateway in detached state.
 func (c *Client) CreateIGW() (*InternetGateway, error) {
 	var res Response[InternetGateway]
-	if err := c.post("/igws", nil, &res); err != nil {
+	if err := c.post("/internet-gateways", nil, &res); err != nil {
 		return nil, err
 	}
 	return &res.Data, nil
@@ -39,18 +39,18 @@ func (c *Client) AttachIGW(igwID, vpcID string) error {
 	body := map[string]string{
 		"vpc_id": vpcID,
 	}
-	return c.post(fmt.Sprintf("/igws/%s/attach", igwID), body, nil)
+	return c.post(fmt.Sprintf("/internet-gateways/%s/attach", igwID), body, nil)
 }
 
 // DetachIGW detaches an internet gateway from its VPC.
 func (c *Client) DetachIGW(igwID string) error {
-	return c.post(fmt.Sprintf("/igws/%s/detach", igwID), nil, nil)
+	return c.post(fmt.Sprintf("/internet-gateways/%s/detach", igwID), nil, nil)
 }
 
 // ListIGWs returns all internet gateways for the tenant.
 func (c *Client) ListIGWs() ([]InternetGateway, error) {
 	var res Response[[]InternetGateway]
-	if err := c.get("/igws", &res); err != nil {
+	if err := c.get("/internet-gateways", &res); err != nil {
 		return nil, err
 	}
 	return res.Data, nil
@@ -59,7 +59,7 @@ func (c *Client) ListIGWs() ([]InternetGateway, error) {
 // GetIGW retrieves details of a specific internet gateway.
 func (c *Client) GetIGW(id string) (*InternetGateway, error) {
 	var res Response[InternetGateway]
-	if err := c.get(fmt.Sprintf("/igws/%s", id), &res); err != nil {
+	if err := c.get(fmt.Sprintf("/internet-gateways/%s", id), &res); err != nil {
 		return nil, err
 	}
 	return &res.Data, nil
@@ -67,5 +67,5 @@ func (c *Client) GetIGW(id string) (*InternetGateway, error) {
 
 // DeleteIGW permanently removes an internet gateway (must be detached first).
 func (c *Client) DeleteIGW(id string) error {
-	return c.delete(fmt.Sprintf("/igws/%s", id), nil)
+	return c.delete(fmt.Sprintf("/internet-gateways/%s", id), nil)
 }

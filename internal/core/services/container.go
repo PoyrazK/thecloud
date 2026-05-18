@@ -10,6 +10,7 @@ import (
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
 )
 
 // ContainerService manages deployments and their containers.
@@ -55,7 +56,7 @@ func (s *ContainerService) CreateDeployment(ctx context.Context, name, image str
 	}
 
 	if err := s.repo.CreateDeployment(ctx, dep); err != nil {
-		return nil, err
+		return nil, errors.Wrap(errors.Internal, "failed to create deployment", err)
 	}
 
 	if err := s.eventSvc.RecordEvent(ctx, "DEPLOYMENT_CREATED", dep.ID.String(), "DEPLOYMENT", nil); err != nil {
@@ -80,7 +81,11 @@ func (s *ContainerService) ListDeployments(ctx context.Context) ([]*domain.Deplo
 		return nil, err
 	}
 
-	return s.repo.ListDeployments(ctx, userID)
+	deployments, err := s.repo.ListDeployments(ctx, userID)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to list deployments", err)
+	}
+	return deployments, nil
 }
 
 func (s *ContainerService) GetDeployment(ctx context.Context, id uuid.UUID) (*domain.Deployment, error) {
@@ -91,7 +96,11 @@ func (s *ContainerService) GetDeployment(ctx context.Context, id uuid.UUID) (*do
 		return nil, err
 	}
 
-	return s.repo.GetDeploymentByID(ctx, id, userID)
+	dep, err := s.repo.GetDeploymentByID(ctx, id, userID)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to get deployment", err)
+	}
+	return dep, nil
 }
 
 func (s *ContainerService) ScaleDeployment(ctx context.Context, id uuid.UUID, replicas int) error {
@@ -104,13 +113,13 @@ func (s *ContainerService) ScaleDeployment(ctx context.Context, id uuid.UUID, re
 
 	dep, err := s.repo.GetDeploymentByID(ctx, id, userID)
 	if err != nil {
-		return err
+		return errors.Wrap(errors.Internal, "failed to get deployment", err)
 	}
 
 	dep.Replicas = replicas
 	dep.Status = domain.DeploymentStatusScaling
 	if err := s.repo.UpdateDeployment(ctx, dep); err != nil {
-		return err
+		return errors.Wrap(errors.Internal, "failed to update deployment", err)
 	}
 
 	if err := s.auditSvc.Log(ctx, userID, "container.deployment_scale", "deployment", id.String(), map[string]interface{}{
@@ -132,12 +141,12 @@ func (s *ContainerService) DeleteDeployment(ctx context.Context, id uuid.UUID) e
 
 	dep, err := s.repo.GetDeploymentByID(ctx, id, userID)
 	if err != nil {
-		return err
+		return errors.Wrap(errors.Internal, "failed to get deployment", err)
 	}
 
 	dep.Status = domain.DeploymentStatusDeleting
 	if err := s.repo.UpdateDeployment(ctx, dep); err != nil {
-		return err
+		return errors.Wrap(errors.Internal, "failed to update deployment", err)
 	}
 
 	if err := s.auditSvc.Log(ctx, userID, "container.deployment_delete", "deployment", id.String(), map[string]interface{}{}); err != nil {

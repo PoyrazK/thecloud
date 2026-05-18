@@ -61,7 +61,7 @@ func TestClient_ListCronJobs(t *testing.T) {
 		assert.Equal(t, http.MethodGet, r.Method)
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(expectedJobs)
+		_ = json.NewEncoder(w).Encode(Response[[]CronJob]{Data: expectedJobs})
 	}))
 	defer server.Close()
 

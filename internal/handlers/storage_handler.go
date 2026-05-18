@@ -50,11 +50,11 @@ const (
 // RFC 6266:
 //
 //   - `filename="..."`     ASCII-only fallback for legacy clients. All bytes
-//                          outside the safe printable range and the two
-//                          characters that are special inside a quoted-string
-//                          (`"` and `\`) are replaced with `_`.
-//   - `filename*=UTF-8''…` RFC 5987 percent-encoded form preserving the
-//                          original Unicode basename for modern clients.
+//     outside the safe printable range and the two
+//     characters that are special inside a quoted-string
+//     (`"` and `\`) are replaced with `_`.
+//   - `filename*=UTF-8”…` RFC 5987 percent-encoded form preserving the
+//     original Unicode basename for modern clients.
 //
 // `path.Base` is used to discard any path segments embedded in the key. If the
 // resulting name is empty we fall back to "download".
@@ -134,10 +134,14 @@ func (h *StorageHandler) Upload(c *gin.Context) {
 		return
 	}
 
+	// Use only the filename (last path segment) as the object key, not the full path.
+	// This mirrors contentDispositionAttachment which already uses path.Base for the same reason.
+	objectKey := path.Base(key)
+
 	providedChecksum := c.GetHeader(headerContentSha256)
 
 	// Read from request body (stream)
-	obj, err := h.svc.Upload(c.Request.Context(), bucket, key, io.LimitReader(c.Request.Body, maxUploadSize), providedChecksum)
+	obj, err := h.svc.Upload(c.Request.Context(), bucket, objectKey, io.LimitReader(c.Request.Body, maxUploadSize), providedChecksum)
 	if err != nil {
 		httputil.Error(c, err)
 		return
@@ -162,6 +166,8 @@ func (h *StorageHandler) Download(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// Normalize key to basename for consistency with Upload
+	key = path.Base(key)
 	versionID := c.Query("versionId")
 
 	var reader io.ReadCloser
@@ -230,6 +236,8 @@ func (h *StorageHandler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// Normalize key to basename for consistency with Upload
+	key = path.Base(key)
 	versionID := c.Query("versionId")
 
 	var err error
@@ -633,6 +641,8 @@ func (h *StorageHandler) ListVersions(c *gin.Context) {
 	if !ok {
 		return
 	}
+	// Normalize key to basename for consistency with Upload
+	key = path.Base(key)
 
 	versions, err := h.svc.ListVersions(c.Request.Context(), bucket, key)
 	if err != nil {

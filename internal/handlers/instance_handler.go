@@ -209,7 +209,8 @@ func (h *InstanceHandler) mapLaunchRequest(req LaunchRequest) (*uuid.UUID, *uuid
 // @Failure 500 {object} httputil.Response
 // @Router /instances [get]
 func (h *InstanceHandler) List(c *gin.Context) {
-	instances, err := h.svc.ListInstances(c.Request.Context())
+	tags := c.QueryArray("tag")
+	instances, err := h.svc.ListInstances(c.Request.Context(), tags)
 	if err != nil {
 		httputil.Error(c, err)
 		return
@@ -469,6 +470,97 @@ func (h *InstanceHandler) UpdateMetadata(c *gin.Context) {
 	}
 
 	httputil.Success(c, http.StatusOK, gin.H{"message": "metadata updated"})
+}
+
+// GetTags returns the labels for an instance.
+// @Summary Get instance tags
+// @Description Returns the label set (tags) assigned to an instance.
+// @Tags instances
+// @Produce json
+// @Security APIKeyAuth
+// @Param id path string true "Instance ID"
+// @Success 200 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Failure 500 {object} httputil.Response
+// @Router /instances/{id}/tags [get]
+func (h *InstanceHandler) GetTags(c *gin.Context) {
+	id, ok := parseUUID(c)
+	if !ok {
+		return
+	}
+
+	labels, err := h.svc.GetTags(c.Request.Context(), *id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, labels)
+}
+
+// SetTagsRequest is the payload for setting instance tags.
+type SetTagsRequest struct {
+	Tags map[string]string `json:"tags"`
+}
+
+// SetTags replaces an instance's labels with the provided map (add/update).
+// @Summary Set instance tags
+// @Description Merges the provided tags into the instance's label set. Existing keys are overwritten.
+// @Tags instances
+// @Accept json
+// @Produce json
+// @Security APIKeyAuth
+// @Param id path string true "Instance ID"
+// @Success 200 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Failure 500 {object} httputil.Response
+// @Router /instances/{id}/tags [post]
+func (h *InstanceHandler) SetTags(c *gin.Context) {
+	id, ok := parseUUID(c)
+	if !ok {
+		return
+	}
+
+	var req SetTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid request body"))
+		return
+	}
+
+	if err := h.svc.SetTags(c.Request.Context(), *id, req.Tags); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, gin.H{"message": "tags updated"})
+}
+
+// RemoveTag deletes a single label key from an instance.
+// @Summary Remove instance tag
+// @Description Deletes the label with the given key from an instance.
+// @Tags instances
+// @Produce json
+// @Security APIKeyAuth
+// @Param id path string true "Instance ID"
+// @Param key path string true "Tag key"
+// @Success 200 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Failure 500 {object} httputil.Response
+// @Router /instances/{id}/tags/{key} [delete]
+func (h *InstanceHandler) RemoveTag(c *gin.Context) {
+	id, ok := parseUUID(c)
+	if !ok {
+		return
+	}
+	key := c.Param("key")
+	if key == "" {
+		httputil.Error(c, errors.New(errors.InvalidInput, "key is required"))
+		return
+	}
+
+	if err := h.svc.RemoveTag(c.Request.Context(), *id, key); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, gin.H{"message": "tag removed"})
 }
 
 // ResizeInstanceRequest is the payload for resizing an instance.

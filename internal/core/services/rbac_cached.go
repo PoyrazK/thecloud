@@ -11,20 +11,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/redis/go-redis/v9"
 )
 
 type cachedRBACService struct {
 	rbac   ports.RBACService
+	saRepo ServiceAccountRepository
 	cache  *redis.Client
 	logger *slog.Logger
 	ttl    time.Duration
 }
 
 // NewCachedRBACService wraps an RBACService with a redis-backed cache.
-func NewCachedRBACService(rbac ports.RBACService, cache *redis.Client, logger *slog.Logger) ports.RBACService {
+func NewCachedRBACService(rbac ports.RBACService, saRepo ServiceAccountRepository, cache *redis.Client, logger *slog.Logger) ports.RBACService {
 	return &cachedRBACService{
 		rbac:   rbac,
+		saRepo: saRepo,
 		cache:  cache,
 		logger: logger,
 		ttl:    5 * time.Minute,
@@ -172,6 +175,43 @@ func (s *cachedRBACService) ListRoleBindings(ctx context.Context) ([]*domain.Use
 
 func (s *cachedRBACService) EvaluatePolicy(ctx context.Context, userID uuid.UUID, action string, resource string, evalCtx map[string]interface{}) (bool, error) {
 	return s.rbac.EvaluatePolicy(ctx, userID, action, resource, evalCtx)
+}
+
+func (s *cachedRBACService) AuthorizeServiceAccount(ctx context.Context, saID uuid.UUID, tenantID uuid.UUID, permission domain.Permission, resource string) error {
+	cacheKey := fmt.Sprintf("sa:auth:%s", saID)
+
+	// Try cache hit first — cache stores full SA object as JSON
+	val, err := s.cache.Get(ctx, cacheKey).Result()
+	if err == nil {
+		var sa domain.ServiceAccount
+		if json.Unmarshal([]byte(val), &sa) == nil {
+			if !sa.Enabled {
+				return errors.New(errors.Forbidden, "service account is disabled")
+			}
+			// SA is enabled — delegate to base for IAM policy evaluation
+			return s.rbac.AuthorizeServiceAccount(ctx, saID, tenantID, permission, resource)
+		}
+	}
+
+	// Cache miss — look up SA
+	sa, dbErr := s.saRepo.GetByID(ctx, saID)
+	if dbErr != nil {
+		if errors.Is(dbErr, errors.NotFound) {
+			return errors.New(errors.Forbidden, "service account not found")
+		}
+		return dbErr
+	}
+
+	if !sa.Enabled {
+		return errors.New(errors.Forbidden, "service account is disabled")
+	}
+
+	// Cache full SA object (including Enabled state) with short TTL
+	if data, err := json.Marshal(sa); err == nil {
+		s.cache.Set(ctx, cacheKey, data, 30*time.Second)
+	}
+
+	return s.rbac.AuthorizeServiceAccount(ctx, saID, tenantID, permission, resource)
 }
 
 func (s *cachedRBACService) invalidateRoleCache(ctx context.Context, id uuid.UUID, name string) {

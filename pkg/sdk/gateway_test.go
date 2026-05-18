@@ -69,7 +69,7 @@ func TestGatewayListRoutes(t *testing.T) {
 		assert.Equal(t, http.MethodGet, r.Method)
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(expectedRoutes)
+		_ = json.NewEncoder(w).Encode(Response[[]GatewayRoute]{Data: expectedRoutes})
 	}))
 	defer server.Close()
 

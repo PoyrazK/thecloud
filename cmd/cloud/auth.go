@@ -180,8 +180,7 @@ type Config struct {
 }
 
 func getConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".cloud", "config.json")
+	return getConfigFilePath()
 }
 
 func saveConfig(key string) {

@@ -40,6 +40,72 @@ const (
 
 var validBucketNameRe = regexp.MustCompile(`^[a-z0-9.-]+$`)
 
+// boundedReader reads from r but returns ObjectTooLarge if more than limit bytes
+// are consumed, ensuring oversized uploads fail with an explicit error rather than
+// silent truncation. It uses a 1-byte probe to distinguish "object exactly at
+// limit" (underlying EOF on next Read) from "object exceeds limit" (extra data).
+type boundedReader struct {
+	r         io.Reader
+	limit     int64
+	count     int64
+	cleanupFn func() // cleanup partial object on oversize; may be nil
+}
+
+func (b *boundedReader) Read(p []byte) (n int, err error) {
+	// Already exceeded limit — propagate error immediately.
+	if b.count > b.limit {
+		if b.cleanupFn != nil {
+			b.cleanupFn()
+		}
+		return 0, errors.New(errors.ObjectTooLarge, "object exceeds maximum size")
+	}
+
+	remaining := b.limit - b.count
+	if int64(len(p)) > remaining {
+		p = p[:remaining]
+	}
+
+	// Read up to 'remaining' bytes from underlying.
+	n, err = b.r.Read(p)
+	b.count += int64(n)
+
+	// Detect overflow: we read past the limit.
+	if b.count > b.limit {
+		if b.cleanupFn != nil {
+			b.cleanupFn()
+		}
+		// Return 0 to signal no valid data transferred; error conveys cause.
+		return 0, errors.New(errors.ObjectTooLarge, "object exceeds maximum size")
+	}
+
+	// count == limit — signal limit reached.
+	// If underlying error is already EOF, return it directly.
+	// Otherwise probe to distinguish "exact limit + underlying done" (EOF)
+	// from "exact limit + underlying has more" (overflow).
+	if b.count == b.limit {
+		if err == io.EOF {
+			return 0, io.EOF
+		}
+		// Underlying may have more data; probe with 1 byte.
+		// Note: the probe reads from the already-encrypted stream (boundedReader
+		// sits above the encryption layer in Upload), so it does not interfere
+		// with decryption state.
+		probe := [1]byte{}
+		_, probeErr := b.r.Read(probe[:])
+		if probeErr == io.EOF {
+			// Underlying exhausted at exactly the limit — clean EOF.
+			return 0, io.EOF
+		}
+		// Extra data exists beyond the limit — overflow.
+		if b.cleanupFn != nil {
+			b.cleanupFn()
+		}
+		return 0, errors.New(errors.ObjectTooLarge, "object exceeds maximum size")
+	}
+
+	return n, err
+}
+
 // generateVersionID generates a timestamp-based version ID (reverse chronological).
 func generateVersionID() string {
 	return fmt.Sprintf("%d", versionEpochBit-time.Now().UnixNano())
@@ -112,7 +178,7 @@ func (s *StorageService) Upload(ctx context.Context, bucketName, key string, r i
 		return nil, err
 	}
 
-	versionID := "null" // Default version ID when versioning is disabled
+	versionID := "" // Default version ID when versioning is disabled
 	if bucket.VersioningEnabled {
 		versionID = generateVersionID()
 	}
@@ -176,8 +242,24 @@ func (s *StorageService) Upload(ctx context.Context, bucketName, key string, r i
 		dataStream = encryptedReader
 	}
 
-	size, err := s.store.Write(ctx, bucketName, storeKey, dataStream)
+	// Defense-in-depth: error on oversized upload rather than silent truncation.
+	// boundedReader tears down any partial object when the limit is exceeded.
+	br := &boundedReader{
+		r:     dataStream,
+		limit: maxPartSize,
+		cleanupFn: func() {
+			_ = s.store.Delete(ctx, bucketName, storeKey)
+		},
+	}
+	size, err := s.store.Write(ctx, bucketName, storeKey, br)
 	if err != nil {
+		// boundedReader already deleted the partial object on ObjectTooLarge.
+		// Preserve the error type so the HTTP layer returns 413.
+		var appErr errors.Error
+		if errors.As(err, &appErr) && appErr.Type == errors.ObjectTooLarge {
+			span.RecordError(err)
+			return nil, err
+		}
 		// We leave the record as PENDING. The garbage collector will clean it up.
 		return nil, errors.Wrap(errors.Internal, "failed to write to store", err)
 	}
@@ -243,7 +325,7 @@ func (s *StorageService) Download(ctx context.Context, bucket, key string) (io.R
 
 	// 2. Open file
 	storeKey := key
-	if obj.VersionID != "null" {
+	if obj.VersionID != "" {
 		storeKey = versionedStoreKey(key, obj.VersionID)
 	}
 
@@ -312,7 +394,7 @@ func (s *StorageService) DownloadVersion(ctx context.Context, bucket, key, versi
 
 	// 2. Open file
 	storeKey := key
-	if obj.VersionID != "null" {
+	if obj.VersionID != "" {
 		storeKey = versionedStoreKey(key, obj.VersionID)
 	}
 
@@ -350,7 +432,7 @@ func (s *StorageService) DeleteVersion(ctx context.Context, bucket, key, version
 
 	// 2. Delete from store
 	storeKey := key
-	if versionID != "null" {
+	if versionID != "" {
 		storeKey = versionedStoreKey(key, versionID)
 	}
 
@@ -543,7 +625,7 @@ func (s *StorageService) CleanupDeleted(ctx context.Context, limit int) (int, er
 	deletedCount := 0
 	for _, obj := range deleted {
 		storeKey := obj.Key
-		if obj.VersionID != "null" {
+		if obj.VersionID != "" {
 			storeKey = versionedStoreKey(obj.Key, obj.VersionID)
 		}
 
@@ -571,7 +653,7 @@ func (s *StorageService) CleanupPendingUploads(ctx context.Context, olderThan ti
 	cleanedCount := 0
 	for _, obj := range pending {
 		storeKey := obj.Key
-		if obj.VersionID != "null" {
+		if obj.VersionID != "" {
 			storeKey = versionedStoreKey(obj.Key, obj.VersionID)
 		}
 
@@ -645,10 +727,24 @@ func (s *StorageService) UploadPart(ctx context.Context, uploadID uuid.UUID, par
 	hash := sha256.New()
 	teeReader := io.TeeReader(r, hash)
 
-	// 3. Write to store (use temporary location)
+	// 3. Write to store (use temporary location).
+	// boundedReader rejects parts larger than maxPartSize instead of silently
+	// truncating, and tears down the partial object so a misbehaving client
+	// cannot exhaust disk by uploading huge parts. (#305)
 	partKey := fmt.Sprintf(partPathFormat, upload.ID.String(), partNumber)
-	size, err := s.store.Write(ctx, upload.Bucket, partKey, io.LimitReader(teeReader, maxPartSize))
+	br := &boundedReader{
+		r:     teeReader,
+		limit: maxPartSize,
+		cleanupFn: func() {
+			_ = s.store.Delete(ctx, upload.Bucket, partKey)
+		},
+	}
+	size, err := s.store.Write(ctx, upload.Bucket, partKey, br)
 	if err != nil {
+		var appErr errors.Error
+		if errors.As(err, &appErr) && appErr.Type == errors.ObjectTooLarge {
+			return nil, err
+		}
 		return nil, errors.Wrap(errors.Internal, "failed to write part", err)
 	}
 

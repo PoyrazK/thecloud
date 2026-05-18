@@ -21,12 +21,14 @@ const (
 func TestClusterRepository(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
-	ctx = appcontext.WithUserID(ctx, userID)
+	tenantID := uuid.New()
+	ctx = appcontext.WithUserID(appcontext.WithTenantID(ctx, tenantID), userID)
 
 	t.Run("Create", func(t *testing.T) {
 		cluster := &domain.Cluster{
 			ID:                  uuid.New(),
 			UserID:              userID,
+			TenantID:            uuid.New(),
 			VpcID:               uuid.New(),
 			Name:                testClusterName,
 			Version:             testClusterVersion,
@@ -48,7 +50,7 @@ func TestClusterRepository(t *testing.T) {
 			defer mock.Close()
 			repo := NewClusterRepository(mock)
 			mock.ExpectExec("INSERT INTO clusters").
-				WithArgs(cluster.ID, cluster.UserID, cluster.VpcID, cluster.Name, cluster.Version,
+				WithArgs(cluster.ID, cluster.UserID, cluster.TenantID, cluster.VpcID, cluster.Name, cluster.Version,
 					string(cluster.Status), cluster.ControlPlaneIPs, cluster.WorkerCount, cluster.HAEnabled,
 					cluster.NetworkIsolation, cluster.PodCIDR, cluster.ServiceCIDR,
 					cluster.APIServerLBAddress, cluster.KubeconfigEncrypted,
@@ -73,7 +75,7 @@ func TestClusterRepository(t *testing.T) {
 
 	t.Run("Read Operations", func(t *testing.T) {
 		clusterID := uuid.New()
-		cols := []string{"id", "user_id", "vpc_id", "name", "version", "status", "control_plane_ips", "worker_count", "ha_enabled", "network_isolation", "pod_cidr", "service_cidr", "api_server_lb_address", "kubeconfig_encrypted", "ssh_private_key_encrypted", "join_token", "token_expires_at", "ca_cert_hash", "job_id", "backup_schedule", "backup_retention_days", "created_at", "updated_at"}
+		cols := []string{"id", "user_id", "tenant_id", "vpc_id", "name", "version", "status", "control_plane_ips", "worker_count", "ha_enabled", "network_isolation", "pod_cidr", "service_cidr", "api_server_lb_address", "kubeconfig_encrypted", "ssh_private_key_encrypted", "join_token", "token_expires_at", "ca_cert_hash", "job_id", "backup_schedule", "backup_retention_days", "created_at", "updated_at"}
 		ngCols := []string{"id", "cluster_id", "name", "instance_type", "min_size", "max_size", "current_size", "created_at", "updated_at"}
 
 		testCases := []struct {
@@ -87,9 +89,9 @@ func TestClusterRepository(t *testing.T) {
 				name: "GetByID",
 				setupMock: func(mock pgxmock.PgxPoolIface) {
 					t.Helper()
-					mock.ExpectQuery("SELECT .* FROM clusters").WithArgs(clusterID, userID).
+					mock.ExpectQuery("SELECT .* FROM clusters").WithArgs(clusterID, tenantID, userID).
 						WillReturnRows(pgxmock.NewRows(cols).
-							AddRow(clusterID, userID, uuid.New(), testClusterName, testClusterVersion, string(domain.ClusterStatusRunning), []string{"10.0.0.1"}, 3, false, false, "10.244.0.0/16", "10.96.0.0/12", nil, "", "", "", nil, "", nil, "@daily", 7, time.Now(), time.Now()))
+							AddRow(clusterID, userID, tenantID, uuid.New(), testClusterName, testClusterVersion, string(domain.ClusterStatusRunning), []string{"10.0.0.1"}, 3, false, false, "10.244.0.0/16", "10.96.0.0/12", nil, "", "", "", nil, "", nil, "@daily", 7, time.Now(), time.Now()))
 					mock.ExpectQuery("SELECT .* FROM cluster_node_groups").WithArgs(clusterID).
 						WillReturnRows(pgxmock.NewRows(ngCols).
 							AddRow(uuid.New(), clusterID, "default-pool", "standard-1", 1, 10, 3, time.Now(), time.Now()))
@@ -109,7 +111,7 @@ func TestClusterRepository(t *testing.T) {
 				name: "GetByID_NotFound",
 				setupMock: func(mock pgxmock.PgxPoolIface) {
 					t.Helper()
-					mock.ExpectQuery("SELECT .* FROM clusters").WithArgs(clusterID, userID).
+					mock.ExpectQuery("SELECT .* FROM clusters").WithArgs(clusterID, tenantID, userID).
 						WillReturnRows(pgxmock.NewRows(cols))
 				},
 				callFn: func(repo *ClusterRepository) (any, error) {
@@ -124,7 +126,7 @@ func TestClusterRepository(t *testing.T) {
 				name: "GetByID_QueryError",
 				setupMock: func(mock pgxmock.PgxPoolIface) {
 					t.Helper()
-					mock.ExpectQuery("SELECT .* FROM clusters").WithArgs(clusterID, userID).
+					mock.ExpectQuery("SELECT .* FROM clusters").WithArgs(clusterID, tenantID, userID).
 						WillReturnError(assert.AnError)
 				},
 				callFn: func(repo *ClusterRepository) (any, error) {
@@ -138,7 +140,7 @@ func TestClusterRepository(t *testing.T) {
 					t.Helper()
 					mock.ExpectQuery("SELECT .* FROM clusters").
 						WillReturnRows(pgxmock.NewRows(cols).
-							AddRow(clusterID, userID, uuid.New(), "c1", "v1", "RUNNING", []string{}, 3, false, false, "", "", nil, "", "", "", nil, "", nil, "", 7, time.Now(), time.Now()))
+							AddRow(clusterID, userID, tenantID, uuid.New(), "c1", "v1", "RUNNING", []string{}, 3, false, false, "", "", nil, "", "", "", nil, "", nil, "", 7, time.Now(), time.Now()))
 					mock.ExpectQuery("SELECT .* FROM cluster_node_groups").WithArgs(clusterID).
 						WillReturnRows(pgxmock.NewRows(ngCols).
 							AddRow(uuid.New(), clusterID, "default-pool", "standard-1", 1, 10, 3, time.Now(), time.Now()))
@@ -157,9 +159,9 @@ func TestClusterRepository(t *testing.T) {
 				name: "ListByUserID",
 				setupMock: func(mock pgxmock.PgxPoolIface) {
 					t.Helper()
-					mock.ExpectQuery("SELECT .* FROM clusters WHERE user_id = \\$1").WithArgs(userID).
+					mock.ExpectQuery("SELECT .* FROM clusters WHERE tenant_id = \\$1 AND user_id = \\$2").WithArgs(tenantID, userID).
 						WillReturnRows(pgxmock.NewRows(cols).
-							AddRow(clusterID, userID, uuid.New(), "c1", "v1", "RUNNING", []string{}, 3, false, false, "", "", nil, "", "", "", nil, "", nil, "", 7, time.Now(), time.Now()))
+							AddRow(clusterID, userID, tenantID, uuid.New(), "c1", "v1", "RUNNING", []string{}, 3, false, false, "", "", nil, "", "", "", nil, "", nil, "", 7, time.Now(), time.Now()))
 					mock.ExpectQuery("SELECT .* FROM cluster_node_groups").WithArgs(clusterID).
 						WillReturnRows(pgxmock.NewRows(ngCols).
 							AddRow(uuid.New(), clusterID, "default-pool", "standard-1", 1, 10, 3, time.Now(), time.Now()))
@@ -207,7 +209,7 @@ func TestClusterRepository(t *testing.T) {
 
 	t.Run("Update", func(t *testing.T) {
 		id := uuid.New()
-		cluster := &domain.Cluster{ID: id, UserID: userID, Status: domain.ClusterStatusFailed, ControlPlaneIPs: []string{}}
+		cluster := &domain.Cluster{ID: id, UserID: userID, TenantID: tenantID, Status: domain.ClusterStatusFailed, ControlPlaneIPs: []string{}}
 
 		t.Run("Success", func(t *testing.T) {
 			mock, _ := pgxmock.NewPool()
@@ -220,7 +222,7 @@ func TestClusterRepository(t *testing.T) {
 					cluster.KubeconfigEncrypted, cluster.SSHPrivateKeyEncrypted,
 					cluster.JoinToken, cluster.TokenExpiresAt, cluster.CACertHash,
 					cluster.JobID, cluster.BackupSchedule, cluster.BackupRetentionDays,
-					pgxmock.AnyArg(), cluster.ID, userID).
+					pgxmock.AnyArg(), cluster.ID, tenantID, userID).
 				WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 			err := repo.Update(ctx, cluster)
@@ -244,7 +246,7 @@ func TestClusterRepository(t *testing.T) {
 			mock, _ := pgxmock.NewPool()
 			defer mock.Close()
 			repo := NewClusterRepository(mock)
-			mock.ExpectExec("DELETE FROM clusters").WithArgs(id, userID).
+			mock.ExpectExec("DELETE FROM clusters").WithArgs(id, tenantID, userID).
 				WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
 			err := repo.Delete(ctx, id)

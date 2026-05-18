@@ -5,11 +5,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/poyrazk/thecloud/internal/core"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
@@ -21,9 +24,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Transaction is a type alias for pgx.Tx so that postgres.DB.Begin (which
+// returns pgx.Tx) satisfies the services.DB interface.
+type Transaction = pgx.Tx
+
+// DB is the database interface that supports beginning transactions.
+type DB interface {
+	Begin(ctx context.Context) (Transaction, error)
+}
+
 const (
-	lockoutThreshold  = 5
-	defaultLockout    = 15 * time.Minute
+	lockoutThreshold = 5
+	defaultLockout   = 15 * time.Minute
 	// Hard size limits prevent unbounded map growth under high failure traffic.
 	// The probabilistic purge (every ~10 calls) may not keep up with rapid failures.
 	maxFailedAttemptsMap = 1000
@@ -36,6 +48,7 @@ type AuthService struct {
 	apiKeySvc       ports.IdentityService
 	auditSvc        ports.AuditService
 	tenantSvc       ports.TenantService
+	db              DB
 	logger          *slog.Logger
 	failedAttempts  map[string]int
 	lockouts        map[string]time.Time
@@ -44,12 +57,13 @@ type AuthService struct {
 }
 
 // NewAuthService constructs an AuthService with its dependencies.
-func NewAuthService(userRepo ports.UserRepository, apiKeySvc ports.IdentityService, auditSvc ports.AuditService, tenantSvc ports.TenantService, logger *slog.Logger) *AuthService {
+func NewAuthService(userRepo ports.UserRepository, apiKeySvc ports.IdentityService, auditSvc ports.AuditService, tenantSvc ports.TenantService, db DB, logger *slog.Logger) *AuthService {
 	return &AuthService{
 		userRepo:        userRepo,
 		apiKeySvc:       apiKeySvc,
 		auditSvc:        auditSvc,
 		tenantSvc:       tenantSvc,
+		db:              db,
 		logger:          logger,
 		failedAttempts:  make(map[string]int),
 		lockouts:        make(map[string]time.Time),
@@ -95,8 +109,19 @@ func (s *AuthService) Register(ctx context.Context, email, password, name string
 		UpdatedAt:    time.Now(),
 	}
 
-	// Transactionality would be better here, but avoiding for simplicity unless needed
-	err = s.userRepo.Create(ctx, user)
+	// Begin transaction for atomic user+tenant creation
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to begin transaction", err)
+	}
+	txCtx := core.WithTransaction(ctx, tx)
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	err = s.userRepo.Create(txCtx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -122,21 +147,22 @@ func (s *AuthService) Register(ctx context.Context, email, password, name string
 	}
 	tenantSlug := fmt.Sprintf("personal-%s-%s", slugName, user.ID.String()[:8])
 
-	tenant, err := s.tenantSvc.CreateTenant(appcontext.WithInternalCall(ctx), tenantName, tenantSlug, user.ID)
+	tenant, err := s.tenantSvc.CreateTenant(appcontext.WithInternalCall(txCtx), tenantName, tenantSlug, user.ID)
 	if err != nil {
-		rollbackErr := s.userRepo.Delete(ctx, user.ID)
-		if rollbackErr != nil {
-			return nil, fmt.Errorf("failed to create personal tenant: %w; rollback failed: %w", err, rollbackErr)
-		}
-		return nil, fmt.Errorf("failed to create personal tenant: %w", err)
+		return nil, err
 	}
-	ctx = appcontext.WithTenantID(ctx, tenant.ID)
+	txCtx = appcontext.WithTenantID(txCtx, tenant.ID)
 
 	// Reload user to reflect changes made during tenant creation (e.g. DefaultTenantID)
-	updatedUser, err := s.userRepo.GetByID(ctx, user.ID)
+	updatedUser, err := s.userRepo.GetByID(txCtx, user.ID)
 	if err == nil {
 		user = updatedUser
 	}
+
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to commit transaction", commitErr)
+	}
+	err = nil // transaction committed successfully, clear so defer no-ops
 
 	if err := s.auditSvc.Log(ctx, user.ID, "user.register", "user", user.ID.String(), map[string]interface{}{
 		"email": email,
@@ -227,6 +253,9 @@ func (s *AuthService) incrementFailure(email string) {
 }
 
 // purgeExpiredLocked removes expired lockouts and stale failure records.
+// If the maps are still over their hard caps after expiry-based purging,
+// evict the oldest lockout entries (and their paired failedAttempts) and
+// the highest-count failedAttempts entries until back under the caps.
 // Caller must hold s.mu.
 func (s *AuthService) purgeExpiredLocked() {
 	now := time.Now()
@@ -243,6 +272,61 @@ func (s *AuthService) purgeExpiredLocked() {
 		if count > lockoutThreshold*10 {
 			delete(s.failedAttempts, email)
 		}
+	}
+
+	// Hard-cap eviction: if expiry purging left us above the cap (e.g. an
+	// attacker is filling the map with unexpired lockouts faster than they
+	// expire), evict the earliest-locked entries until we're back under the
+	// limit. This bounds memory at O(cap) regardless of failure traffic.
+	if len(s.lockouts) > maxLockoutsMap {
+		evictOldestLockoutsLocked(s.lockouts, s.failedAttempts, maxLockoutsMap)
+	}
+	if len(s.failedAttempts) > maxFailedAttemptsMap {
+		evictHighestFailureCountsLocked(s.failedAttempts, maxFailedAttemptsMap)
+	}
+}
+
+// evictOldestLockoutsLocked drops the lockouts (and paired failedAttempts)
+// with the earliest unlock-time until the map is at most targetSize.
+func evictOldestLockoutsLocked(lockouts map[string]time.Time, failedAttempts map[string]int, targetSize int) {
+	excess := len(lockouts) - targetSize
+	if excess <= 0 {
+		return
+	}
+	type entry struct {
+		email string
+		t     time.Time
+	}
+	entries := make([]entry, 0, len(lockouts))
+	for email, t := range lockouts {
+		entries = append(entries, entry{email, t})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].t.Before(entries[j].t) })
+	for i := 0; i < excess && i < len(entries); i++ {
+		delete(lockouts, entries[i].email)
+		delete(failedAttempts, entries[i].email)
+	}
+}
+
+// evictHighestFailureCountsLocked drops the highest-count failedAttempts
+// entries first — those are the addresses most likely already locked-out
+// or being abused — until the map is at most targetSize.
+func evictHighestFailureCountsLocked(failedAttempts map[string]int, targetSize int) {
+	excess := len(failedAttempts) - targetSize
+	if excess <= 0 {
+		return
+	}
+	type entry struct {
+		email string
+		count int
+	}
+	entries := make([]entry, 0, len(failedAttempts))
+	for email, c := range failedAttempts {
+		entries = append(entries, entry{email, c})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].count > entries[j].count })
+	for i := 0; i < excess && i < len(entries); i++ {
+		delete(failedAttempts, entries[i].email)
 	}
 }
 

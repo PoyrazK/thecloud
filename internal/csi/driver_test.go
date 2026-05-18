@@ -160,7 +160,12 @@ func TestDriver_ControllerServer(t *testing.T) {
 			w.Write([]byte(`{"data": "success"}`))
 			return
 		}
-		if r.Method == "GET" && r.URL.Path == "/instances/node-1" {
+		if r.Method == "GET" && r.URL.Path == "/instances" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"data": [{"id": "inst-123", "name": "node-1"}]}`))
+			return
+		}
+		if r.Method == "GET" && r.URL.Path == "/instances/inst-123" {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"data": {"id": "inst-123", "name": "node-1"}}`))
 			return

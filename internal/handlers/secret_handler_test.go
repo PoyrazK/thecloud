@@ -154,8 +154,10 @@ func TestSecretHandlerGetByName(t *testing.T) {
 
 	r.GET(secretsPath+"/:id", handler.Get)
 
-	secret := &domain.Secret{ID: uuid.New(), Name: testSecretName}
+	id := uuid.New()
+	secret := &domain.Secret{ID: id, Name: testSecretName}
 	svc.On("GetSecretByName", mock.Anything, testSecretName).Return(secret, nil)
+	svc.On("GetSecret", mock.Anything, id).Return(secret, nil)
 
 	req, err := http.NewRequest(http.MethodGet, secretsPath+"/"+testSecretName, nil)
 	require.NoError(t, err)
@@ -163,6 +165,100 @@ func TestSecretHandlerGetByName(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestSecretHandlerGetByShortID(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupSecretHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
+	r.GET(secretsPath+"/:id", handler.Get)
+
+	id := uuid.New()
+	secret := &domain.Secret{ID: id, Name: testSecretName}
+	shortPrefix := id.String()[:8]
+	svc.On("GetSecretByName", mock.Anything, shortPrefix).Return(nil, errors.New(errors.NotFound, "not found"))
+	svc.On("ListSecrets", mock.Anything).Return([]*domain.Secret{secret}, nil)
+	svc.On("GetSecret", mock.Anything, id).Return(secret, nil)
+
+	req, err := http.NewRequest(http.MethodGet, secretsPath+"/"+shortPrefix, nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestSecretHandlerGetByShortID_Ambiguous(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupSecretHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
+	r.GET(secretsPath+"/:id", handler.Get)
+
+	idA := uuid.MustParse("11111111-0000-0000-0000-000000000001")
+	idB := uuid.MustParse("11111111-0000-0000-0000-000000000002")
+	secretA := &domain.Secret{ID: idA, Name: "sec-a"}
+	secretB := &domain.Secret{ID: idB, Name: "sec-b"}
+	shortPrefix := idA.String()[:8]
+
+	svc.On("GetSecretByName", mock.Anything, shortPrefix).Return(nil, errors.New(errors.NotFound, "not found"))
+	svc.On("ListSecrets", mock.Anything).Return([]*domain.Secret{secretA, secretB}, nil)
+
+	req, err := http.NewRequest(http.MethodGet, secretsPath+"/"+shortPrefix, nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "ambiguous")
+}
+
+func TestSecretHandlerDeleteByShortID(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupSecretHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
+	r.DELETE(secretsPath+"/:id", handler.Delete)
+
+	id := uuid.New()
+	secret := &domain.Secret{ID: id, Name: testSecretName}
+	shortPrefix := id.String()[:8]
+	svc.On("GetSecretByName", mock.Anything, shortPrefix).Return(nil, errors.New(errors.NotFound, "not found"))
+	svc.On("ListSecrets", mock.Anything).Return([]*domain.Secret{secret}, nil)
+	svc.On("DeleteSecret", mock.Anything, id).Return(nil)
+
+	req, err := http.NewRequest(http.MethodDelete, secretsPath+"/"+shortPrefix, nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestSecretHandlerDeleteByShortID_Ambiguous(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupSecretHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
+	r.DELETE(secretsPath+"/:id", handler.Delete)
+
+	idA := uuid.MustParse("22222222-0000-0000-0000-000000000001")
+	idB := uuid.MustParse("22222222-0000-0000-0000-000000000002")
+	secretA := &domain.Secret{ID: idA, Name: "sec-a"}
+	secretB := &domain.Secret{ID: idB, Name: "sec-b"}
+	shortPrefix := idA.String()[:8]
+
+	svc.On("GetSecretByName", mock.Anything, shortPrefix).Return(nil, errors.New(errors.NotFound, "not found"))
+	svc.On("ListSecrets", mock.Anything).Return([]*domain.Secret{secretA, secretB}, nil)
+
+	req, err := http.NewRequest(http.MethodDelete, secretsPath+"/"+shortPrefix, nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "ambiguous")
 }
 
 func TestSecretHandlerDelete(t *testing.T) {
@@ -196,6 +292,7 @@ func TestSecretHandlerDelete(t *testing.T) {
 		svc, handler, r := setupSecretHandlerTest(t)
 		r.DELETE(secretsPath+"/:id", handler.Delete)
 		svc.On("GetSecretByName", mock.Anything, testSecretName).Return(nil, errors.New(errors.NotFound, errSecretNotFound))
+		svc.On("ListSecrets", mock.Anything).Return(nil, errors.New(errors.NotFound, errSecretNotFound))
 		req, _ := http.NewRequest(http.MethodDelete, secretsPath+"/"+testSecretName, nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
@@ -270,6 +367,7 @@ func TestSecretHandlerGetError(t *testing.T) {
 		svc, handler, r := setupSecretHandlerTest(t)
 		r.GET(secretsPath+"/:id", handler.Get)
 		svc.On("GetSecretByName", mock.Anything, "name").Return(nil, errors.New(errors.NotFound, errSecretNotFound))
+		svc.On("ListSecrets", mock.Anything).Return(nil, errors.New(errors.NotFound, errSecretNotFound))
 		req, _ := http.NewRequest(http.MethodGet, secretsPath+"/name", nil)
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)

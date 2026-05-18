@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/poyrazk/thecloud/pkg/sdk"
 	"github.com/spf13/cobra"
 )
 
@@ -31,15 +32,36 @@ var storageListCmd = &cobra.Command{
 
 		// List Buckets
 		if len(args) == 0 {
-			buckets, err := client.ListBuckets()
-			if err != nil {
-				fmt.Printf(errFmt, err)
-				return
+			limit, _ := cmd.Flags().GetInt("limit")
+			offset, _ := cmd.Flags().GetInt("offset")
+
+			var buckets []sdk.Bucket
+			var meta *sdk.ListResponse[sdk.Bucket]
+
+			if limit > 0 || offset > 0 {
+				var err error
+				buckets, meta, err = client.ListBucketsWithPagination(limit, offset)
+				if err != nil {
+					fmt.Printf(errFmt, err)
+					return
+				}
+			} else {
+				var err error
+				buckets, err = client.ListBuckets()
+				if err != nil {
+					fmt.Printf(errFmt, err)
+					return
+				}
 			}
 
 			if opts.JSON {
-				data, _ := json.MarshalIndent(buckets, "", "  ")
-				fmt.Println(string(data))
+				if meta != nil {
+					data, _ := json.MarshalIndent(meta, "", "  ")
+					fmt.Println(string(data))
+				} else {
+					data, _ := json.MarshalIndent(buckets, "", "  ")
+					fmt.Println(string(data))
+				}
 				return
 			}
 
@@ -54,6 +76,14 @@ var storageListCmd = &cobra.Command{
 				})
 			}
 			table.Render()
+
+			if meta != nil {
+				fmt.Printf("\nShowing %d of %d total", len(buckets), meta.TotalCount)
+				if meta.HasMore {
+					fmt.Print(" (more available)")
+				}
+				fmt.Println()
+			}
 			return
 		}
 
@@ -287,6 +317,9 @@ func init() {
 	storageDeleteCmd.Flags().String("version", "", "Specific version to delete")
 	storagePresignCmd.Flags().String("method", "GET", "HTTP method (GET or PUT)")
 	storagePresignCmd.Flags().Int("expires", 900, "Expiration in seconds (default 15 mins)")
+
+	storageListCmd.Flags().Int("limit", 0, "Maximum number of results (0 = use server default)")
+	storageListCmd.Flags().Int("offset", 0, "Number of results to skip")
 }
 
 var storageVersionsCmd = &cobra.Command{

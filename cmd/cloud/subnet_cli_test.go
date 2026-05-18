@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/poyrazk/thecloud/pkg/sdk"
 )
 
 const (
@@ -56,5 +58,43 @@ func TestSubnetListJSONOutput(t *testing.T) {
 	})
 	if !strings.Contains(out, subnetTestID) {
 		t.Fatalf("expected JSON output to include subnet id, got: %s", out)
+	}
+}
+
+func TestResolveSubnetIDByName(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/vpcs/*/subnets" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(sdk.Response[[]sdk.Subnet]{
+			Data: []sdk.Subnet{
+				{ID: "uuid-subnet-1", Name: "app-subnet", VpcID: "vpc-1", CIDRBlock: "10.0.1.0/24"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := sdk.NewClient(server.URL, "test-key")
+	resolved := resolveSubnetID("app-subnet", client)
+	if resolved != "uuid-subnet-1" {
+		t.Fatalf("expected uuid-subnet-1, got %s", resolved)
+	}
+}
+
+func TestResolveSubnetIDByUUID(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound) // Should not be called
+	}))
+	defer server.Close()
+
+	client := sdk.NewClient(server.URL, "test-key")
+	id := "abc123-def456"
+	resolved := resolveSubnetID(id, client)
+	if resolved != id {
+		t.Fatalf("expected %s, got %s", id, resolved)
 	}
 }

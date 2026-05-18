@@ -33,11 +33,11 @@ func TestCachedRBACService_Unit(t *testing.T) {
 }
 
 func testCachedRBACServiceListRoles(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	roles := []*domain.Role{{ID: uuid.New(), Name: "admin"}}
 	mockSvc.On("ListRoles", mock.Anything).Return(roles, nil).Once()
@@ -49,11 +49,11 @@ func testCachedRBACServiceListRoles(t *testing.T) {
 }
 
 func testCachedRBACServiceAuthorizeDelegates(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	userID := uuid.New()
 	tenantID := uuid.New()
@@ -66,11 +66,11 @@ func testCachedRBACServiceAuthorizeDelegates(t *testing.T) {
 }
 
 func testCachedRBACServiceHasPermissionCacheHit(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -86,11 +86,11 @@ func testCachedRBACServiceHasPermissionCacheHit(t *testing.T) {
 }
 
 func testCachedRBACServiceHasPermissionCacheMiss(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -109,11 +109,11 @@ func testCachedRBACServiceHasPermissionCacheMiss(t *testing.T) {
 }
 
 func testCachedRBACServiceHasPermissionError(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -132,11 +132,11 @@ func testCachedRBACServiceHasPermissionError(t *testing.T) {
 }
 
 func testCachedRBACServiceCreateRoleDelegates(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	role := &domain.Role{ID: uuid.New(), Name: "dev"}
 	mockSvc.On("CreateRole", mock.Anything, role).Return(nil).Once()
@@ -147,11 +147,11 @@ func testCachedRBACServiceCreateRoleDelegates(t *testing.T) {
 }
 
 func testCachedRBACServiceGetRoleByIDCaches(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	roleID := uuid.New()
 	role := &domain.Role{ID: roleID, Name: "dev"}
@@ -166,11 +166,11 @@ func testCachedRBACServiceGetRoleByIDCaches(t *testing.T) {
 }
 
 func testCachedRBACServiceGetRoleByNameCaches(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	role := &domain.Role{ID: uuid.New(), Name: "ops"}
 	mockSvc.On("GetRoleByName", mock.Anything, "ops").Return(role, nil).Once()
@@ -184,11 +184,11 @@ func testCachedRBACServiceGetRoleByNameCaches(t *testing.T) {
 }
 
 func testCachedRBACServiceUpdateRoleInvalidatesCache(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	roleID := uuid.New()
 	role := &domain.Role{ID: roleID, Name: "dev"}
@@ -209,11 +209,11 @@ func testCachedRBACServiceUpdateRoleInvalidatesCache(t *testing.T) {
 }
 
 func testCachedRBACServiceDeleteRoleInvalidatesCache(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	roleID := uuid.New()
 	role := &domain.Role{ID: roleID, Name: "ops"}
@@ -235,11 +235,11 @@ func testCachedRBACServiceDeleteRoleInvalidatesCache(t *testing.T) {
 }
 
 func testCachedRBACServiceAddPermissionInvalidatesCache(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	roleID := uuid.New()
 	role := &domain.Role{ID: roleID, Name: "ops"}
@@ -261,11 +261,11 @@ func testCachedRBACServiceAddPermissionInvalidatesCache(t *testing.T) {
 }
 
 func testCachedRBACServiceRemovePermissionInvalidatesCache(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	roleID := uuid.New()
 	role := &domain.Role{ID: roleID, Name: "ops"}
@@ -287,11 +287,11 @@ func testCachedRBACServiceRemovePermissionInvalidatesCache(t *testing.T) {
 }
 
 func testCachedRBACServiceBindRoleDelegates(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	mockSvc.On("BindRole", mock.Anything, "user@example.com", "admin").Return(nil).Once()
 
@@ -301,11 +301,11 @@ func testCachedRBACServiceBindRoleDelegates(t *testing.T) {
 }
 
 func testCachedRBACServiceListRoleBindings(t *testing.T) {
-	mockSvc, cache, mr := setupCachedRBACTest(t)
+	mockSvc, mockSARepo, cache, mr := setupCachedRBACTest(t)
 	defer mr.Close()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	svc := services.NewCachedRBACService(mockSvc, cache, logger)
+	svc := services.NewCachedRBACService(mockSvc, mockSARepo, cache, logger)
 
 	mockSvc.On("ListRoleBindings", mock.Anything).Return([]*domain.User{{ID: uuid.New()}}, nil).Once()
 

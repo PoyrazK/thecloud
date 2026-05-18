@@ -102,12 +102,15 @@ jobs:
           DATABASE_URL: postgres://cloud:cloud@127.0.0.1:5433/cloud?sslmode=disable
           COMPUTE_BACKEND: docker
           TEST_DOCKER_NETWORK: cloud-network
+          SECRETS_ENCRYPTION_KEY: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          STORAGE_SECRET: ci-test-storage-secret-key
+          POWERDNS_API_KEY: ci-test-powerdns-api-key
         run: |
           # Start the API server in the background
           # The server will run migrations automatically on startup
           ./api > api.log 2>&1 &
           echo $! > api.pid
-          
+
           # Wait for the server to be ready
           echo "Waiting for API server to start..."
           timeout 90s bash -c 'until curl -s http://localhost:8080/health/live; do sleep 2; done' || (echo "API Server Logs:" && cat api.log && exit 1)

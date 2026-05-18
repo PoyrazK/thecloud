@@ -23,14 +23,16 @@ func TestSnapshotListJSONOutput(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		payload := []map[string]interface{}{
-			{
-				"id":          snapshotTestID,
-				"volume_id":   uuid.New().String(),
-				"volume_name": "data",
-				"size_gb":     10,
-				"status":      "AVAILABLE",
-				"created_at":  time.Now().UTC().Format(time.RFC3339),
+		payload := map[string]interface{}{
+			"data": []map[string]interface{}{
+				{
+					"id":          snapshotTestID,
+					"volume_id":   uuid.New().String(),
+					"volume_name": "data",
+					"size_gb":     10,
+					"status":      "AVAILABLE",
+					"created_at":  time.Now().UTC().Format(time.RFC3339),
+				},
 			},
 		}
 		_ = json.NewEncoder(w).Encode(payload)
@@ -65,12 +67,14 @@ func TestSnapshotCreateCmd(t *testing.T) {
 			return
 		}
 		payload := map[string]interface{}{
-			"id":          snapshotTestID,
-			"volume_id":   volID.String(),
-			"volume_name": "data",
-			"size_gb":     10,
-			"status":      "CREATING",
-			"created_at":  time.Now().UTC().Format(time.RFC3339),
+			"data": map[string]interface{}{
+				"id":          snapshotTestID,
+				"volume_id":   volID.String(),
+				"volume_name": "data",
+				"size_gb":     10,
+				"status":      "CREATING",
+				"created_at":  time.Now().UTC().Format(time.RFC3339),
+			},
 		}
 		_ = json.NewEncoder(w).Encode(payload)
 	}))
@@ -103,12 +107,14 @@ func TestSnapshotRestoreCmd(t *testing.T) {
 			return
 		}
 		payload := map[string]interface{}{
-			"id":         uuid.New().String(),
-			"name":       "restore-vol",
-			"size_gb":    10,
-			"status":     "AVAILABLE",
-			"created_at": time.Now().UTC().Format(time.RFC3339),
-			"updated_at": time.Now().UTC().Format(time.RFC3339),
+			"data": map[string]interface{}{
+				"id":         uuid.New().String(),
+				"name":       "restore-vol",
+				"size_gb":    10,
+				"status":     "AVAILABLE",
+				"created_at": time.Now().UTC().Format(time.RFC3339),
+				"updated_at": time.Now().UTC().Format(time.RFC3339),
+			},
 		}
 		_ = json.NewEncoder(w).Encode(payload)
 	}))

@@ -411,6 +411,12 @@ definitions:
         items:
           type: string
         type: array
+      circuit_breaker_threshold:
+        description: consecutive failures to trip open (0=disabled)
+        type: integer
+      circuit_breaker_timeout:
+        description: ms in open before half-open
+        type: integer
       created_at:
         type: string
       dial_timeout:
@@ -423,6 +429,9 @@ definitions:
         type: integer
       max_body_size:
         description: Max request body size in bytes
+        type: integer
+      max_retries:
+        description: max retry attempts (0=disabled)
         type: integer
       methods:
         description: 'New: HTTP methods to match (empty = all)'
@@ -456,6 +465,9 @@ definitions:
         type: boolean
       response_header_timeout:
         description: Time to receive headers in milliseconds
+        type: integer
+      retry_timeout:
+        description: total retry window in ms
         type: integer
       strip_prefix:
         description: If true, removes path_prefix from request before forwarding
@@ -768,6 +780,35 @@ definitions:
         type: string
       vpc_id:
         type: string
+    type: object
+  domain.Invocation:
+    properties:
+      duration_ms:
+        description: Execution time in milliseconds
+        type: integer
+      ended_at:
+        type: string
+      function_id:
+        type: string
+      id:
+        type: string
+      logs:
+        description: Captured stdout/stderr
+        type: string
+      max_retries:
+        description: Max retries before moving to DLQ
+        type: integer
+      retry_count:
+        description: Number of retry attempts
+        type: integer
+      started_at:
+        type: string
+      status:
+        description: '"PENDING", "RUNNING", "SUCCESS", "FAILED", "DLQ"'
+        type: string
+      status_code:
+        description: Exit code or HTTP status
+        type: integer
     type: object
   domain.LBStatus:
     enum:
@@ -1090,6 +1131,10 @@ definitions:
     - identity:read
     - identity:delete
     - identity:read_all
+    - service_account:create
+    - service_account:read
+    - service_account:update
+    - service_account:delete
     - accounting:read
     - audit:read
     - dashboard:read
@@ -1208,6 +1253,10 @@ definitions:
     - PermissionIdentityRead
     - PermissionIdentityDelete
     - PermissionIdentityReadAll
+    - PermissionServiceAccountCreate
+    - PermissionServiceAccountRead
+    - PermissionServiceAccountUpdate
+    - PermissionServiceAccountDelete
     - PermissionAccountingRead
     - PermissionAuditRead
     - PermissionDashboardRead
@@ -1538,6 +1587,62 @@ definitions:
         description: Traffic protocol (e.g., "tcp", "udp", "icmp", "all")
         type: string
     type: object
+  domain.ServiceAccount:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.ServiceAccountSecret:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      last_used_at:
+        type: string
+      name:
+        type: string
+      service_account_id:
+        type: string
+    type: object
+  domain.ServiceAccountWithSecret:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+      secret:
+        description: Only set on create/rotate
+        type: string
+      tenant_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
   domain.Snapshot:
     properties:
       created_at:
@@ -1788,6 +1893,8 @@ definitions:
         type: string
       id:
         type: string
+      idempotency_key:
+        type: string
       name:
         type: string
       network_id:
@@ -1911,6 +2018,8 @@ definitions:
       instance_id:
         type: string
       port:
+        maximum: 65535
+        minimum: 1
         type: integer
       weight:
         type: integer
@@ -2079,6 +2188,8 @@ definitions:
       name:
         type: string
       port:
+        maximum: 65535
+        minimum: 1
         type: integer
       vpc_id:
         type: string
@@ -2147,6 +2258,12 @@ definitions:
         items:
           type: string
         type: array
+      circuit_breaker_threshold:
+        minimum: 0
+        type: integer
+      circuit_breaker_timeout:
+        minimum: 0
+        type: integer
       dial_timeout:
         minimum: 0
         type: integer
@@ -2154,6 +2271,9 @@ definitions:
         minimum: 0
         type: integer
       max_body_size:
+        minimum: 0
+        type: integer
+      max_retries:
         minimum: 0
         type: integer
       methods:
@@ -2173,6 +2293,9 @@ definitions:
       require_tls:
         type: boolean
       response_header_timeout:
+        minimum: 0
+        type: integer
+      retry_timeout:
         minimum: 0
         type: integer
       strip_prefix:
@@ -2219,6 +2342,18 @@ definitions:
     required:
     - name
     - vpc_id
+    type: object
+  httphandlers.CreateServiceAccountRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+    required:
+    - name
+    - role
     type: object
   httphandlers.CreateSnapshotRequest:
     properties:
@@ -2399,6 +2534,22 @@ definitions:
     - new_password
     - token
     type: object
+  httphandlers.ResizeCacheRequest:
+    properties:
+      memory_mb:
+        minimum: 64
+        type: integer
+    required:
+    - memory_mb
+    type: object
+  httphandlers.ResizeDatabaseRequest:
+    properties:
+      allocated_storage:
+        minimum: 1
+        type: integer
+    required:
+    - allocated_storage
+    type: object
   httphandlers.ResizeInstanceRequest:
     properties:
       instance_type:
@@ -2414,6 +2565,14 @@ definitions:
         type: string
       status:
         type: string
+    type: object
+  httphandlers.ResizeVolumeRequest:
+    properties:
+      new_size_gb:
+        minimum: 1
+        type: integer
+    required:
+    - new_size_gb
     type: object
   httphandlers.RestoreBackupRequest:
     properties:
@@ -2469,7 +2628,10 @@ definitions:
   httphandlers.ScaleClusterRequest:
     properties:
       workers:
+        minimum: 1
         type: integer
+    required:
+    - workers
     type: object
   httphandlers.ScaleDeploymentRequest:
     properties:
@@ -2477,6 +2639,15 @@ definitions:
         type: integer
     required:
     - replicas
+    type: object
+  httphandlers.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      token_type:
+        type: string
     type: object
   httphandlers.UpdateNodeGroupRequest:
     properties:
@@ -3231,6 +3402,48 @@ paths:
       summary: List usage records
       tags:
       - billing
+  /caches/{id}/resize:
+    post:
+      consumes:
+      - application/json
+      description: Changes the memory allocation of a running Redis cache instance
+        (requires restart)
+      parameters:
+      - description: Cache ID or name
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resize request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.ResizeCacheRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Resize cache memory
+      tags:
+      - caches
   /clusters:
     get:
       description: Returns all clusters belonging to the user
@@ -3639,6 +3852,47 @@ paths:
       summary: Scale a deployment
       tags:
       - containers
+  /databases/{id}/resize:
+    post:
+      consumes:
+      - application/json
+      description: Increases the allocated storage capacity of a database instance
+      parameters:
+      - description: Database ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resize request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.ResizeDatabaseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Resize database storage
+      tags:
+      - databases
   /databases/{id}/rotate-credentials:
     post:
       description: Regenerates the database password, updates it in the database and
@@ -4198,6 +4452,60 @@ paths:
       summary: Disassociate Elastic IP
       tags:
       - elastic-ips
+  /functions/{id}/dlq:
+    get:
+      description: Gets all dead letter queue invocations for a function
+      parameters:
+      - description: Function ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Invocation'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: Get DLQ invocations
+  /functions/{id}/dlq/{invocation_id}/retry:
+    post:
+      description: Retries a failed invocation from the dead letter queue by resetting
+        its status to PENDING
+      parameters:
+      - description: Function ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Invocation ID
+        in: path
+        name: invocation_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Invocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: Retry DLQ invocation
   /gateway/routes:
     get:
       description: Gets a list of all registered API gateway routes
@@ -4740,6 +5048,322 @@ paths:
       summary: Update IAM Policy
       tags:
       - iam
+  /iam/service-accounts:
+    get:
+      description: List all service accounts for the tenant.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.ServiceAccount'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: List Service Accounts
+      tags:
+      - iam
+    post:
+      consumes:
+      - application/json
+      description: Create a new service account with credentials for M2M authentication.
+      parameters:
+      - description: Service account details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.CreateServiceAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.ServiceAccountWithSecret'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Create Service Account
+      tags:
+      - iam
+  /iam/service-accounts/{id}:
+    delete:
+      description: Delete an existing service account and all its secrets.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Delete Service Account
+      tags:
+      - iam
+    get:
+      description: Get details of a specific service account.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.ServiceAccount'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Get Service Account
+      tags:
+      - iam
+  /iam/service-accounts/{id}/rotate-secret:
+    post:
+      description: Rotate the secret for a service account, returns new plaintext.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Rotate Service Account Secret
+      tags:
+      - iam
+  /iam/service-accounts/{id}/secrets:
+    get:
+      description: List all secrets for a service account.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.ServiceAccountSecret'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: List Service Account Secrets
+      tags:
+      - iam
+  /iam/service-accounts/{id}/secrets/{secretId}:
+    post:
+      description: Revoke a specific secret from a service account.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Secret ID
+        in: path
+        name: secretId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Revoke Service Account Secret
+      tags:
+      - iam
+  /iam/service-accounts/{saId}/policies:
+    get:
+      description: List all IAM policies currently attached to a specific service
+        account.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: saId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Policy'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: List Service Account IAM Policies
+      tags:
+      - iam
+  /iam/service-accounts/{saId}/policies/{policyId}:
+    delete:
+      description: Remove a specific IAM policy assignment from a service account.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: saId
+        required: true
+        type: string
+      - description: Policy ID
+        in: path
+        name: policyId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Detach IAM Policy from Service Account
+      tags:
+      - iam
+    post:
+      description: Attach a specific IAM policy to a service account.
+      parameters:
+      - description: Service Account ID
+        in: path
+        name: saId
+        required: true
+        type: string
+      - description: Policy ID
+        in: path
+        name: policyId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Attach IAM Policy to Service Account
+      tags:
+      - iam
   /iam/users/{userId}/policies:
     get:
       description: List all IAM policies currently attached to a specific user.
@@ -5280,6 +5904,100 @@ paths:
       summary: Stop an instance
       tags:
       - instances
+  /instances/{id}/tags:
+    get:
+      description: Returns the label set (tags) assigned to an instance.
+      parameters:
+      - description: Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Get instance tags
+      tags:
+      - instances
+    post:
+      consumes:
+      - application/json
+      description: Merges the provided tags into the instance's label set. Existing
+        keys are overwritten.
+      parameters:
+      - description: Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Set instance tags
+      tags:
+      - instances
+  /instances/{id}/tags/{key}:
+    delete:
+      description: Deletes the label with the given key from an instance.
+      parameters:
+      - description: Instance ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Tag key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Remove instance tag
+      tags:
+      - instances
   /internet-gateways:
     get:
       produces:
@@ -5799,6 +6517,47 @@ paths:
       summary: Get NAT Gateway
       tags:
       - nat-gateways
+  /oauth2/token:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: OAuth2 Client Credentials flow - exchange client_id and client_secret
+        for JWT. Response includes access_token (JWT), token_type ("Bearer"), and
+        expires_in (seconds, e.g. 3600 = 1 hour).
+      parameters:
+      - description: grant_type (client_credentials)
+        in: formData
+        name: grant_type
+        required: true
+        type: string
+      - description: client_id (service account ID)
+        in: formData
+        name: client_id
+        required: true
+        type: string
+      - description: client_secret
+        in: formData
+        name: client_secret
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httphandlers.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: Exchange client credentials for access token
+      tags:
+      - Auth
   /rbac/bindings:
     get:
       description: Returns all user-role assignments
@@ -7411,6 +8170,47 @@ paths:
       summary: Detach volume
       tags:
       - volumes
+  /volumes/{id}/resize:
+    post:
+      consumes:
+      - application/json
+      description: Increases the capacity of an existing block storage volume
+      parameters:
+      - description: Volume ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resize request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.ResizeVolumeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Resize a volume
+      tags:
+      - volumes
   /vpc-peerings:
     get:
       produces:
@@ -7694,6 +8494,49 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Get VPC details
+      tags:
+      - vpcs
+    patch:
+      consumes:
+      - application/json
+      description: Modifies an existing VPC's name
+      parameters:
+      - description: VPC ID or Name
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: VPC update request
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.VPC'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Update a VPC
       tags:
       - vpcs
 securityDefinitions:

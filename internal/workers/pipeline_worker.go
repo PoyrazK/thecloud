@@ -313,7 +313,13 @@ func (w *PipelineWorker) runTaskForStep(ctx context.Context, buildID uuid.UUID, 
 	if runErr != nil {
 		return 0, "", runErr
 	}
-	defer func() { _ = w.compute.DeleteInstance(ctx, containerID) }()
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		if err := w.compute.DeleteInstance(cleanupCtx, containerID); err != nil {
+			w.logger.Warn("failed to delete pipeline task container", "container_id", containerID, "build_id", buildID, "error", err)
+		}
+	}()
 
 	exitCode, waitErr := w.compute.WaitTask(ctx, containerID)
 	if waitErr != nil {

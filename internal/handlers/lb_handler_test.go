@@ -88,21 +88,80 @@ func TestLBHandlerCreate(t *testing.T) {
 
 	vpcID := uuid.New()
 	lb := &domain.LoadBalancer{ID: uuid.New(), Name: testLBName}
-	svc.On("Create", mock.Anything, testLBName, vpcID, 80, algoRoundRobin, "").Return(lb, nil)
 
-	body, err := json.Marshal(map[string]interface{}{
-		"name":      testLBName,
-		"vpc_id":    vpcID.String(),
-		"port":      80,
-		"algorithm": algoRoundRobin,
+	t.Run("Success", func(t *testing.T) {
+		svc.On("Create", mock.Anything, testLBName, vpcID, 80, algoRoundRobin, "").Return(lb, nil)
+		body, err := json.Marshal(map[string]interface{}{
+			"name":      testLBName,
+			"vpc_id":    vpcID.String(),
+			"port":      80,
+			"algorithm": algoRoundRobin,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath, bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusAccepted, w.Code)
 	})
-	require.NoError(t, err)
-	w := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", lbPath, bytes.NewBuffer(body))
-	require.NoError(t, err)
-	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusAccepted, w.Code)
+	t.Run("PortZero_Rejected", func(t *testing.T) {
+		body, err := json.Marshal(map[string]interface{}{
+			"name":   testLBName,
+			"vpc_id": vpcID.String(),
+			"port":   0,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath, bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PortNegative_Rejected", func(t *testing.T) {
+		body, err := json.Marshal(map[string]interface{}{
+			"name":   testLBName,
+			"vpc_id": vpcID.String(),
+			"port":   -1,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath, bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PortExceedsMax_Rejected", func(t *testing.T) {
+		body, err := json.Marshal(map[string]interface{}{
+			"name":   testLBName,
+			"vpc_id": vpcID.String(),
+			"port":   65536,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath, bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PortAtMax_IsValid", func(t *testing.T) {
+		svc.On("Create", mock.Anything, testLBName, vpcID, 65535, algoRoundRobin, "").Return(lb, nil)
+		body, err := json.Marshal(map[string]interface{}{
+			"name":      testLBName,
+			"vpc_id":    vpcID.String(),
+			"port":      65535,
+			"algorithm": algoRoundRobin,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath, bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusAccepted, w.Code)
+	})
 }
 
 func TestLBHandlerList(t *testing.T) {
@@ -169,20 +228,63 @@ func TestLBHandlerAddTarget(t *testing.T) {
 
 	lbID := uuid.New()
 	instID := uuid.New()
-	svc.On("AddTarget", mock.Anything, lbID, instID, 8080, 10).Return(nil)
 
-	body, err := json.Marshal(map[string]interface{}{
-		"instance_id": instID.String(),
-		"port":        8080,
-		"weight":      10,
+	t.Run("Success", func(t *testing.T) {
+		svc.On("AddTarget", mock.Anything, lbID, instID, 8080, 10).Return(nil)
+		body, err := json.Marshal(map[string]interface{}{
+			"instance_id": instID.String(),
+			"port":        8080,
+			"weight":      10,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath+"/"+lbID.String()+"/targets", bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusCreated, w.Code)
 	})
-	require.NoError(t, err)
-	w := httptest.NewRecorder()
-	req, err := http.NewRequest("POST", lbPath+"/"+lbID.String()+"/targets", bytes.NewBuffer(body))
-	require.NoError(t, err)
-	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusCreated, w.Code)
+	t.Run("PortZero_Rejected", func(t *testing.T) {
+		body, err := json.Marshal(map[string]interface{}{
+			"instance_id": instID.String(),
+			"port":        0,
+			"weight":      10,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath+"/"+lbID.String()+"/targets", bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PortNegative_Rejected", func(t *testing.T) {
+		body, err := json.Marshal(map[string]interface{}{
+			"instance_id": instID.String(),
+			"port":        -1,
+			"weight":      10,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath+"/"+lbID.String()+"/targets", bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("PortExceedsMax_Rejected", func(t *testing.T) {
+		body, err := json.Marshal(map[string]interface{}{
+			"instance_id": instID.String(),
+			"port":        65536,
+			"weight":      10,
+		})
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", lbPath+"/"+lbID.String()+"/targets", bytes.NewBuffer(body))
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }
 
 func TestLBHandlerRemoveTarget(t *testing.T) {

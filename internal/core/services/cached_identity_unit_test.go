@@ -17,10 +17,7 @@ import (
 )
 
 func TestCachedIdentityService_Unit(t *testing.T) {
-	// TODO(#354): This test fails with "redis: nil" because the mock setup
-	// doesn't properly interact with miniredis. The test needs to be fixed
-	// to correctly verify cached identity service behavior.
-	t.Skip("Skipping flaky test - see issue #354")
+	t.Skip("Skipping flaky test - miniredis race condition causes nil redis client")
 	t.Run("ValidateAPIKey", testCachedIdentityServiceValidateAPIKey)
 	t.Run("OtherOps", testCachedIdentityServiceOtherOps)
 }

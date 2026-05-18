@@ -75,8 +75,34 @@ Typical permissions include:
 - `vpc:create`, `vpc:read`, `vpc:delete`
 - `rbac:manage`
 
+## IAM Policy Conditions
+
+For users with IAM policies attached (via `POST /iam/users/:userId/policies/:policyId`), policies can include conditions for fine-grained access control:
+
+```json
+{
+  "effect": "Allow",
+  "action": ["instance:*"],
+  "resource": ["*"],
+  "condition": {
+    "IpAddress": {"aws:SourceIp": ["192.168.1.0/24"]},
+    "StringEquals": {"thecloud:TenantId": "tenant-123"}
+  }
+}
+```
+
+Supported condition operators:
+- **IP**: `IpAddress`, `NotIpAddress` - CIDR-based source IP checks
+- **String**: `StringEquals`, `StringNotEquals`, `StringLike`, `StringNotLike`
+- **Date**: `DateGreaterThan`, `DateLessThan`, `DateEquals` - RFC3339 timestamps
+- **Boolean**: `Bool` - exact boolean match
+- **Null**: `Null` - key existence check
+
+See [ADR-026-iam-policy-conditions.md](../adr/ADR-026-iam-policy-conditions.md) for full details.
+
 ## Troubleshooting
 
 - **403 Forbidden**: Ensure your user has the required permission or the `*` wildcard.
 - **Role Not Found**: Check if the role name matches exactly (case-sensitive).
 - **Binding Failed**: Ensure the user email exists in the system.
+- **Condition not matching**: Check that source IP (from `X-Forwarded-For` or `RemoteAddr`) is in the allowed CIDR, and tenant ID matches.

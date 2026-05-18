@@ -2,6 +2,9 @@ name: CI
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SECRETS_ENCRYPTION_KEY: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+  STORAGE_SECRET: ci-test-storage-secret-key
+  POWERDNS_API_KEY: ci-test-powerdns-api-key
 
 on:
   push:
@@ -24,6 +27,12 @@ jobs:
         with:
           go-version: '1.25.0'
           cache: true
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Verify Swagger
         run: |
           go install github.com/swaggo/swag/cmd/swag@v1.16.6
@@ -31,6 +40,22 @@ jobs:
           if [ -n "$(git status --porcelain docs/swagger)" ]; then
             echo "Swagger docs are out of sync. Run 'swag init' and commit changes."
             git diff docs/swagger
+            exit 1
+          fi
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Files not formatted. Run 'gofmt -w .' and commit:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+            echo "go.mod/go.sum are out of sync. Run 'go mod tidy' and commit."
+            git diff go.mod go.sum
             exit 1
           fi
       - name: Lint
@@ -63,6 +88,12 @@ jobs:
           cache: true
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -96,6 +127,12 @@ jobs:
           cache: true
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -123,6 +160,12 @@ jobs:
           cache: true
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -130,15 +173,15 @@ jobs:
             sleep 2
           done'
       - name: Run Database Migrations
-        env:
-          DATABASE_URL: postgres://cloud:cloud@127.0.0.1:5433/cloud?sslmode=disable
         run: |
-          PGPASSWORD=cloud psql -h 127.0.0.1 -p 5433 -U cloud -d postgres -c "DROP DATABASE IF EXISTS cloud;"
-          PGPASSWORD=cloud psql -h 127.0.0.1 -p 5433 -U cloud -d postgres -c "CREATE DATABASE cloud;"
-          go run ./cmd/api -migrate-only
+          # Use unique database per run to avoid cleanup race conditions
+          # that cause "column already exists" errors from stale Postgres state.
+          DATABASE_NAME="cloud_test_${GITHUB_RUN_ID}"
+          PGPASSWORD=cloud psql -h 127.0.0.1 -p 5433 -U cloud -d postgres -c "CREATE DATABASE ${DATABASE_NAME};"
+          DATABASE_URL="postgres://cloud:cloud@127.0.0.1:5433/${DATABASE_NAME}?sslmode=disable" go run ./cmd/api -migrate-only
       - name: Run Integration Tests
         env:
-          DATABASE_URL: postgres://cloud:cloud@127.0.0.1:5433/cloud?sslmode=disable
+          DATABASE_URL: postgres://cloud:cloud@127.0.0.1:5433/cloud_test_${{ github.run_id }}?sslmode=disable
         run: go test -tags=integration -v ./internal/repositories/postgres/...
 
   test-libvirt:
@@ -226,7 +269,12 @@ jobs:
 
       - name: Install Dependencies
         run: go mod download
-
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -245,18 +293,21 @@ jobs:
       - name: Test Backend Switching
         env:
           DATABASE_URL: postgres://cloud:cloud@127.0.0.1:5433/cloud?sslmode=disable
+          SECRETS_ENCRYPTION_KEY: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          STORAGE_SECRET: ci-test-storage-secret-key
+          POWERDNS_API_KEY: ci-test-powerdns-api-key
         run: |
           # Ensure clean DB for switching tests
           PGPASSWORD=cloud psql -h 127.0.0.1 -p 5433 -U cloud -d postgres -c "DROP DATABASE IF EXISTS cloud;"
           PGPASSWORD=cloud psql -h 127.0.0.1 -p 5433 -U cloud -d postgres -c "CREATE DATABASE cloud;"
           go run ./cmd/api -migrate-only
-          
+
           # Test with Docker backend (default)
           export TEST_DOCKER_NETWORK=cloud-network
           docker network create ${TEST_DOCKER_NETWORK} || true
           export COMPUTE_BACKEND=docker
           go test -p 1 -v -run TestInstanceService ./internal/core/services/...
-          
+
           # Test with Libvirt backend
           export COMPUTE_BACKEND=libvirt
           go test -p 1 -v -run TestInstanceService ./internal/core/services/...
@@ -308,6 +359,18 @@ jobs:
           firecracker --version
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+      - name: Wait for Redis
+        run: |
+          timeout 60s bash -c 'until nc -z 127.0.0.1 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done'
       - name: Run Firecracker Unit Tests
         run: go test -v ./internal/repositories/firecracker/...
       - name: Run Firecracker E2E Test
@@ -364,6 +427,16 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
+      - name: Check binary size
+        run: |
+          BINARY_SIZE=$(docker image inspect thecloud-api:latest --format='{{.Size}}')
+          MAX_SIZE=$((150 * 1024 * 1024)) # 150MB in bytes
+          if [ "$BINARY_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "Binary too large: $BINARY_SIZE bytes (max: $MAX_SIZE)"
+            exit 1
+          fi
+          echo "Binary size: $BINARY_SIZE bytes"
 
   deploy-staging:
     needs: build

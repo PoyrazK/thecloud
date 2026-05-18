@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
@@ -70,6 +71,9 @@ func (m *MockRBACService) EvaluatePolicy(ctx context.Context, userID uuid.UUID, 
 	args := m.Called(ctx, userID, action, resource, context)
 	return args.Bool(0), args.Error(1)
 }
+func (m *MockRBACService) AuthorizeServiceAccount(ctx context.Context, saID, tenantID uuid.UUID, permission domain.Permission, resource string) error {
+	return m.Called(ctx, saID, tenantID, permission, resource).Error(0)
+}
 
 // MockIAMRepository
 type MockIAMRepository struct{ mock.Mock }
@@ -110,6 +114,32 @@ func (m *MockIAMRepository) GetPoliciesForUser(ctx context.Context, tenantID, us
 	}
 	return args.Get(0).([]*domain.Policy), args.Error(1)
 }
+func (m *MockIAMRepository) AttachPolicyToRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	return m.Called(ctx, tenantID, roleName, policyID).Error(0)
+}
+func (m *MockIAMRepository) DetachPolicyFromRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	return m.Called(ctx, tenantID, roleName, policyID).Error(0)
+}
+func (m *MockIAMRepository) GetPoliciesForRole(ctx context.Context, tenantID uuid.UUID, roleName string) ([]*domain.Policy, error) {
+	args := m.Called(ctx, tenantID, roleName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Policy), args.Error(1)
+}
+func (m *MockIAMRepository) AttachPolicyToServiceAccount(ctx context.Context, tenantID, saID, policyID uuid.UUID) error {
+	return m.Called(ctx, tenantID, saID, policyID).Error(0)
+}
+func (m *MockIAMRepository) DetachPolicyFromServiceAccount(ctx context.Context, tenantID, saID, policyID uuid.UUID) error {
+	return m.Called(ctx, tenantID, saID, policyID).Error(0)
+}
+func (m *MockIAMRepository) GetPoliciesForServiceAccount(ctx context.Context, tenantID, saID uuid.UUID) ([]*domain.Policy, error) {
+	args := m.Called(ctx, tenantID, saID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Policy), args.Error(1)
+}
 
 // MockIdentityService
 type MockIdentityService struct {
@@ -145,12 +175,76 @@ func (m *MockIdentityService) RotateKey(ctx context.Context, userID, id uuid.UUI
 	r0, _ := args.Get(0).(*domain.APIKey)
 	return r0, args.Error(1)
 }
+func (m *MockIdentityService) CreateServiceAccount(ctx context.Context, tenantID uuid.UUID, name, role string) (*domain.ServiceAccountWithSecret, error) {
+	args := m.Called(ctx, tenantID, name, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccountWithSecret)
+	return r0, args.Error(1)
+}
+func (m *MockIdentityService) GetServiceAccount(ctx context.Context, id uuid.UUID) (*domain.ServiceAccount, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccount)
+	return r0, args.Error(1)
+}
+func (m *MockIdentityService) ListServiceAccounts(ctx context.Context, tenantID uuid.UUID) ([]*domain.ServiceAccount, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.ServiceAccount)
+	return r0, args.Error(1)
+}
+func (m *MockIdentityService) UpdateServiceAccount(ctx context.Context, sa *domain.ServiceAccount) error {
+	args := m.Called(ctx, sa)
+	return args.Error(0)
+}
+func (m *MockIdentityService) DeleteServiceAccount(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+func (m *MockIdentityService) ValidateClientCredentials(ctx context.Context, clientID, clientSecret string) (string, error) {
+	args := m.Called(ctx, clientID, clientSecret)
+	return args.String(0), args.Error(1)
+}
+func (m *MockIdentityService) ValidateAccessToken(ctx context.Context, token string) (*domain.ServiceAccountClaims, error) {
+	args := m.Called(ctx, token)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccountClaims)
+	return r0, args.Error(1)
+}
+func (m *MockIdentityService) RotateServiceAccountSecret(ctx context.Context, saID uuid.UUID) (string, error) {
+	args := m.Called(ctx, saID)
+	return args.String(0), args.Error(1)
+}
+func (m *MockIdentityService) RevokeServiceAccountSecret(ctx context.Context, saID, secretID uuid.UUID) error {
+	args := m.Called(ctx, saID, secretID)
+	return args.Error(0)
+}
+func (m *MockIdentityService) ListServiceAccountSecrets(ctx context.Context, saID uuid.UUID) ([]*domain.ServiceAccountSecret, error) {
+	args := m.Called(ctx, saID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.ServiceAccountSecret)
+	return r0, args.Error(1)
+}
 func (m *MockIdentityService) ValidateKey(ctx context.Context, key string) (*domain.User, error) {
 	args := m.Called(ctx, key)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.User), args.Error(1)
+}
+
+func (m *MockIdentityService) TokenTTL() time.Duration {
+	return time.Hour
 }
 
 // MockIdentityRepo

@@ -166,3 +166,111 @@ func (r *iamRepository) GetPoliciesForUser(ctx context.Context, tenantID uuid.UU
 	}
 	return policies, nil
 }
+
+func (r *iamRepository) AttachPolicyToRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	// Verify policy belongs to tenant
+	if _, err := r.GetPolicyByID(ctx, tenantID, policyID); err != nil {
+		return err
+	}
+
+	query := `INSERT INTO role_policies (role_name, policy_id, tenant_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+	_, err := r.db.Exec(ctx, query, roleName, policyID, tenantID)
+	return err
+}
+
+func (r *iamRepository) DetachPolicyFromRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	query := `DELETE FROM role_policies WHERE role_name = $1 AND policy_id = $2 AND tenant_id = $3`
+	result, err := r.db.Exec(ctx, query, roleName, policyID, tenantID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New(errors.NotFound, "policy assignment not found")
+	}
+	return nil
+}
+
+func (r *iamRepository) GetPoliciesForRole(ctx context.Context, tenantID uuid.UUID, roleName string) ([]*domain.Policy, error) {
+	query := `
+		SELECT p.id, p.tenant_id, p.name, p.description, p.statements
+		FROM policies p
+		JOIN role_policies rp ON p.id = rp.policy_id
+		WHERE rp.role_name = $1 AND rp.tenant_id = $2
+	`
+	rows, err := r.db.Query(ctx, query, roleName, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var policies []*domain.Policy
+	for rows.Next() {
+		var p domain.Policy
+		var statementsJSON []byte
+		if err := rows.Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &statementsJSON); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(statementsJSON, &p.Statements); err != nil {
+			return nil, err
+		}
+		policies = append(policies, &p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return policies, nil
+}
+
+func (r *iamRepository) AttachPolicyToServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error {
+	// Verify policy belongs to tenant
+	if _, err := r.GetPolicyByID(ctx, tenantID, policyID); err != nil {
+		return err
+	}
+
+	query := `INSERT INTO service_account_policies (service_account_id, policy_id, tenant_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`
+	_, err := r.db.Exec(ctx, query, saID, policyID, tenantID)
+	return err
+}
+
+func (r *iamRepository) DetachPolicyFromServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error {
+	query := `DELETE FROM service_account_policies WHERE service_account_id = $1 AND policy_id = $2 AND tenant_id = $3`
+	result, err := r.db.Exec(ctx, query, saID, policyID, tenantID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New(errors.NotFound, "policy assignment not found")
+	}
+	return nil
+}
+
+func (r *iamRepository) GetPoliciesForServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID) ([]*domain.Policy, error) {
+	query := `
+		SELECT p.id, p.tenant_id, p.name, p.description, p.statements
+		FROM policies p
+		JOIN service_account_policies sap ON p.id = sap.policy_id
+		WHERE sap.service_account_id = $1 AND sap.tenant_id = $2
+	`
+	rows, err := r.db.Query(ctx, query, saID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var policies []*domain.Policy
+	for rows.Next() {
+		var p domain.Policy
+		var statementsJSON []byte
+		if err := rows.Scan(&p.ID, &p.TenantID, &p.Name, &p.Description, &statementsJSON); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(statementsJSON, &p.Statements); err != nil {
+			return nil, err
+		}
+		policies = append(policies, &p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return policies, nil
+}

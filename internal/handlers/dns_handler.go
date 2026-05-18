@@ -1,6 +1,7 @@
 package httphandlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -39,14 +40,34 @@ type CreateZoneRequest struct {
 // @Failure 400,401,500 {object} httputil.Response
 // @Router /dns/zones [post]
 func (h *DNSHandler) CreateZone(c *gin.Context) {
-	var req CreateZoneRequest
+	var raw struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		VpcID       string `json:"vpc_id"`
+	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httputil.Error(c, errs.New(errs.InvalidInput, errInvalidRequestBody))
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		httputil.Error(c, errs.New(errs.InvalidInput, fmt.Sprintf("invalid request body: %s", err.Error())))
 		return
 	}
 
-	zone, err := h.svc.CreateZone(c.Request.Context(), req.VpcID, req.Name, req.Description)
+	if raw.Name == "" {
+		httputil.Error(c, errs.New(errs.InvalidInput, "field 'name' is required"))
+		return
+	}
+
+	if raw.VpcID == "" {
+		httputil.Error(c, errs.New(errs.InvalidInput, "field 'vpc_id' is required"))
+		return
+	}
+
+	vpcID, err := uuid.Parse(raw.VpcID)
+	if err != nil {
+		httputil.Error(c, errs.New(errs.InvalidInput, "field 'vpc_id' must be a valid UUID"))
+		return
+	}
+
+	zone, err := h.svc.CreateZone(c.Request.Context(), vpcID, raw.Name, raw.Description)
 	if err != nil {
 		httputil.Error(c, err)
 		return

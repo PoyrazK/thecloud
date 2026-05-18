@@ -96,7 +96,7 @@ func (h *NATGatewayHandler) Get(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		httputil.Error(c, err)
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid NAT gateway id"))
 		return
 	}
 
@@ -121,7 +121,7 @@ func (h *NATGatewayHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		httputil.Error(c, err)
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid NAT gateway id"))
 		return
 	}
 

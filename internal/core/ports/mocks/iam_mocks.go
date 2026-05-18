@@ -56,6 +56,38 @@ func (m *IAMRepository) GetPoliciesForUser(ctx context.Context, tenantID uuid.UU
 	return r0, args.Error(1)
 }
 
+func (m *IAMRepository) AttachPolicyToRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) DetachPolicyFromRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) GetPoliciesForRole(ctx context.Context, tenantID uuid.UUID, roleName string) ([]*domain.Policy, error) {
+	args := m.Called(ctx, tenantID, roleName)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMRepository) AttachPolicyToServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) DetachPolicyFromServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) GetPoliciesForServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID) ([]*domain.Policy, error) {
+	args := m.Called(ctx, tenantID, saID)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
 // IAMService is a mock for ports.IAMService
 type IAMService struct {
 	mock.Mock
@@ -100,6 +132,38 @@ func (m *IAMService) DetachPolicyFromUser(ctx context.Context, userID uuid.UUID,
 
 func (m *IAMService) GetPoliciesForUser(ctx context.Context, userID uuid.UUID) ([]*domain.Policy, error) {
 	args := m.Called(ctx, userID)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) AttachPolicyToRole(ctx context.Context, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) DetachPolicyFromRole(ctx context.Context, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) GetPoliciesForRole(ctx context.Context, roleName string) ([]*domain.Policy, error) {
+	args := m.Called(ctx, roleName)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) AttachPolicyToServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) DetachPolicyFromServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) GetPoliciesForServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.Policy, error) {
+	args := m.Called(ctx, saID)
 	r0, _ := args.Get(0).([]*domain.Policy)
 	return r0, args.Error(1)
 }

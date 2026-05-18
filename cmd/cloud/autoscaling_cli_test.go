@@ -115,6 +115,28 @@ func TestASGListJSONOutput(t *testing.T) {
 func TestASGDeleteCmd(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		// Handle list request for ID resolution
+		if r.URL.Path == "/autoscaling/groups" && r.Method == http.MethodGet {
+			payload := map[string]interface{}{
+				"data": []map[string]interface{}{
+					{
+						"id":            asgTestID,
+						"name":          asgTestName,
+						"vpc_id":        "vpc-1",
+						"image":         "nginx:latest",
+						"min_instances": 1,
+						"max_instances": 3,
+						"desired_count": 2,
+						"current_count": 1,
+						"status":        "active",
+						"created_at":    time.Now().UTC().Format(time.RFC3339),
+					},
+				},
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+			return
+		}
+		// Handle delete request
 		if r.URL.Path != "/autoscaling/groups/"+asgTestID || r.Method != http.MethodDelete {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -143,6 +165,26 @@ func TestASGDeleteCmd(t *testing.T) {
 func TestASGPolicyAddCmd(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/autoscaling/groups" && r.Method == http.MethodGet {
+			payload := map[string]interface{}{
+				"data": []map[string]interface{}{
+					{
+						"id":            asgTestID,
+						"name":          asgTestName,
+						"vpc_id":        "vpc-1",
+						"image":         "nginx:latest",
+						"min_instances": 1,
+						"max_instances": 3,
+						"desired_count": 2,
+						"current_count": 1,
+						"status":        "active",
+						"created_at":    time.Now().UTC().Format(time.RFC3339),
+					},
+				},
+			}
+			_ = json.NewEncoder(w).Encode(payload)
+			return
+		}
 		if r.URL.Path != "/autoscaling/groups/"+asgTestID+"/policies" || r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusNotFound)
 			return

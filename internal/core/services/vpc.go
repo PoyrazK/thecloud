@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +30,9 @@ type VpcServiceParams struct {
 	AuditSvc       ports.AuditService
 	Logger         *slog.Logger
 	DefaultCIDR    string
+	// ComputeBackend is the compute backend type ("docker", "libvirt", "firecracker").
+	// When "libvirt", VPC creation skips OVS bridge creation since libvirt manages its own networking.
+	ComputeBackend string
 }
 
 // VpcService handles the lifecycle of Virtual Private Clouds (VPCs),
@@ -44,6 +48,7 @@ type VpcService struct {
 	auditSvc       ports.AuditService
 	logger         *slog.Logger
 	defaultCIDR    string
+	computeBackend string
 }
 
 // NewVpcService creates a new instance of VpcService.
@@ -68,12 +73,13 @@ func NewVpcService(params VpcServiceParams) *VpcService {
 		auditSvc:       params.AuditSvc,
 		logger:         logger,
 		defaultCIDR:    defaultCIDR,
+		computeBackend: params.ComputeBackend,
 	}
 }
 
 // CreateVPC provisions a new VPC with an associated OVS bridge for network isolation.
 // It generates a unique VXLAN ID and persists the VPC metadata to the database.
-func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*domain.VPC, error) {
+func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock, idempotencyKey string) (*domain.VPC, error) {
 	ctx, span := otel.Tracer("vpc-service").Start(ctx, "CreateVPC")
 	defer span.End()
 
@@ -82,6 +88,14 @@ func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*do
 
 	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcCreate, "*"); err != nil {
 		return nil, err
+	}
+
+	// Check if already created via idempotency key
+	if idempotencyKey != "" {
+		existing, err := s.repo.GetByIdempotencyKey(ctx, idempotencyKey)
+		if err == nil {
+			return existing, nil
+		}
 	}
 
 	span.SetAttributes(
@@ -102,10 +116,19 @@ func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*do
 	// 1. Generate unique VNI (for demo purposes we use a hash based int)
 	vxlanID := int(vpcID[0]) + 100
 
-	// 2. Create OVS bridge
-	bridgeName := fmt.Sprintf("br-vpc-%s", vpcID.String()[:8])
-	if err := s.network.CreateBridge(ctx, bridgeName, vxlanID); err != nil {
-		return nil, errors.Wrap(errors.Internal, "failed to create OVS bridge", err)
+	var bridgeName string
+	var bridgeCreated bool
+
+	// 2. Create OVS bridge (skipped for libvirt compute backend)
+	if s.computeBackend != "libvirt" {
+		if s.network == nil {
+			return nil, errors.New(errors.Internal, "network backend is required for VPC bridge creation")
+		}
+		bridgeName = fmt.Sprintf("br-vpc-%s", vpcID.String()[:8])
+		if err := s.network.CreateBridge(ctx, bridgeName, vxlanID); err != nil {
+			return nil, errors.Wrap(errors.Internal, "failed to create OVS bridge", err)
+		}
+		bridgeCreated = true
 	}
 
 	// 3. Construct ARN
@@ -113,23 +136,26 @@ func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*do
 
 	// 4. Persist to DB
 	vpc := &domain.VPC{
-		ID:        vpcID,
-		UserID:    userID,
-		TenantID:  tenantID,
-		Name:      name,
-		CIDRBlock: cidrBlock,
-		NetworkID: bridgeName,
-		VXLANID:   vxlanID,
-		Status:    "active",
-		ARN:       arn,
-		CreatedAt: time.Now(),
+		ID:             vpcID,
+		UserID:         userID,
+		TenantID:       tenantID,
+		Name:           name,
+		CIDRBlock:      cidrBlock,
+		NetworkID:      bridgeName,
+		VXLANID:        vxlanID,
+		Status:         "active",
+		ARN:            arn,
+		CreatedAt:      time.Now(),
+		IdempotencyKey: idempotencyKey,
 	}
 
 	if err := s.repo.Create(ctx, vpc); err != nil {
 		// Cleanup OVS bridge if DB fails
-		s.logger.Error("failed to create VPC in DB, rolling back bridge", "name", name, "error", err)
-		if rbErr := s.network.DeleteBridge(ctx, bridgeName); rbErr != nil {
-			s.logger.Error("failed to rollback bridge", "bridge", bridgeName, "error", rbErr)
+		if bridgeCreated {
+			s.logger.Error("failed to create VPC in DB, rolling back bridge", "name", name, "error", err)
+			if rbErr := s.network.DeleteBridge(ctx, bridgeName); rbErr != nil {
+				s.logger.Error("failed to rollback bridge", "bridge", bridgeName, "error", rbErr)
+			}
 		}
 		return nil, errors.Wrap(errors.Internal, "failed to create VPC in database", err)
 	}
@@ -153,7 +179,9 @@ func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*do
 			// Rollback: delete VPC
 			s.logger.Error("failed to create main route table, rolling back VPC", "error", err)
 			_ = s.repo.Delete(ctx, vpc.ID)
-			_ = s.network.DeleteBridge(ctx, bridgeName)
+			if bridgeCreated {
+				_ = s.network.DeleteBridge(ctx, bridgeName)
+			}
 			return nil, errors.Wrap(errors.Internal, "failed to create main route table", err)
 		}
 	}
@@ -197,6 +225,38 @@ func (s *VpcService) ListVPCs(ctx context.Context) ([]*domain.VPC, error) {
 	return s.repo.List(ctx)
 }
 
+// UpdateVPC modifies an existing VPC's name.
+func (s *VpcService) UpdateVPC(ctx context.Context, idOrName, name string) (*domain.VPC, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcUpdate, idOrName); err != nil {
+		return nil, err
+	}
+
+	vpc, err := s.GetVPC(ctx, idOrName)
+	if err != nil {
+		return nil, err
+	}
+
+	vpc.Name = name
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New(errors.InvalidInput, "name cannot be empty or whitespace")
+	}
+	if err := s.repo.Update(ctx, vpc); err != nil {
+		return nil, err
+	}
+
+	if err := s.auditSvc.Log(ctx, vpc.UserID, "vpc.update", "vpc", vpc.ID.String(), map[string]interface{}{
+		"name": vpc.Name,
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "action", "vpc.update", "vpc_id", vpc.ID, "error", err)
+	}
+
+	s.logger.Info("vpc updated", "id", vpc.ID, "name", name)
+	return vpc, nil
+}
+
 // DeleteVPC removes a VPC, its associated OVS bridge, and all related database records.
 // If force is true, dependency checks are skipped (for async cleanup scenarios).
 func (s *VpcService) DeleteVPC(ctx context.Context, idOrName string, force bool) error {
@@ -224,12 +284,14 @@ func (s *VpcService) DeleteVPC(ctx context.Context, idOrName string, force bool)
 		}
 	}
 
-	// 2. Remove OVS bridge
-	if err := s.network.DeleteBridge(ctx, vpc.NetworkID); err != nil {
-		s.logger.Error("failed to remove OVS bridge", "bridge", vpc.NetworkID, "error", err)
-		return errors.Wrap(errors.Internal, "failed to remove OVS bridge", err)
+	// 2. Remove OVS bridge (skip for libvirt where NetworkID is empty)
+	if vpc.NetworkID != "" {
+		if err := s.network.DeleteBridge(ctx, vpc.NetworkID); err != nil {
+			s.logger.Error("failed to remove OVS bridge", "bridge", vpc.NetworkID, "error", err)
+			return errors.Wrap(errors.Internal, "failed to remove OVS bridge", err)
+		}
+		s.logger.Info("vpc bridge removed", "bridge", vpc.NetworkID)
 	}
-	s.logger.Info("vpc bridge removed", "bridge", vpc.NetworkID)
 
 	// 3. Delete from DB
 	if err := s.repo.Delete(ctx, vpc.ID); err != nil {

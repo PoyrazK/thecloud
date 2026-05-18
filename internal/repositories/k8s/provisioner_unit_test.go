@@ -46,7 +46,7 @@ func (m *mockSGSvc) ListGroups(ctx context.Context, v uuid.UUID) ([]*domain.Secu
 	return nil, nil
 }
 func (m *mockSGSvc) DeleteGroup(ctx context.Context, id uuid.UUID) error { return nil }
-func (m *mockSGSvc) AddRule(ctx context.Context, sgID uuid.UUID, r domain.SecurityRule) (*domain.SecurityRule, error) {
+func (m *mockSGSvc) AddRule(ctx context.Context, idOrName string, r domain.SecurityRule) (*domain.SecurityRule, error) {
 	return nil, nil
 }
 func (m *mockSGSvc) RemoveRule(ctx context.Context, ruleID uuid.UUID) error               { return nil }
@@ -188,7 +188,7 @@ func TestKubeadmProvisionerUpgrade(t *testing.T) {
 
 	mockRepo.On("GetNodes", ctx, cluster.ID).Return(nodes, nil).Once()
 	mockInst.On("GetInstance", ctx, nodes[0].InstanceID.String()).Return(inst, nil).Once()
-	mockInst.On("ListInstances", ctx).Return([]*domain.Instance{inst}, nil).Once()
+	mockInst.On("ListInstances", ctx, mock.Anything).Return([]*domain.Instance{inst}, nil).Once()
 	mockInst.On("Exec", ctx, inst.ID.String(), mock.Anything).Return("success", nil)
 
 	err := p.Upgrade(ctx, cluster, "v1.29.0")

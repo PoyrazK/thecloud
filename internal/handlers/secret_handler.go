@@ -2,10 +2,13 @@
 package httphandlers
 
 import (
+	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/httputil"
@@ -55,18 +58,47 @@ func (h *SecretHandler) List(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, secrets)
 }
 
+func (h *SecretHandler) resolveShortID(ctx context.Context, idStr string) (uuid.UUID, error) {
+	// First try as full UUID
+	if id, err := uuid.Parse(idStr); err == nil {
+		return id, nil
+	}
+
+	// Then try by name
+	if secret, err := h.svc.GetSecretByName(ctx, idStr); err == nil {
+		return secret.ID, nil
+	}
+
+	// Then try short ID prefix match
+	secrets, err := h.svc.ListSecrets(ctx)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	idStrLower := strings.ToLower(idStr)
+	var candidates []*domain.Secret
+	for _, s := range secrets {
+		if strings.HasPrefix(s.ID.String(), idStr) || strings.HasPrefix(strings.ToLower(s.Name), idStrLower) {
+			candidates = append(candidates, s)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return uuid.Nil, errors.New(errors.NotFound, "secret not found")
+	}
+	if len(candidates) > 1 {
+		return uuid.Nil, errors.New(errors.InvalidInput, "ambiguous secret identifier")
+	}
+
+	return candidates[0].ID, nil
+}
+
 func (h *SecretHandler) Get(c *gin.Context) {
 	idStr := c.Param("id")
 
-	id, err := uuid.Parse(idStr)
+	id, err := h.resolveShortID(c.Request.Context(), idStr)
 	if err != nil {
-		// Try by name if not UUID
-		secret, err := h.svc.GetSecretByName(c.Request.Context(), idStr)
-		if err != nil {
-			httputil.Error(c, err)
-			return
-		}
-		httputil.Success(c, http.StatusOK, secret)
+		httputil.Error(c, err)
 		return
 	}
 
@@ -81,15 +113,11 @@ func (h *SecretHandler) Get(c *gin.Context) {
 
 func (h *SecretHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
+
+	id, err := h.resolveShortID(c.Request.Context(), idStr)
 	if err != nil {
-		// Try by name
-		secret, err := h.svc.GetSecretByName(c.Request.Context(), idStr)
-		if err != nil {
-			httputil.Error(c, err)
-			return
-		}
-		id = secret.ID
+		httputil.Error(c, err)
+		return
 	}
 
 	if err := h.svc.DeleteSecret(c.Request.Context(), id); err != nil {

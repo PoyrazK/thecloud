@@ -19,6 +19,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// noopDB returns a nil transaction. Benchmarks do not exercise transactional paths
+// so this is safe — the nil transaction is never used by repo methods in benchmark scenarios.
+type noopDB struct{}
+
+func (noopDB) Begin(ctx context.Context) (services.Transaction, error) { return nil, nil }
+
 func BenchmarkInstanceServiceList(b *testing.B) {
 	tenantID := uuid.New()
 	for _, size := range []int{10, 100, 1000} {
@@ -44,7 +50,7 @@ func BenchmarkInstanceServiceList(b *testing.B) {
 		b.Run(fmt.Sprintf("records=%d", size), func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				instances, _ := svc.ListInstances(ctx)
+				instances, _ := svc.ListInstances(ctx, nil)
 				if len(instances) != size {
 					b.Fatalf("expected %d instances, got %d", size, len(instances))
 				}
@@ -228,7 +234,7 @@ type benchInstanceRepository struct {
 	instances []*domain.Instance
 }
 
-func (r *benchInstanceRepository) List(ctx context.Context) ([]*domain.Instance, error) {
+func (r *benchInstanceRepository) List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
 	instances := make([]*domain.Instance, len(r.instances))
 	copy(instances, r.instances)
 	return instances, nil
@@ -311,7 +317,7 @@ func BenchmarkAuthServiceLoginParallel(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	tenantSvc := &NoopTenantService{}
 
-	svc := services.NewAuthService(userRepo, idSvc, auditSvc, tenantSvc, slog.Default())
+	svc := services.NewAuthService(userRepo, idSvc, auditSvc, tenantSvc, noopDB{}, slog.Default())
 
 	ctx := context.Background()
 	email := "admin@thecloud.local"
@@ -470,7 +476,7 @@ func BenchmarkAuthServiceRegister(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	tenantSvc := &NoopTenantService{}
 
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc, tenantSvc, slog.Default())
+	svc := services.NewAuthService(userRepo, identitySvc, auditSvc, tenantSvc, noopDB{}, slog.Default())
 
 	ctx := context.Background()
 
@@ -513,7 +519,7 @@ func BenchmarkAuthServiceLogin(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	tenantSvc := &NoopTenantService{}
 
-	svc := services.NewAuthService(userRepo, identitySvc, auditSvc, tenantSvc, slog.Default())
+	svc := services.NewAuthService(userRepo, identitySvc, auditSvc, tenantSvc, noopDB{}, slog.Default())
 
 	ctx := context.Background()
 

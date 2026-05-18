@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/httputil"
 )
 
@@ -68,7 +69,7 @@ func (h *InternetGatewayHandler) Get(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		httputil.Error(c, err)
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid internet gateway id"))
 		return
 	}
 
@@ -102,7 +103,7 @@ func (h *InternetGatewayHandler) Attach(c *gin.Context) {
 	idStr := c.Param("id")
 	igwID, err := uuid.Parse(idStr)
 	if err != nil {
-		httputil.Error(c, err)
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid internet gateway id"))
 		return
 	}
 
@@ -133,7 +134,7 @@ func (h *InternetGatewayHandler) Detach(c *gin.Context) {
 	idStr := c.Param("id")
 	igwID, err := uuid.Parse(idStr)
 	if err != nil {
-		httputil.Error(c, err)
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid internet gateway id"))
 		return
 	}
 
@@ -158,7 +159,7 @@ func (h *InternetGatewayHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	igwID, err := uuid.Parse(idStr)
 	if err != nil {
-		httputil.Error(c, err)
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid internet gateway id"))
 		return
 	}
 

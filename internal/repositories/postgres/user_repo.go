@@ -1,17 +1,25 @@
 // Package postgres implements the PostgreSQL repositories.
-// Package postgres provides PostgreSQL-backed repository implementations.
 package postgres
 
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/poyrazk/thecloud/internal/core"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	internalerrors "github.com/poyrazk/thecloud/internal/errors"
 )
+
+// txCapableDB is implemented by both pgx.Tx and DB (pgxpool.Pool/DualDB).
+// This allows repos to check context for a transaction and use it transparently.
+type txCapableDB interface {
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
 
 // UserRepo provides PostgreSQL-backed user persistence.
 type UserRepo struct {
@@ -23,12 +31,20 @@ func NewUserRepo(db DB) *UserRepo {
 	return &UserRepo{db: db}
 }
 
+// getDB returns the underlying DB, or a transaction from context if present.
+func (r *UserRepo) getDB(ctx context.Context) txCapableDB {
+	if tx := core.TransactionFromContext(ctx); tx != nil {
+		return tx.(pgx.Tx)
+	}
+	return r.db
+}
+
 func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 	query := `
 		INSERT INTO users (id, email, password_hash, name, role, default_tenant_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	_, err := r.db.Exec(ctx, query,
+	_, err := r.getDB(ctx).Exec(ctx, query,
 		user.ID,
 		user.Email,
 		user.PasswordHash,
@@ -39,7 +55,7 @@ func (r *UserRepo) Create(ctx context.Context, user *domain.User) error {
 		user.UpdatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create user: %w", err)
+		return internalerrors.Wrap(internalerrors.Internal, "failed to create user", err)
 	}
 	return nil
 }
@@ -50,7 +66,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*domain.User, 
 		FROM users
 		WHERE email = $1
 	`
-	return r.scanUser(r.db.QueryRow(ctx, query, email))
+	return r.scanUser(r.getDB(ctx).QueryRow(ctx, query, email))
 }
 
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
@@ -59,7 +75,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, err
 		FROM users
 		WHERE id = $1
 	`
-	return r.scanUser(r.db.QueryRow(ctx, query, id))
+	return r.scanUser(r.getDB(ctx).QueryRow(ctx, query, id))
 }
 
 func (r *UserRepo) Update(ctx context.Context, user *domain.User) error {
@@ -68,7 +84,7 @@ func (r *UserRepo) Update(ctx context.Context, user *domain.User) error {
 		SET email = $1, password_hash = $2, name = $3, role = $4, default_tenant_id = $5, updated_at = $6
 		WHERE id = $7
 	`
-	_, err := r.db.Exec(ctx, query,
+	_, err := r.getDB(ctx).Exec(ctx, query,
 		user.Email,
 		user.PasswordHash,
 		user.Name,
@@ -78,7 +94,7 @@ func (r *UserRepo) Update(ctx context.Context, user *domain.User) error {
 		user.ID,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to update user: %w", err)
+		return internalerrors.Wrap(internalerrors.Internal, "failed to update user", err)
 	}
 	return nil
 }
@@ -89,9 +105,9 @@ func (r *UserRepo) List(ctx context.Context) ([]*domain.User, error) {
 		FROM users
 		ORDER BY created_at DESC
 	`
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.getDB(ctx).Query(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list users: %w", err)
+		return nil, internalerrors.Wrap(internalerrors.Internal, "failed to list users", err)
 	}
 	return r.scanUsers(rows)
 }
@@ -101,9 +117,9 @@ func (r *UserRepo) Delete(ctx context.Context, id uuid.UUID) error {
 		DELETE FROM users
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, query, id)
+	_, err := r.getDB(ctx).Exec(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete user: %w", err)
+		return internalerrors.Wrap(internalerrors.Internal, "failed to delete user", err)
 	}
 	return nil
 }

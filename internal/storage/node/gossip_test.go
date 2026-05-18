@@ -21,7 +21,7 @@ const (
 
 func TestGossipProtocolAddPeer(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	g.AddPeer("node2", testNode2Addr)
 
@@ -33,7 +33,7 @@ func TestGossipProtocolAddPeer(t *testing.T) {
 
 func TestGossipProtocolOnGossip(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	// Update coming from node2 about node3
 	msg := &pb.GossipMessage{
@@ -76,7 +76,7 @@ func TestGossipProtocolOnGossip(t *testing.T) {
 
 func TestGossipProtocolOnGossipIgnoresOlderHeartbeat(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	g.members["node2"] = &MemberState{
 		Address:   testNode2Addr,
@@ -104,7 +104,7 @@ func TestGossipProtocolOnGossipIgnoresOlderHeartbeat(t *testing.T) {
 
 func TestGossipProtocolDetectFailures(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	// Add a node that was seen long ago
 	g.members["node2"] = &MemberState{
@@ -142,7 +142,7 @@ func newFakeGRPCConn(t *testing.T) *grpc.ClientConn {
 
 func TestGossipProtocolDetectFailuresClosesPeerConnOnDead(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	conn := newFakeGRPCConn(t)
 	g.members["node2"] = &MemberState{
@@ -163,7 +163,7 @@ func TestGossipProtocolDetectFailuresClosesPeerConnOnDead(t *testing.T) {
 
 func TestGossipProtocolDetectFailuresPurgesDeadMembers(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	g.members["node2"] = &MemberState{
 		Address:  testNode2Addr,
@@ -182,7 +182,7 @@ func TestGossipProtocolDetectFailuresPurgesDeadMembers(t *testing.T) {
 
 func TestGossipProtocolStopClosesAllPeers(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	conn1 := newFakeGRPCConn(t)
 	conn2 := newFakeGRPCConn(t)
@@ -199,7 +199,7 @@ func TestGossipProtocolStopClosesAllPeers(t *testing.T) {
 
 func TestGossipProtocolStopIsIdempotent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	g.Stop()
 	// Second call must not panic on close-of-closed-channel.
@@ -208,7 +208,7 @@ func TestGossipProtocolStopIsIdempotent(t *testing.T) {
 
 func TestGossipProtocolOnGossipIgnoresDeadResurrection(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	// Locally we already consider node2 dead.
 	g.members["node2"] = &MemberState{
@@ -235,7 +235,7 @@ func TestGossipProtocolOnGossipIgnoresDeadResurrection(t *testing.T) {
 
 func TestGossipProtocolOnGossipDoesNotDiscoverDeadNode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	msg := &pb.GossipMessage{
 		Members: map[string]*pb.MemberState{
@@ -252,7 +252,7 @@ func TestGossipProtocolOnGossipDoesNotDiscoverDeadNode(t *testing.T) {
 
 func TestGossipProtocolHeartbeatOverflowResets(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	g.mu.Lock()
 	g.members["node1"].Heartbeat = math.MaxUint64
@@ -269,7 +269,7 @@ func TestGossipProtocolHeartbeatOverflowResets(t *testing.T) {
 
 func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	now := time.Now()
 	g.mu.Lock()
@@ -283,8 +283,8 @@ func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 
 	// Remote node rebooted — its heartbeat wrapped to 1, message timestamp is now
 	olderMsg := &pb.GossipMessage{
-		SenderId:   "node2",
-		Timestamp:  now.Add(-1 * time.Second).Unix(), // older than our LastSeen
+		SenderId:  "node2",
+		Timestamp: now.Add(-1 * time.Second).Unix(), // older than our LastSeen
 		Members: map[string]*pb.MemberState{
 			"node2": {Addr: testNode2Addr, Status: "alive", Heartbeat: 1},
 		},
@@ -298,8 +298,8 @@ func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 
 	// Newer message with wrapped heartbeat should win
 	newerMsg := &pb.GossipMessage{
-		SenderId:   "node2",
-		Timestamp:  now.Add(1 * time.Second).Unix(), // newer than our LastSeen
+		SenderId:  "node2",
+		Timestamp: now.Add(1 * time.Second).Unix(), // newer than our LastSeen
 		Members: map[string]*pb.MemberState{
 			"node2": {Addr: testNode2Addr, Status: "alive", Heartbeat: 1},
 		},
@@ -316,7 +316,7 @@ func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 
 func TestGossipProtocolDetectFailuresCleansOrphanedPeer(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
 
 	// Seed an orphaned peer — in peers but not in members
 	// (simulates a peer that was added via AddPeer but whose member entry

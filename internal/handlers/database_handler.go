@@ -175,6 +175,43 @@ func (h *DatabaseHandler) Start(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, gin.H{"message": "database started"})
 }
 
+// ResizeDatabaseRequest is the payload for resizing database storage.
+type ResizeDatabaseRequest struct {
+	AllocatedStorage int `json:"allocated_storage" binding:"required,min=1"`
+}
+
+// Resize resizes the allocated storage for a database
+// @Summary Resize database storage
+// @Description Increases the allocated storage capacity of a database instance
+// @Tags databases
+// @Accept json
+// @Produce json
+// @Security APIKeyAuth
+// @Param id path string true "Database ID"
+// @Param request body ResizeDatabaseRequest true "Resize request"
+// @Success 200 {object} httputil.Response
+// @Failure 400 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Failure 500 {object} httputil.Response
+// @Router /databases/{id}/resize [post]
+func (h *DatabaseHandler) Resize(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, invalidDatabaseIDMsg))
+		return
+	}
+	var req ResizeDatabaseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid request body"))
+		return
+	}
+	if err := h.svc.ResizeDatabase(c.Request.Context(), id, req.AllocatedStorage); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, gin.H{"message": "database resized", "allocated_storage": req.AllocatedStorage})
+}
+
 // ModifyDatabaseRequest is the payload for updating a database.
 type ModifyDatabaseRequest struct {
 	Parameters       map[string]string `json:"parameters"`

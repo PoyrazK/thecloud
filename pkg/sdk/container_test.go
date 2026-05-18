@@ -62,7 +62,7 @@ func TestClientListDeployments(t *testing.T) {
 		assert.Equal(t, http.MethodGet, r.Method)
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(expectedDeps)
+		_ = json.NewEncoder(w).Encode(Response[[]Deployment]{Data: expectedDeps})
 	}))
 	defer server.Close()
 

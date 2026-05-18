@@ -39,3 +39,9 @@ type UserPolicy struct {
 	UserID   uuid.UUID `json:"user_id"`
 	PolicyID uuid.UUID `json:"policy_id"`
 }
+
+// RolePolicy maps a policy to an RBAC role.
+type RolePolicy struct {
+	RoleName string    `json:"role_name"`
+	PolicyID uuid.UUID `json:"policy_id"`
+}

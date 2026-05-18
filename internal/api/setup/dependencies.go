@@ -3,8 +3,11 @@ package setup
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -25,6 +28,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/workers"
 	redisv9 "github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -71,6 +75,7 @@ type Repositories struct {
 	ElasticIP        ports.ElasticIPRepository
 	Log              ports.LogRepository
 	IAM              ports.IAMRepository
+	ServiceAccount   ports.ServiceAccountRepository
 	Pipeline         ports.PipelineRepository
 	VPCPeering       ports.VPCPeeringRepository
 	RouteTable       ports.RouteTableRepository
@@ -238,7 +243,7 @@ func InitServices(c ServiceConfig) (*Services, *Workers, error) {
 	auditSvc := services.NewAuditService(services.AuditServiceParams{Repo: c.Repos.Audit, RBACSvc: rbacSvc, Logger: c.Logger})
 	identitySvc := initIdentityServices(c, rbacSvc, auditSvc)
 	tenantSvc := services.NewTenantService(services.TenantServiceParams{Repo: c.Repos.Tenant, UserRepo: c.Repos.User, RBACSvc: rbacSvc, Logger: c.Logger})
-	authSvc := services.NewAuthService(c.Repos.User, identitySvc, auditSvc, tenantSvc, c.Logger)
+	authSvc := services.NewAuthService(c.Repos.User, identitySvc, auditSvc, tenantSvc, c.DB, c.Logger)
 	pwdResetSvc := services.NewPasswordResetService(c.Repos.PasswordReset, c.Repos.User, c.Logger)
 
 	// 2. WebSocket & Core Infrastructure
@@ -247,7 +252,7 @@ func InitServices(c ServiceConfig) (*Services, *Workers, error) {
 	eventSvc := services.NewEventService(services.EventServiceParams{Repo: c.Repos.Event, RBACSvc: rbacSvc, Publisher: wsHub, Logger: c.Logger})
 
 	// 3. Cloud Infrastructure Services (VPC, Subnet, Instance, Volume, SG, LB)
-	vpcSvc := services.NewVpcService(services.VpcServiceParams{Repo: c.Repos.Vpc, LBRepo: c.Repos.LB, PeeringRepo: c.Repos.VPCPeering, AsRepo: c.Repos.AutoScaling, RBACSvc: rbacSvc, Network: c.Network, AuditSvc: auditSvc, Logger: c.Logger, DefaultCIDR: c.Config.DefaultVPCCIDR})
+	vpcSvc := services.NewVpcService(services.VpcServiceParams{Repo: c.Repos.Vpc, LBRepo: c.Repos.LB, PeeringRepo: c.Repos.VPCPeering, AsRepo: c.Repos.AutoScaling, RBACSvc: rbacSvc, Network: c.Network, AuditSvc: auditSvc, Logger: c.Logger, DefaultCIDR: c.Config.DefaultVPCCIDR, ComputeBackend: c.Config.ComputeBackend})
 	subnetSvc := services.NewSubnetService(services.SubnetServiceParams{Repo: c.Repos.Subnet, RBACSvc: rbacSvc, VpcRepo: c.Repos.Vpc, AuditSvc: auditSvc, Logger: c.Logger})
 	volumeSvc := services.NewVolumeService(services.VolumeServiceParams{Repo: c.Repos.Volume, RBACSvc: rbacSvc, Storage: c.Storage, EventSvc: eventSvc, AuditSvc: auditSvc, Logger: c.Logger})
 
@@ -401,20 +406,59 @@ func InitServices(c ServiceConfig) (*Services, *Workers, error) {
 }
 
 func initIdentityServices(c ServiceConfig, rbacSvc ports.RBACService, audit ports.AuditService) ports.IdentityService {
-	base := services.NewIdentityService(services.IdentityServiceParams{Repo: c.Repos.Identity, RbacSvc: rbacSvc, AuditSvc: audit, Logger: c.Logger})
+	tokenTTL := time.Duration(c.Config.ServiceAccountTokenTTL) * time.Second
+	if tokenTTL == 0 {
+		tokenTTL = time.Hour
+	}
+	base := services.NewIdentityService(services.IdentityServiceParams{Repo: c.Repos.Identity, SARepo: c.Repos.ServiceAccount, RbacSvc: rbacSvc, AuditSvc: audit, Logger: c.Logger, TokenTTL: tokenTTL})
 	return services.NewCachedIdentityService(base, c.RDB, c.Logger)
 }
 
 func initRBACServices(c ServiceConfig) ports.RBACService {
 	iamRepo := c.Repos.IAM
 	evaluator := services.NewIAMEvaluator()
-	base := services.NewRBACService(services.RBACServiceParams{UserRepo: c.Repos.User, RoleRepo: c.Repos.RBAC, TenantRepo: c.Repos.Tenant, IAMRepo: iamRepo, Evaluator: evaluator, Logger: c.Logger})
-	return services.NewCachedRBACService(base, c.RDB, c.Logger)
+	base := services.NewRBACService(services.RBACServiceParams{UserRepo: c.Repos.User, RoleRepo: c.Repos.RBAC, TenantRepo: c.Repos.Tenant, IAMRepo: iamRepo, Evaluator: evaluator, Logger: c.Logger, SARepo: c.Repos.ServiceAccount})
+	return services.NewCachedRBACService(base, c.Repos.ServiceAccount, c.RDB, c.Logger)
+}
+
+func buildStorageDialOpts(cfg *platform.Config) ([]grpc.DialOption, error) {
+	if cfg.StorageTLSEnabled {
+		cert, err := tls.LoadX509KeyPair(cfg.StorageTLSCertFile, cfg.StorageTLSKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load storage TLS cert: %w", err)
+		}
+		tlsCfg := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS13,
+		}
+		if cfg.StorageTLSCACertFile != "" {
+			caCert, err := os.ReadFile(cfg.StorageTLSCACertFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read storage TLS CA cert: %w", err)
+			}
+			caPool := x509.NewCertPool()
+			if !caPool.AppendCertsFromPEM(caCert) {
+				return nil, fmt.Errorf("failed to parse storage TLS CA cert PEM from %s", cfg.StorageTLSCACertFile)
+			}
+			tlsCfg.RootCAs = caPool
+		}
+		if cfg.StorageTLSSkipVerify {
+			tlsCfg.InsecureSkipVerify = true
+		}
+		creds := credentials.NewTLS(tlsCfg)
+		return []grpc.DialOption{grpc.WithTransportCredentials(creds)}, nil
+	}
+	return []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, nil
 }
 
 func initStorageServices(c ServiceConfig, rbacSvc ports.RBACService, audit ports.AuditService, encryption ports.EncryptionService) (ports.StorageService, ports.FileStore, error) {
 	var fileStore ports.FileStore
 	var err error
+
+	dialOpts, err := buildStorageDialOpts(c.Config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build storage dial options: %w", err)
+	}
 
 	if c.Config.ObjectStorageMode == "distributed" {
 		c.Logger.Info("initializing distributed storage backend")
@@ -429,7 +473,7 @@ func initStorageServices(c ServiceConfig, rbacSvc ports.RBACService, audit ports
 			}
 			nodeID := fmt.Sprintf("node-%d", i+1)
 
-			conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			conn, err := grpc.NewClient(addr, dialOpts...)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to connect to storage node %s: %w", addr, err)
 			}

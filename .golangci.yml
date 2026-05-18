@@ -1,4 +1,3 @@
-
 run:
   timeout: 5m
 
@@ -50,12 +49,6 @@ linters-settings:
 
 issues:
   exclude-rules:
-    - path: cmd/thecloud
-      linters:
-        - errcheck
-    - path: pkg/sdk
-      linters:
-        - errcheck
     - path: internal/handlers/ws
       linters:
         - errcheck
@@ -66,3 +59,7 @@ issues:
       linters:
         - unparam
       text: "MockInstanceService|MockRBACService"
+    - path: internal/core/services/gateway\.go
+      linters:
+        - nolintlint
+      text: "directive.*unused.*bodyclose"

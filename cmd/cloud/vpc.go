@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -97,9 +98,41 @@ var vpcRmCmd = &cobra.Command{
 	},
 }
 
+var vpcShowCmd = &cobra.Command{
+	Use:   "show [id/name]",
+	Short: "Show VPC details",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		client := createClient(opts)
+		vpc, err := client.GetVPC(id)
+		if err != nil {
+			fmt.Printf(vpcErrorFormat, err)
+			return
+		}
+
+		if opts.JSON {
+			printJSON(vpc)
+			return
+		}
+
+		fmt.Print("\nVPC Details\n")
+		fmt.Println(strings.Repeat("-", 40))
+		fmt.Printf(fmtDetailRow, "ID:", vpc.ID)
+		fmt.Printf(fmtDetailRow, "Name:", vpc.Name)
+		fmt.Printf(fmtDetailRow, "CIDR:", vpc.CIDRBlock)
+		fmt.Printf(fmtDetailRow, "VXLAN ID:", fmt.Sprintf("%d", vpc.VXLANID))
+		fmt.Printf(fmtDetailRow, "Network ID:", vpc.NetworkID)
+		fmt.Printf(fmtDetailRow, "Status:", vpc.Status)
+		fmt.Printf(fmtDetailRow, "Created At:", vpc.CreatedAt.Format("2006-01-02 15:04:05"))
+		fmt.Println()
+	},
+}
+
 func init() {
 	vpcCreateCmd.Flags().String("cidr-block", "10.0.0.0/16", "CIDR block for the VPC")
 	vpcCmd.AddCommand(vpcListCmd)
 	vpcCmd.AddCommand(vpcCreateCmd)
 	vpcCmd.AddCommand(vpcRmCmd)
+	vpcCmd.AddCommand(vpcShowCmd)
 }

@@ -94,6 +94,7 @@ func testDatabaseServiceUnitExtended(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("CreateDatabase_Success", func(t *testing.T) {
+		mockCompute.On("Type").Return("docker").Maybe()
 		mockVolumeSvc.On("CreateVolume", mock.Anything, mock.Anything, 20).
 			Return(&domain.Volume{ID: uuid.New(), Name: "db-vol"}, nil).Once()
 
@@ -949,6 +950,7 @@ func testDatabaseServiceUnitRepoErrors(t *testing.T) {
 
 	t.Run("PromoteToPrimary_NotFound", func(t *testing.T) {
 		dbID := uuid.New()
+		mockCompute.On("Type").Return("docker").Maybe()
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(nil, errors.New(errors.NotFound, "not found")).Once()
 
 		err := svc.PromoteToPrimary(ctx, dbID)
@@ -957,6 +959,7 @@ func testDatabaseServiceUnitRepoErrors(t *testing.T) {
 
 	t.Run("PromoteToPrimary_AlreadyPrimary", func(t *testing.T) {
 		dbID := uuid.New()
+		mockCompute.On("Type").Return("docker").Maybe()
 		db := &domain.Database{ID: dbID, Role: domain.RolePrimary, Engine: domain.EnginePostgres, ContainerID: "cid"}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(db, nil).Once()
 
@@ -967,6 +970,7 @@ func testDatabaseServiceUnitRepoErrors(t *testing.T) {
 
 	t.Run("PromoteToPrimary_UnsupportedEngine", func(t *testing.T) {
 		dbID := uuid.New()
+		mockCompute.On("Type").Return("docker").Maybe()
 		db := &domain.Database{ID: dbID, Role: domain.RoleReplica, Engine: domain.DatabaseEngine("oracle"), ContainerID: "cid"}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(db, nil).Once()
 
@@ -977,6 +981,7 @@ func testDatabaseServiceUnitRepoErrors(t *testing.T) {
 
 	t.Run("PromoteToPrimary_ExecError", func(t *testing.T) {
 		dbID := uuid.New()
+		mockCompute.On("Type").Return("docker").Maybe()
 		db := &domain.Database{ID: dbID, Role: domain.RoleReplica, Engine: domain.EnginePostgres, ContainerID: "cid", Username: "user"}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(db, nil).Once()
 		mockCompute.On("Exec", mock.Anything, "cid", []string{"touch", "/var/lib/postgresql/data/promote"}).Return("", fmt.Errorf("exec error")).Once()
@@ -1156,10 +1161,13 @@ func testDatabaseServiceUnitValidationErrors(t *testing.T) {
 	mockRBAC.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	defer mock.AssertExpectationsForObjects(t, mockRBAC)
 
+	mockCompute := new(MockComputeBackend)
+	mockCompute.On("Type").Return("docker").Maybe()
+
 	svc := services.NewDatabaseService(services.DatabaseServiceParams{
 		Repo:         new(DatabaseUnitMockRepo),
 		RBAC:         mockRBAC,
-		Compute:      new(MockComputeBackend),
+		Compute:      mockCompute,
 		VpcRepo:      new(MockVpcRepo),
 		VolumeSvc:    new(MockVolumeService),
 		SnapshotSvc:  new(mockSnapshotService),

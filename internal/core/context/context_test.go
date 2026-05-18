@@ -58,3 +58,29 @@ func TestTenantIDContext(t *testing.T) {
 		assert.Equal(t, uuid.Nil, tenantID)
 	})
 }
+
+func TestSourceIPContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		expected string
+	}{
+		{
+			name:     "Extract from empty context",
+			ctx:      context.Background(),
+			expected: "",
+		},
+		{
+			name:     "Set and extract",
+			ctx:      appcontext.WithSourceIP(context.Background(), "192.168.1.100"),
+			expected: "192.168.1.100",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := appcontext.SourceIPFromContext(tc.ctx)
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}

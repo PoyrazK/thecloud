@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/poyrazk/thecloud/pkg/sdk"
 )
 
 const (
@@ -108,5 +110,43 @@ func TestDeleteCronCmd(t *testing.T) {
 	})
 	if !strings.Contains(out, "Job deleted") {
 		t.Fatalf("expected success output, got: %s", out)
+	}
+}
+
+func TestResolveCronJobIDByName(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cron/jobs" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(sdk.Response[[]sdk.CronJob]{
+			Data: []sdk.CronJob{
+				{ID: "uuid-456", Name: "nightly-backup", Status: "active"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := sdk.NewClient(server.URL, "test-key")
+	resolved := resolveCronJobID("nightly-backup", client)
+	if resolved != "uuid-456" {
+		t.Fatalf("expected uuid-456, got %s", resolved)
+	}
+}
+
+func TestResolveCronJobIDByUUID(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound) // Should not be called
+	}))
+	defer server.Close()
+
+	client := sdk.NewClient(server.URL, "test-key")
+	id := "abc123-def456"
+	resolved := resolveCronJobID(id, client)
+	if resolved != id {
+		t.Fatalf("expected %s, got %s", id, resolved)
 	}
 }

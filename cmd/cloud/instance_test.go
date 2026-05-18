@@ -236,7 +236,7 @@ func TestStatsCmdRequiresOneArg(t *testing.T) {
 func TestInstanceCmdHasSubcommands(t *testing.T) {
 	subcommands := instanceCmd.Commands()
 
-	expectedCommands := []string{"list", "launch", "stop", "logs", "show", "rm", "stats"}
+	expectedCommands := []string{"list", "launch", "stop", "logs", "show", "rm", "resize", "stats"}
 	found := make(map[string]bool)
 
 	for _, cmd := range subcommands {
@@ -247,6 +247,27 @@ func TestInstanceCmdHasSubcommands(t *testing.T) {
 		if !found[expected] {
 			t.Errorf("instance command missing subcommand: %s", expected)
 		}
+	}
+}
+
+func TestResizeCmdRequiresTwoArgs(t *testing.T) {
+	if resizeCmd.Args == nil {
+		t.Fatal("resize command should require args")
+	}
+
+	err := resizeCmd.Args(resizeCmd, []string{})
+	if err == nil {
+		t.Error("resize command should error with no args")
+	}
+
+	err = resizeCmd.Args(resizeCmd, []string{"id1"})
+	if err == nil {
+		t.Error("resize command should error with only 1 arg")
+	}
+
+	err = resizeCmd.Args(resizeCmd, []string{"id1", "basic-4"})
+	if err != nil {
+		t.Errorf("resize command should accept 2 args, got error: %v", err)
 	}
 }
 

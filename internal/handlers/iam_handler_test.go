@@ -17,10 +17,11 @@ import (
 
 func setupIAMHandlerTest() (*mocks.IAMService, *IAMHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
-	svc := new(mocks.IAMService)
-	handler := NewIAMHandler(svc)
+	iamSvc := new(mocks.IAMService)
+	identitySvc := new(mockIdentityService)
+	handler := NewIAMHandler(iamSvc, identitySvc)
 	r := gin.New()
-	return svc, handler, r
+	return iamSvc, handler, r
 }
 
 func TestIAMHandler_CreatePolicy(t *testing.T) {

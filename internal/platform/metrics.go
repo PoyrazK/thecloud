@@ -95,4 +95,10 @@ var (
 		Name: "thecloud_api_keys_active",
 		Help: "Total number of active API keys",
 	})
+
+	// Credential rotation metrics
+	CredentialCleanupFailures = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "thecloud_credential_cleanup_failures_total",
+		Help: "Total number of credential version cleanup failures in Vault",
+	})
 )

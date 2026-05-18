@@ -1,0 +1,1 @@
+ALTER TABLE functions DROP COLUMN IF EXISTS max_retries;

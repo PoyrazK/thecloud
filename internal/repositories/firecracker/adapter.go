@@ -23,7 +23,10 @@ const (
 )
 
 var (
-	idRegex = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
+	idRegex      = regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
+	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return firecracker.NewMachine(ctx, cfg, opts...)
+	}
 )
 
 // Config holds Firecracker specific configuration.
@@ -35,11 +38,20 @@ type Config struct {
 	MockMode   bool // If true, don't start real Firecracker process
 }
 
+// Machine defines the firecracker.Machine methods used by the adapter.
+// Implemented by *firecracker.Machine; satisfied by mock in tests.
+type Machine interface {
+	Start(ctx context.Context) error
+	Shutdown(ctx context.Context) error
+	StopVMM() error
+	Wait(ctx context.Context) error
+}
+
 // FirecrackerAdapter implements ports.ComputeBackend using Firecracker.
 type FirecrackerAdapter struct {
 	cfg      Config
 	logger   *slog.Logger
-	machines map[string]*firecracker.Machine
+	machines map[string]Machine
 	mu       sync.RWMutex
 }
 
@@ -55,7 +67,7 @@ func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter
 	return &FirecrackerAdapter{
 		cfg:      cfg,
 		logger:   logger,
-		machines: make(map[string]*firecracker.Machine),
+		machines: make(map[string]Machine),
 	}, nil
 }
 
@@ -103,7 +115,7 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 		WithSocketPath(socketPath).
 		Build(ctx)
 
-	m, err := firecracker.NewMachine(ctx, fcCfg, firecracker.WithProcessRunner(cmd))
+	m, err := newMachineFn(ctx, fcCfg, firecracker.WithProcessRunner(cmd))
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create machine: %w", err)
 	}
@@ -287,3 +299,7 @@ func (a *FirecrackerAdapter) RestoreSnapshot(ctx context.Context, id, name strin
 func (a *FirecrackerAdapter) DeleteSnapshot(ctx context.Context, id, name string) error {
 	return fmt.Errorf("snapshots not supported on firecracker")
 }
+
+// ResetCircuitBreaker is a no-op for the raw Firecracker adapter.
+// The circuit breaker lives in ResilientCompute wrapping this backend.
+func (a *FirecrackerAdapter) ResetCircuitBreaker() {}

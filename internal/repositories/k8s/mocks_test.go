@@ -30,12 +30,12 @@ func (m *mockInstanceService) LaunchInstanceWithOptions(ctx context.Context, opt
 	r0, _ := args.Get(0).(*domain.Instance)
 	return r0, args.Error(1)
 }
-func (m *mockInstanceService) StartInstance(ctx context.Context, idOrName string) error { return nil }
-func (m *mockInstanceService) StopInstance(ctx context.Context, idOrName string) error  { return nil }
-func (m *mockInstanceService) PauseInstance(ctx context.Context, idOrName string) error   { return nil }
+func (m *mockInstanceService) StartInstance(ctx context.Context, idOrName string) error  { return nil }
+func (m *mockInstanceService) StopInstance(ctx context.Context, idOrName string) error   { return nil }
+func (m *mockInstanceService) PauseInstance(ctx context.Context, idOrName string) error  { return nil }
 func (m *mockInstanceService) ResumeInstance(ctx context.Context, idOrName string) error { return nil }
-func (m *mockInstanceService) ListInstances(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *mockInstanceService) ListInstances(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -86,6 +86,20 @@ func (m *mockInstanceService) ResizeInstance(ctx context.Context, idOrName, newI
 		r0, _ = args.Get(0).(*domain.Instance)
 	}
 	return r0, args.Error(1)
+}
+func (m *mockInstanceService) GetTags(ctx context.Context, id uuid.UUID) (map[string]string, error) {
+	args := m.Called(ctx, id)
+	var r0 map[string]string
+	if args.Get(0) != nil {
+		r0, _ = args.Get(0).(map[string]string)
+	}
+	return r0, args.Error(1)
+}
+func (m *mockInstanceService) SetTags(ctx context.Context, id uuid.UUID, labels map[string]string) error {
+	return m.Called(ctx, id, labels).Error(0)
+}
+func (m *mockInstanceService) RemoveTag(ctx context.Context, id uuid.UUID, key string) error {
+	return m.Called(ctx, id, key).Error(0)
 }
 
 type mockClusterRepo struct{ mock.Mock }

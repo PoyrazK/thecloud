@@ -95,8 +95,10 @@ func (w *LifecycleWorker) processRule(ctx context.Context, rule *domain.Lifecycl
 			continue
 		}
 
-		// Check expiration
-		age := now.Sub(obj.CreatedAt)
+		// Check expiration. time.Sub is timezone-agnostic (operates on
+		// absolute instants), but converting CreatedAt to UTC explicitly
+		// keeps log lines and any future Format() calls in a single zone.
+		age := now.Sub(obj.CreatedAt.UTC())
 		if age > expiration {
 			logger.Info("expiring object", "key", obj.Key, "age_days", int(age.Hours()/24))
 			if err := w.storageSvc.DeleteObject(ruleCtx, rule.BucketName, obj.Key); err != nil {

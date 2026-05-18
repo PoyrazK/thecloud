@@ -41,7 +41,15 @@ func (c *Client) ListVPCPeerings() ([]VPCPeering, error) {
 }
 
 // GetVPCPeering retrieves details of a specific VPC peering connection.
-func (c *Client) GetVPCPeering(id string) (*VPCPeering, error) {
+// Note: VPC Peering resources don't have a Name field, so getName returns ID (matching by ID prefix only).
+func (c *Client) GetVPCPeering(idOrName string) (*VPCPeering, error) {
+	id, err := c.resolveID("vpc-peering", func() ([]interface{}, error) {
+		peerings, err := c.ListVPCPeerings()
+		return interfaceSlice(peerings), err
+	}, func(v interface{}) string { return v.(VPCPeering).ID }, func(v interface{}) string { return v.(VPCPeering).ID }, idOrName)
+	if err != nil {
+		return nil, err
+	}
 	var res Response[VPCPeering]
 	if err := c.get(fmt.Sprintf("/vpc-peerings/%s", id), &res); err != nil {
 		return nil, err

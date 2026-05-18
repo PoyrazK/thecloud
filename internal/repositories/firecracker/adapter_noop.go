@@ -128,3 +128,5 @@ func (a *FirecrackerAdapter) RestoreSnapshot(ctx context.Context, id, name strin
 func (a *FirecrackerAdapter) DeleteSnapshot(ctx context.Context, id, name string) error {
 	return fmt.Errorf("firecracker not supported on this platform")
 }
+
+func (a *FirecrackerAdapter) ResetCircuitBreaker() {}

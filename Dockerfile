@@ -33,6 +33,8 @@ COPY --from=builder /bin/api /app/api
 COPY --from=builder /app/internal/repositories/postgres/migrations /app/migrations
 # Copy docs for swagger if needed
 COPY --from=builder /app/docs /app/docs
+# Copy K8s templates for cluster provisioning
+COPY --from=builder /app/internal/repositories/k8s/templates /app/internal/repositories/k8s/templates
 
 # Create data directory
 RUN mkdir -p /app/thecloud-data

@@ -189,6 +189,59 @@ Readiness probe. Checks connections to Database and Docker daemon.
 ### GET /instances
 List all instances owned by the authenticated user.
 
+**Query Parameters:**
+- `tag` (string, repeatable): Filter instances by label. Supports `key:value` format for exact match or bare key for existence check. Example: `?tag=env:prod&tag=team:backend`
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "inst-uuid",
+      "name": "web-01",
+      "status": "RUNNING",
+      "labels": {
+        "env": "prod",
+        "team": "backend"
+      }
+    }
+  ]
+}
+```
+
+### GET /instances/:id/tags
+Get all labels for an instance.
+
+**Response:**
+```json
+{
+  "data": {
+    "env": "prod",
+    "team": "backend"
+  }
+}
+```
+
+### POST /instances/:id/tags
+Add or update one or more labels on an instance. Merges with existing labels.
+
+**Request:**
+```json
+{
+  "tags": {
+    "env": "prod",
+    "team": "backend"
+  }
+}
+```
+
+**Response:** Updated label map (same format as GET /instances/:id/tags).
+
+### DELETE /instances/:id/tags/:key
+Remove a label key from an instance.
+
+**Response:** `204 No Content`
+
 ### POST /instances
 Launch a new instance.
 ```json
@@ -944,6 +997,28 @@ Create a new volume.
 }
 ```
 
+### POST /volumes/:id/resize
+Resize a volume to a larger capacity.
+
+**Request:**
+```json
+{
+  "new_size_gb": 50
+}
+```
+
+**Response:**
+```json
+{
+  "message": "volume resized",
+  "new_size_gb": 50
+}
+```
+
+**Error Responses:**
+- `400` — Invalid input (size must be at least 1)
+- `404` — Volume not found
+
 ---
 
 ## Managed Databases (RDS)
@@ -1038,6 +1113,28 @@ Start a stopped database instance.
   "message": "database started"
 }
 ```
+
+### POST /databases/:id/resize
+Resize the allocated storage for a database instance.
+
+**Request:**
+```json
+{
+  "allocated_storage": 100
+}
+```
+
+**Response:**
+```json
+{
+  "message": "database resized",
+  "allocated_storage": 100
+}
+```
+
+**Error Responses:**
+- `400` — Invalid input (size must be larger than current allocated storage)
+- `404` — Database not found
 
 ---
 
@@ -1266,6 +1363,28 @@ Provision a new Redis cache.
 
 ### DELETE /caches/:id
 Terminate a cache instance.
+
+### POST /caches/:id/resize
+Resize a cache instance's memory allocation (requires docker compute backend).
+
+**Request:**
+```json
+{
+  "memory_mb": 512
+}
+```
+
+**Response:**
+```json
+{
+  "message": "cache resized",
+  "memory_mb": 512
+}
+```
+
+**Error Responses:**
+- `400` — Invalid input (memory must be larger than current, docker backend required)
+- `404` — Cache not found
 
 ---
 
