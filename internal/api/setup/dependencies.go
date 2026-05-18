@@ -13,7 +13,6 @@ import (
 
 	"strings"
 
-	"crypto/tls"
 	dnsadapter "github.com/poyrazk/thecloud/internal/adapters/dns"
 	"github.com/poyrazk/thecloud/internal/adapters/vault"
 	"github.com/poyrazk/thecloud/internal/core/ports"
