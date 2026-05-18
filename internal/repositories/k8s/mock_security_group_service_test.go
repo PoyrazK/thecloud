@@ -41,8 +41,8 @@ func (m *MockSecurityGroupService) DeleteGroup(ctx context.Context, id uuid.UUID
 	return m.Called(ctx, id).Error(0)
 }
 
-func (m *MockSecurityGroupService) AddRule(ctx context.Context, groupID uuid.UUID, rule domain.SecurityRule) (*domain.SecurityRule, error) {
-	args := m.Called(ctx, groupID, rule)
+func (m *MockSecurityGroupService) AddRule(ctx context.Context, idOrName string, rule domain.SecurityRule) (*domain.SecurityRule, error) {
+	args := m.Called(ctx, idOrName, rule)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

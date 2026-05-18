@@ -39,7 +39,7 @@ func TestEnsureClusterSecurityGroup_CreateSuccess(t *testing.T) {
 	mockedSG.On("GetGroup", mock.Anything, "sg-k8s-"+cluster.Name, cluster.VpcID).Return(nil, errors.New("not found"))
 	mockedSG.On("CreateGroup", mock.Anything, cluster.VpcID, "sg-k8s-"+cluster.Name, mock.Anything).
 		Return(newSG, nil)
-	mockedSG.On("AddRule", mock.Anything, newSG.ID, mock.Anything).Return(nil, nil).Maybe()
+	mockedSG.On("AddRule", mock.Anything, newSG.ID.String(), mock.Anything).Return(nil, nil).Maybe()
 
 	prov := newTestProvisionerForSecurity(withSGService(mockedSG))
 
@@ -91,7 +91,7 @@ func TestEnsureClusterSecurityGroup_GetGroupErrorFallsThroughToCreate(t *testing
 	mockedSG.On("GetGroup", mock.Anything, "sg-k8s-"+cluster.Name, cluster.VpcID).Return(nil, errors.New("some error"))
 	mockedSG.On("CreateGroup", mock.Anything, cluster.VpcID, "sg-k8s-"+cluster.Name, mock.Anything).
 		Return(newSG, nil)
-	mockedSG.On("AddRule", mock.Anything, newSG.ID, mock.Anything).Return(nil, nil).Maybe()
+	mockedSG.On("AddRule", mock.Anything, newSG.ID.String(), mock.Anything).Return(nil, nil).Maybe()
 
 	prov := newTestProvisionerForSecurity(withSGService(mockedSG))
 
