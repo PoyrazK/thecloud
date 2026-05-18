@@ -60,7 +60,7 @@ func (s *LifecycleService) CreateRule(ctx context.Context, bucket string, prefix
 		Prefix:         prefix,
 		ExpirationDays: expirationDays,
 		Enabled:        enabled,
-		CreatedAt:      time.Now().UTC(),
+		CreatedAt:      time.Now().UTC().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	}
 

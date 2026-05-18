@@ -3,6 +3,8 @@ package httphandlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -568,4 +570,113 @@ func (h *IAMHandler) GetServiceAccountPolicies(c *gin.Context) {
 	}
 
 	httputil.Success(c, http.StatusOK, policies)
+}
+
+// SimulateRequest is the payload for policy simulation.
+// SimulateRequest is the payload for policy simulation.
+// max 100 actions and 100 resources per request; pair count capped at 100 in the service.
+type SimulateRequest struct {
+	// Principal identifies whose policies to simulate.
+	// Exactly one of UserID or ServiceAccountID must be set.
+	UserID           *uuid.UUID `json:"user_id,omitempty"`
+	ServiceAccountID *uuid.UUID `json:"service_account_id,omitempty"`
+	// Actions to simulate (e.g., ["compute:instance:launch"]). Max 100.
+	Actions []string `json:"actions" binding:"required,min=1,max=100"`
+	// Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]). Max 100.
+	Resources []string `json:"resources" binding:"required,min=1,max=100"`
+	// Context overrides for condition evaluation.
+	// Keys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.
+	Context map[string]interface{} `json:"context,omitempty"`
+}
+
+// SimulateResponse is the result of a policy simulation.
+type SimulateResponse struct {
+	Decision  string          `json:"decision"` // "allow" or "deny"
+	Matched   *StatementMatch `json:"matched,omitempty"`
+	Evaluated int             `json:"evaluated"`
+}
+
+// StatementMatch describes which statement allowed or denied the request.
+type StatementMatch struct {
+	Action       string    `json:"action,omitempty"`
+	Resource     string    `json:"resource,omitempty"`
+	PolicyID     uuid.UUID `json:"policy_id"`
+	PolicyName   string    `json:"policy_name"`
+	StatementSid string    `json:"statement_sid,omitempty"`
+	Effect       string    `json:"effect"`
+	Reason       string    `json:"reason"`
+}
+
+// Simulate godoc
+// @Summary Simulate IAM policy decision
+// @Description Evaluates what actions and resources would be allowed or denied by attached policies
+// @Tags iam
+// @Security APIKeyAuth
+// @Accept json
+// @Produce json
+// @Param request body SimulateRequest true "Simulation parameters"
+// @Success 200 {object} httputil.Response{data=SimulateResponse}
+// @Failure 400 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/simulate [post]
+func (h *IAMHandler) Simulate(c *gin.Context) {
+	var req SimulateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, err.Error()))
+		return
+	}
+
+	if req.UserID == nil && req.ServiceAccountID == nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "user_id or service_account_id is required"))
+		return
+	}
+
+	principal := ports.Principal{
+		UserID:           req.UserID,
+		ServiceAccountID: req.ServiceAccountID,
+	}
+
+	evalCtx := buildSimulateCtx(c, req.Context)
+
+	result, err := h.svc.SimulatePolicy(c.Request.Context(), principal, req.Actions, req.Resources, evalCtx)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	response := SimulateResponse{
+		Decision:  strings.ToLower(string(result.Decision)),
+		Evaluated: result.Evaluated,
+	}
+	if result.Matched != nil {
+		response.Matched = &StatementMatch{
+			Action:       result.Matched.Action,
+			Resource:     result.Matched.Resource,
+			PolicyID:     result.Matched.PolicyID,
+			PolicyName:   result.Matched.PolicyName,
+			StatementSid: result.Matched.StatementSid,
+			Effect:       string(result.Matched.Effect),
+			Reason:       result.Matched.Reason,
+		}
+	}
+
+	httputil.Success(c, http.StatusOK, response)
+}
+
+func buildSimulateCtx(c *gin.Context, overrides map[string]interface{}) map[string]interface{} {
+	ctx := map[string]interface{}{
+		"thecloud:TenantId":    httputil.GetTenantID(c),
+		"thecloud:CurrentTime": time.Now().Format(time.RFC3339),
+	}
+	if ip := c.ClientIP(); ip != "" {
+		ctx["thecloud:SourceIp"] = ip
+	}
+	if ua := c.GetHeader("User-Agent"); ua != "" {
+		ctx["thecloud:UserAgent"] = ua
+	}
+	for k, v := range overrides {
+		ctx[k] = v
+	}
+	return ctx
 }

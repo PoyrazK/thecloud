@@ -13,7 +13,7 @@ const (
 )
 
 // Condition represents a set of dynamic rules for policy evaluation.
-// Example: {"IpAddress": {"aws:SourceIp": "192.168.1.0/24"}}
+// Example: {"IpAddress": {"thecloud:SourceIp": "192.168.1.0/24"}}
 type Condition map[string]map[string]interface{}
 
 // Statement is a single rule within a policy.
@@ -44,4 +44,13 @@ type UserPolicy struct {
 type RolePolicy struct {
 	RoleName string    `json:"role_name"`
 	PolicyID uuid.UUID `json:"policy_id"`
+}
+
+// EvalResult is the outcome of a policy evaluation with match metadata.
+type EvalResult struct {
+	Effect       PolicyEffect
+	PolicyID     uuid.UUID
+	PolicyName   string
+	StatementSid string
+	Reason       string
 }

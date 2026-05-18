@@ -58,6 +58,15 @@ func (m *mockVpcService) DeleteVPC(ctx context.Context, idOrName string, force b
 	return args.Error(0)
 }
 
+func (m *mockVpcService) UpdateVPC(ctx context.Context, idOrName, name string) (*domain.VPC, error) {
+	args := m.Called(ctx, idOrName, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.VPC)
+	return r0, args.Error(1)
+}
+
 func setupVpcHandlerTest(_ *testing.T) (*mockVpcService, *VpcHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockVpcService)

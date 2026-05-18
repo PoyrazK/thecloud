@@ -51,7 +51,7 @@ func (s *ContainerService) CreateDeployment(ctx context.Context, name, image str
 		CurrentCount: 0,
 		Ports:        ports,
 		Status:       domain.DeploymentStatusScaling,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now(),
 	}
 

@@ -27,6 +27,12 @@ jobs:
         with:
           go-version: '1.25.0'
           cache: true
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Verify Swagger
         run: |
           go install github.com/swaggo/swag/cmd/swag@v1.16.6
@@ -34,6 +40,22 @@ jobs:
           if [ -n "$(git status --porcelain docs/swagger)" ]; then
             echo "Swagger docs are out of sync. Run 'swag init' and commit changes."
             git diff docs/swagger
+            exit 1
+          fi
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Files not formatted. Run 'gofmt -w .' and commit:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+            echo "go.mod/go.sum are out of sync. Run 'go mod tidy' and commit."
+            git diff go.mod go.sum
             exit 1
           fi
       - name: Lint
@@ -66,6 +88,12 @@ jobs:
           cache: true
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -99,6 +127,12 @@ jobs:
           cache: true
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -126,6 +160,12 @@ jobs:
           cache: true
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -229,7 +269,12 @@ jobs:
 
       - name: Install Dependencies
         run: go mod download
-
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
@@ -314,6 +359,18 @@ jobs:
           firecracker --version
       - name: Install Dependencies
         run: go mod download
+      - name: Generate TLS test certs
+        run: |
+          mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
+          openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
+          openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+      - name: Wait for Redis
+        run: |
+          timeout 60s bash -c 'until nc -z 127.0.0.1 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done'
       - name: Run Firecracker Unit Tests
         run: go test -v ./internal/repositories/firecracker/...
       - name: Run Firecracker E2E Test
@@ -370,6 +427,16 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
+      - name: Check binary size
+        run: |
+          BINARY_SIZE=$(docker image inspect thecloud-api:latest --format='{{.Size}}')
+          MAX_SIZE=$((150 * 1024 * 1024)) # 150MB in bytes
+          if [ "$BINARY_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "Binary too large: $BINARY_SIZE bytes (max: $MAX_SIZE)"
+            exit 1
+          fi
+          echo "Binary size: $BINARY_SIZE bytes"
 
   deploy-staging:
     needs: build

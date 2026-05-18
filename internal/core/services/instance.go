@@ -212,7 +212,7 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, params ports.Launc
 		Metadata:     params.Metadata,
 		Labels:       params.Labels,
 		SSHKeyID:     params.SSHKeyID,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now(),
 	}
 
@@ -280,7 +280,7 @@ func (s *InstanceService) LaunchInstanceWithOptions(ctx context.Context, opts po
 		DiskLimit:    opts.DiskLimit,
 		InstanceType: "custom", // Marking as custom since we are passing raw constraints or defaults
 		Version:      1,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now(),
 	}
 

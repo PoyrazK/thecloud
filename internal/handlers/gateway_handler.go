@@ -17,6 +17,8 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/httputil"
+	"github.com/poyrazk/thecloud/pkg/ratelimit"
+	"golang.org/x/time/rate"
 )
 
 // CreateRouteRequest define the payload for creating a route.
@@ -45,13 +47,14 @@ type CreateRouteRequest struct {
 // GatewayHandler handles API gateway HTTP endpoints.
 // Note: logger may be nil in test contexts; all logging calls check for nil before use.
 type GatewayHandler struct {
-	svc    ports.GatewayService
-	logger *slog.Logger
+	svc         ports.GatewayService
+	rateLimiter *ratelimit.IPRateLimiter
+	logger      *slog.Logger
 }
 
 // NewGatewayHandler constructs a GatewayHandler.
-func NewGatewayHandler(svc ports.GatewayService, logger *slog.Logger) *GatewayHandler {
-	return &GatewayHandler{svc: svc, logger: logger}
+func NewGatewayHandler(svc ports.GatewayService, rateLimiter *ratelimit.IPRateLimiter, logger *slog.Logger) *GatewayHandler {
+	return &GatewayHandler{svc: svc, rateLimiter: rateLimiter, logger: logger}
 }
 
 // CreateRoute establishes a new ingress mapping
@@ -199,6 +202,30 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 
 	// Inject trace headers
 	h.injectTraceHeaders(c)
+
+	// Apply per-route rate limiting if configured
+	if route != nil && route.RateLimit > 0 && h.rateLimiter != nil {
+		key := c.GetHeader("X-API-Key")
+		if key == "" {
+			key = c.ClientIP()
+		} else if len(key) > 5 {
+			key = "apikey:" + key[:5]
+		}
+		burst := route.RateLimit * 2
+		limiter := h.rateLimiter.GetRouteLimiter(route.ID, key, rate.Limit(route.RateLimit), burst)
+		if !limiter.Allow() {
+			if h.logger != nil {
+				h.logger.Warn("per-route rate limit exceeded",
+					slog.String("key", key),
+					slog.String("path", c.Request.URL.Path),
+					slog.String("route_id", route.ID.String()))
+			}
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "rate limit exceeded",
+			})
+			return
+		}
+	}
 
 	proxy.ServeHTTP(c.Writer, c.Request)
 }

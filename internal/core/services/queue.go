@@ -63,7 +63,7 @@ func (s *QueueService) CreateQueue(ctx context.Context, name string, opts *ports
 		RetentionDays:     4,
 		MaxMessageSize:    262144, // 256KB
 		Status:            domain.QueueStatusActive,
-		CreatedAt:         time.Now(),
+		CreatedAt:         time.Now().UTC(),
 		UpdatedAt:         time.Now(),
 	}
 

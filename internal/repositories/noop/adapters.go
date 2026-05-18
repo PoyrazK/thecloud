@@ -465,6 +465,15 @@ func (r *NoopFunctionRepository) GetInvocations(ctx context.Context, fnID uuid.U
 func (r *NoopFunctionRepository) CreateInvocation(ctx context.Context, inv *domain.Invocation) error {
 	return nil
 }
+func (r *NoopFunctionRepository) GetDLQInvocations(ctx context.Context, functionID uuid.UUID) ([]*domain.Invocation, error) {
+	return []*domain.Invocation{}, nil
+}
+func (r *NoopFunctionRepository) GetInvocationByID(ctx context.Context, invocationID uuid.UUID) (*domain.Invocation, error) {
+	return &domain.Invocation{ID: invocationID}, nil
+}
+func (r *NoopFunctionRepository) UpdateInvocation(ctx context.Context, i *domain.Invocation) error {
+	return nil
+}
 
 type NoopFileStore struct{}
 

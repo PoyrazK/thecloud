@@ -20,6 +20,8 @@ type VpcRepository interface {
 	GetByIdempotencyKey(ctx context.Context, key string) (*domain.VPC, error)
 	// List returns all VPCs accessible to the current user context.
 	List(ctx context.Context) ([]*domain.VPC, error)
+	// Update modifies an existing VPC record.
+	Update(ctx context.Context, vpc *domain.VPC) error
 	// Delete removes a VPC definition from storage.
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -32,6 +34,8 @@ type VpcService interface {
 	GetVPC(ctx context.Context, idOrName string) (*domain.VPC, error)
 	// ListVPCs returns all virtual networks registered to the current authorized user.
 	ListVPCs(ctx context.Context) ([]*domain.VPC, error)
+	// UpdateVPC modifies an existing VPC's name.
+	UpdateVPC(ctx context.Context, idOrName, name string) (*domain.VPC, error)
 	// DeleteVPC decommissioning an existing virtual network.
 	// If force is true, dependency checks are skipped (for async cleanup scenarios).
 	DeleteVPC(ctx context.Context, idOrName string, force bool) error

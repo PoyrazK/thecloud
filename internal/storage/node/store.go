@@ -7,6 +7,7 @@ import (
 	stdlib_errors "errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
@@ -196,7 +197,9 @@ func (s *LocalStore) Delete(bucket, key string) error {
 		return err
 	}
 
-	_ = os.Remove(path + ".meta")
+	if err := os.Remove(path + ".meta"); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove meta file", "path", path+".meta", "error", err)
+	}
 	return os.Remove(path)
 }
 

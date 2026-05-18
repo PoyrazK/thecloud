@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -93,10 +94,27 @@ var volumeDeleteCmd = &cobra.Command{
 	},
 }
 
+var volumeResizeCmd = &cobra.Command{
+	Use:   "resize [id/name] [sizeGB]",
+	Short: "Resize a volume to a larger size",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		size, _ := strconv.Atoi(args[1])
+		client := createClient(opts)
+		if err := client.ResizeVolume(id, size); err != nil {
+			fmt.Printf(volumeErrorFormat, err)
+			return
+		}
+		fmt.Printf("[SUCCESS] Volume %s resized to %d GB.\n", id, size)
+	},
+}
+
 func init() {
 	volumeCmd.AddCommand(volumeListCmd)
 	volumeCmd.AddCommand(volumeCreateCmd)
 	volumeCmd.AddCommand(volumeDeleteCmd)
+	volumeCmd.AddCommand(volumeResizeCmd)
 
 	volumeCreateCmd.Flags().StringP("name", "n", "", "Name of the volume (required)")
 	volumeCreateCmd.Flags().IntP("size", "s", 1, "Size in GB")

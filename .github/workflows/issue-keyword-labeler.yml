@@ -1,0 +1,97 @@
+name: "Issue Keyword Labeler"
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check issue keywords
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+
+            const contains = (...keywords) =>
+              keywords.some((k) => title.includes(k) || body.includes(k));
+
+            const labels = [];
+
+            // Bug
+            if (contains('bug', 'broken', 'not working')) {
+              labels.push('bug');
+            }
+
+            // Enhancement
+            if (contains('feature', 'request', 'enhancement', 'wish')) {
+              labels.push('enhancement');
+            }
+
+            // Documentation
+            if (contains('docs', 'documentation')) {
+              labels.push('documentation');
+            }
+
+            // Security
+            if (contains('security', 'cve-', 'vulnerability')) {
+              labels.push('security');
+            }
+
+            // Performance
+            if (contains('slow', 'performance', 'optimize')) {
+              labels.push('performance');
+            }
+
+            // Database
+            if (contains('migration', 'schema', 'database')) {
+              labels.push('database');
+            }
+
+            // Area detection based on keywords in title
+            if (contains('cli', 'command', 'terminal')) {
+              labels.push('area/cli');
+            }
+
+            if (contains('api', 'endpoint', 'rest')) {
+              labels.push('area/api');
+            }
+
+            if (contains('web', 'frontend', 'ui', 'dashboard')) {
+              labels.push('area/web');
+            }
+
+            if (contains('storage', 'disk', 'volume')) {
+              labels.push('area/storage');
+            }
+
+            if (contains('kubernetes', 'k8s', 'deploy')) {
+              labels.push('area/k8s');
+            }
+
+            if (contains('handler', 'controller')) {
+              labels.push('area/handlers');
+            }
+
+            if (contains('service')) {
+              labels.push('area/services');
+            }
+
+            if (contains('repository', 'db', 'sql')) {
+              labels.push('area/repositories');
+            }
+
+            // Apply labels
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labels
+              });
+            }

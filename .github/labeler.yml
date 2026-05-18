@@ -1,0 +1,92 @@
+area/api:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cmd/api/**'
+          - 'internal/api/**'
+
+area/cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'cmd/cloud/**'
+          - 'cmd/autoscaler-server/**'
+
+area/handlers:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/handlers/**'
+
+area/services:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/core/services/**'
+
+area/repositories:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/repositories/**'
+
+area/storage:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/storage/**'
+          - 'pkg/storage/**'
+
+area/web:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'web/**'
+
+area/k8s:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/ccm/**'
+          - 'internal/csi/**'
+          - 'k8s/**'
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/ISSUE_TEMPLATE/**'
+          - '.github/PULL_REQUEST_TEMPLATE.md'
+
+database:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/repositories/**'
+          - '**/migrations/**'
+          - '**/*.sql'
+          - 'db/**'
+
+api-change:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/api/**'
+          - 'cmd/api/**'
+          - '**/openapi*.yaml'
+          - '**/swagger*.json'
+
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'config/**'
+          - 'deploy/**'
+          - '.env*'
+
+deps:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'go.mod'
+          - 'go.sum'
+          - '**/requirements.txt'
+          - '**/package.json'
+          - '**/go.sum'
+
+build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Dockerfile*'
+          - 'docker-compose*.yml'
+          - 'Makefile'
+          - 'scripts/**'
+          - '.github/workflows/**'

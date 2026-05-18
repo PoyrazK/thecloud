@@ -123,6 +123,11 @@ func (m *mockVpcRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return args.Error(0)
 }
 
+func (m *mockVpcRepo) Update(ctx context.Context, vpc *domain.VPC) error {
+	args := m.Called(ctx, vpc)
+	return args.Error(0)
+}
+
 func TestLBProxyAdapterGenerateNginxConfig(t *testing.T) {
 	instRepo := new(mockInstanceRepo)
 	vpcRepo := new(mockVpcRepo)

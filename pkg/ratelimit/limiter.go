@@ -78,6 +78,16 @@ func (i *IPRateLimiter) GetRouteLimiter(routeID uuid.UUID, key string, r rate.Li
 	return limiter
 }
 
+// TestSetLimiter sets a fixed limiter for a route+key pair, for package testing only.
+func (i *IPRateLimiter) TestSetLimiter(routeID uuid.UUID, key string, limiter *rate.Limiter) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.routes[routeID] == nil {
+		i.routes[routeID] = make(map[string]*rate.Limiter)
+	}
+	i.routes[routeID][key] = limiter
+}
+
 // cleanupLoop removes old entries periodically. This is a simplified GC strategy
 // that discards all limiters every 10 minutes rather than tracking per-entry
 // access times. Sufficient for moderate traffic; consider tracking last-access

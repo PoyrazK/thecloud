@@ -174,6 +174,10 @@ func (m *mockVpcRepo) GetByIdempotencyKey(ctx context.Context, key string) (*dom
 	r0, _ := args.Get(0).(*domain.VPC)
 	return r0, args.Error(1)
 }
+func (m *mockVpcRepo) Update(ctx context.Context, vpc *domain.VPC) error {
+	args := m.Called(ctx, vpc)
+	return args.Error(0)
+}
 func (m *mockVpcRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)

@@ -269,13 +269,45 @@ func testAutoScalingServiceUnitRepoErrors(t *testing.T) {
 	})
 
 	t.Run("CreateGroup_IdempotencyKeyReturnsExisting", func(t *testing.T) {
-		existing := &domain.ScalingGroup{ID: uuid.New(), Name: "existing-group"}
+		// Honest retry: same key + identical params → returns the existing record.
+		existing := &domain.ScalingGroup{
+			ID:           uuid.New(),
+			Name:         "existing-group",
+			VpcID:        vpcID,
+			Image:        "nginx",
+			MinInstances: 1,
+			MaxInstances: 3,
+			DesiredCount: 2,
+		}
 		repo.On("GetGroupByIdempotencyKey", mock.Anything, "idem-key").Return(existing, nil).Once()
 
-		group, err := svc.CreateGroup(ctx, ports.CreateScalingGroupParams{Name: "new-group", VpcID: vpcID, IdempotencyKey: "idem-key"})
+		group, err := svc.CreateGroup(ctx, ports.CreateScalingGroupParams{
+			Name:           existing.Name,
+			VpcID:          existing.VpcID,
+			Image:          existing.Image,
+			MinInstances:   existing.MinInstances,
+			MaxInstances:   existing.MaxInstances,
+			DesiredCount:   existing.DesiredCount,
+			IdempotencyKey: "idem-key",
+		})
 		require.NoError(t, err)
 		assert.Equal(t, existing.ID, group.ID)
 		assert.Equal(t, "existing-group", group.Name)
+	})
+
+	t.Run("CreateGroup_IdempotencyKeyReusedWithDifferentParams", func(t *testing.T) {
+		// Key reuse with different params now fails with Conflict so the caller
+		// learns about the bug instead of silently getting a different group back.
+		existing := &domain.ScalingGroup{ID: uuid.New(), Name: "existing-group", VpcID: vpcID}
+		repo.On("GetGroupByIdempotencyKey", mock.Anything, "idem-key-2").Return(existing, nil).Once()
+
+		_, err := svc.CreateGroup(ctx, ports.CreateScalingGroupParams{
+			Name:           "different-name",
+			VpcID:          vpcID,
+			IdempotencyKey: "idem-key-2",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "idempotency_key already used")
 	})
 
 	t.Run("GetGroup_NotFound", func(t *testing.T) {

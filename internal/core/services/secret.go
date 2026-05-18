@@ -116,7 +116,7 @@ func (s *SecretService) CreateSecret(ctx context.Context, name, value, descripti
 		Name:           name,
 		EncryptedValue: encrypted,
 		Description:    description,
-		CreatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now(),
 	}
 

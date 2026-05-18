@@ -69,8 +69,17 @@ func (b *Bulkhead) acquire(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	} else if b.timeout < 0 {
+		// Negative timeout means immediate-fail (no waiting).
+		// Try non-blocking acquire; if full, fail immediately.
+		select {
+		case b.sem <- struct{}{}:
+			return nil
+		default:
+			return ErrBulkheadFull
+		}
 	}
-	// No explicit timeout — rely on context.
+	// timeout == 0 means use context deadline (legacy behavior, never used in practice)
 	select {
 	case b.sem <- struct{}{}:
 		return nil

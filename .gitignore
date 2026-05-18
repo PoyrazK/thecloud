@@ -67,6 +67,7 @@ coverage.html
 libvirt_key
 libvirt_key.pub
 auth_env.sh
+*.pam
 
 # Coverage data
 *.cov

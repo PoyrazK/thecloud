@@ -179,3 +179,47 @@ func TestLocalStoreReadSizeLimit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, len(largeData), len(data))
 }
+
+func TestLocalStoreDeleteMissingMetaOk(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewLocalStore(tmpDir)
+	require.NoError(t, err)
+
+	bucket := "test-bucket"
+	key := "testfile.txt"
+	data := []byte("hello")
+	err = store.Write(bucket, key, data, 0)
+	require.NoError(t, err)
+
+	// Remove the .meta file to simulate pre-existing state where only data file exists
+	metaPath := filepath.Join(tmpDir, bucket, key+".meta")
+	err = os.Remove(metaPath)
+	require.NoError(t, err)
+
+	// Delete should succeed even though .meta is missing
+	err = store.Delete(bucket, key)
+	require.NoError(t, err, "Delete must succeed when .meta is already gone")
+
+	// Verify data file is gone
+	_, err = os.Stat(filepath.Join(tmpDir, bucket, key))
+	require.True(t, os.IsNotExist(err))
+}
+
+func TestLocalStoreWriteAndReadRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewLocalStore(tmpDir)
+	require.NoError(t, err)
+
+	bucket := "test-bucket"
+	key := "obj"
+	data := []byte("round-trip-test")
+	ts := time.Now().UnixNano()
+
+	err = store.Write(bucket, key, data, ts)
+	require.NoError(t, err)
+
+	readBack, readTs, err := store.Read(bucket, key)
+	require.NoError(t, err)
+	assert.Equal(t, data, readBack)
+	assert.Equal(t, ts, readTs)
+}

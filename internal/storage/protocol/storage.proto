@@ -24,6 +24,7 @@ message GossipMessage {
   string sender_addr = 2;
   map<string, MemberState> members = 3; // Key is node_id
   int64 timestamp = 4;
+  bool want_state = 5; // request peer's full member state
 }
 
 message MemberState {
@@ -35,6 +36,7 @@ message MemberState {
 
 message GossipResponse {
   bool success = 1;
+  map<string, MemberState> members = 2; // peer's member map for pull-based gossip
 }
 
 message StoreRequest {

@@ -126,7 +126,7 @@ func (s *IdentityService) CreateKey(ctx context.Context, userID uuid.UUID, name 
 		Key:             keyStr,
 		KeyHash:         computeKeyHash(keyStr),
 		Name:            name,
-		CreatedAt:       time.Now(),
+		CreatedAt:       time.Now().UTC(),
 		TenantID:        tenantID,
 		DefaultTenantID: nil,
 	}
@@ -320,7 +320,7 @@ func (s *IdentityService) CreateServiceAccount(ctx context.Context, tenantID uui
 		Name:      name,
 		Role:      role,
 		Enabled:   true,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 
@@ -333,7 +333,7 @@ func (s *IdentityService) CreateServiceAccount(ctx context.Context, tenantID uui
 		ServiceAccountID: sa.ID,
 		SecretHash:       computeKeyHash(secretStr),
 		Name:             "default",
-		CreatedAt:        time.Now(),
+		CreatedAt:        time.Now().UTC(),
 	}
 
 	if err := s.saRepo.CreateSecret(ctx, saSecret); err != nil {
@@ -507,7 +507,7 @@ func (s *IdentityService) RotateServiceAccountSecret(ctx context.Context, saID u
 		ServiceAccountID: saID,
 		SecretHash:       computeKeyHash(secretStr),
 		Name:             "default",
-		CreatedAt:        time.Now(),
+		CreatedAt:        time.Now().UTC(),
 	}
 
 	if err := s.saRepo.CreateSecret(ctx, saSecret); err != nil {

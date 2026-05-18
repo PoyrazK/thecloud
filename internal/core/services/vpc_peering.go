@@ -103,7 +103,7 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 		TenantID:       tenantID,
 		Status:         domain.PeeringStatusPendingAcceptance,
 		ARN:            arn,
-		CreatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now(),
 	}
 

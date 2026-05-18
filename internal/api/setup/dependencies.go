@@ -3,8 +3,11 @@ package setup
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -428,6 +431,20 @@ func buildStorageDialOpts(cfg *platform.Config) ([]grpc.DialOption, error) {
 		tlsCfg := &tls.Config{
 			Certificates: []tls.Certificate{cert},
 			MinVersion:   tls.VersionTLS13,
+		}
+		if cfg.StorageTLSCACertFile != "" {
+			caCert, err := os.ReadFile(cfg.StorageTLSCACertFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read storage TLS CA cert: %w", err)
+			}
+			caPool := x509.NewCertPool()
+			if !caPool.AppendCertsFromPEM(caCert) {
+				return nil, fmt.Errorf("failed to parse storage TLS CA cert PEM from %s", cfg.StorageTLSCACertFile)
+			}
+			tlsCfg.RootCAs = caPool
+		}
+		if cfg.StorageTLSSkipVerify {
+			tlsCfg.InsecureSkipVerify = true
 		}
 		creds := credentials.NewTLS(tlsCfg)
 		return []grpc.DialOption{grpc.WithTransportCredentials(creds)}, nil

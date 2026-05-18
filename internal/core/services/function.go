@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
+	"github.com/poyrazk/thecloud/internal/platform"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -67,25 +69,28 @@ var runtimes = map[string]RuntimeConfig{
 
 // FunctionService manages serverless function lifecycle and invocations.
 type FunctionService struct {
-	repo      ports.FunctionRepository
-	rbacSvc   ports.RBACService
-	compute   ports.ComputeBackend
-	fileStore ports.FileStore
-	auditSvc  ports.AuditService
-	secretSvc ports.SecretService
-	logger    *slog.Logger
+	repo             ports.FunctionRepository
+	rbacSvc          ports.RBACService
+	compute          ports.ComputeBackend
+	fileStore        ports.FileStore
+	auditSvc         ports.AuditService
+	secretSvc        ports.SecretService
+	logger           *slog.Logger
+	bulkheadRegistry map[uuid.UUID]*platform.Bulkhead
+	bulkheadMu       sync.RWMutex
 }
 
 // NewFunctionService constructs a FunctionService with its dependencies.
 func NewFunctionService(repo ports.FunctionRepository, rbacSvc ports.RBACService, compute ports.ComputeBackend, fileStore ports.FileStore, auditSvc ports.AuditService, secretSvc ports.SecretService, logger *slog.Logger) *FunctionService {
 	return &FunctionService{
-		repo:      repo,
-		rbacSvc:   rbacSvc,
-		compute:   compute,
-		fileStore: fileStore,
-		auditSvc:  auditSvc,
-		secretSvc: secretSvc,
-		logger:    logger,
+		repo:             repo,
+		rbacSvc:          rbacSvc,
+		compute:          compute,
+		fileStore:        fileStore,
+		auditSvc:         auditSvc,
+		secretSvc:        secretSvc,
+		logger:           logger,
+		bulkheadRegistry: make(map[uuid.UUID]*platform.Bulkhead),
 	}
 }
 
@@ -132,7 +137,7 @@ func (s *FunctionService) CreateFunction(ctx context.Context, name, runtime, han
 		MemoryMB:  128,
 		CPUs:      0.5,
 		Status:    "ACTIVE",
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 
@@ -222,6 +227,11 @@ func (s *FunctionService) DeleteFunction(ctx context.Context, id uuid.UUID) erro
 		return err
 	}
 
+	// Remove bulkhead from registry to release resources
+	s.bulkheadMu.Lock()
+	delete(s.bulkheadRegistry, id)
+	s.bulkheadMu.Unlock()
+
 	// Async delete from file store
 	go func() {
 		delCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -301,18 +311,43 @@ func (s *FunctionService) InvokeFunction(ctx context.Context, id uuid.UUID, payl
 		if err := s.auditSvc.Log(ctx, f.UserID, "function.invoke_async", "function", f.ID.String(), map[string]interface{}{}); err != nil {
 			s.logger.Warn("failed to log audit event", "action", "function.invoke_async", "function_id", f.ID, "error", err)
 		}
-		go func() {
-			bgCtx := context.Background()
-			bgCtx = appcontext.WithUserID(bgCtx, userID)
-			bgCtx = appcontext.WithTenantID(bgCtx, tenantID)
-			asyncInv := *invocation
-			if _, err := s.runInvocation(bgCtx, f, &asyncInv, payload); err != nil {
-				s.logger.Error("async invocation failed",
-					"function_id", f.ID,
-					"invocation_id", asyncInv.ID,
-					"error", err)
-			}
-		}()
+		b := s.getBulkhead(f)
+		bgCtx := context.Background()
+		bgCtx = appcontext.WithUserID(bgCtx, userID)
+		bgCtx = appcontext.WithTenantID(bgCtx, tenantID)
+		asyncInv := *invocation
+		if b == nil {
+			// No throttling — launch directly
+			go func() {
+				if _, err := s.runInvocation(bgCtx, f, &asyncInv, payload); err != nil {
+					s.handleFailedInvocation(bgCtx, f, &asyncInv, err)
+				}
+			}()
+		} else {
+			// Throttled path using bulkhead
+			go func() {
+				err := b.Execute(bgCtx, func() error {
+					_, err := s.runInvocation(bgCtx, f, &asyncInv, payload)
+					return err
+				})
+				if err != nil {
+					if stdlib_errors.Is(err, platform.ErrBulkheadFull) {
+						s.logger.Warn("async invocation rejected: concurrency limit reached",
+							"function_id", f.ID,
+							"invocation_id", asyncInv.ID)
+						asyncInv.Status = "REJECTED"
+						asyncInv.Logs = "Concurrency limit reached (HTTP 429)"
+						asyncInv.StatusCode = 429
+						if recErr := s.repo.CreateInvocation(bgCtx, &asyncInv); recErr != nil {
+							s.logger.Error("failed to record rejected invocation", "error", recErr)
+						}
+					} else {
+						// Handle retry and DLQ logic
+						s.handleFailedInvocation(bgCtx, f, &asyncInv, err)
+					}
+				}
+			}()
+		}
 		return invocation, nil
 	}
 
@@ -357,6 +392,45 @@ func (s *FunctionService) runInvocation(ctx context.Context, f *domain.Function,
 	}
 
 	return i, nil
+}
+
+// getBulkhead returns a bulkhead for the given function, or nil if no throttling is configured.
+// Thread-safe via bulkheadMu.
+func (s *FunctionService) getBulkhead(f *domain.Function) *platform.Bulkhead {
+	if f.MaxConcurrentInvocations <= 0 {
+		return nil // signals "no throttling"
+	}
+	s.bulkheadMu.RLock()
+	b, ok := s.bulkheadRegistry[f.ID]
+	s.bulkheadMu.RUnlock()
+	if ok {
+		return b
+	}
+	// Create new bulkhead with function's limit
+	s.bulkheadMu.Lock()
+	defer s.bulkheadMu.Unlock()
+	// Double-check after acquiring write lock
+	if b, ok = s.bulkheadRegistry[f.ID]; ok {
+		return b
+	}
+
+	// WaitTimeout: if MaxQueueDepth > 0, allow waiting for a slot
+	// Use MaxQueueDepth * 100ms as sensible wait time per slot in queue
+	waitTimeout := 0
+	if f.MaxQueueDepth > 0 {
+		waitTimeout = f.MaxQueueDepth * 100 // milliseconds
+	} else if f.MaxConcurrentInvocations > 0 {
+		// MaxQueueDepth == 0 means no waiting — use -1 as sentinel for immediate-fail
+		waitTimeout = -1
+	}
+
+	b = platform.NewBulkhead(platform.BulkheadOpts{
+		Name:        f.ID.String(),
+		MaxConc:     f.MaxConcurrentInvocations,
+		WaitTimeout: time.Duration(waitTimeout) * time.Millisecond,
+	})
+	s.bulkheadRegistry[f.ID] = b
+	return b
 }
 
 func (s *FunctionService) buildTaskOptions(ctx context.Context, f *domain.Function, tmpDir string, payload []byte) ports.RunTaskOptions {
@@ -456,9 +530,42 @@ func (s *FunctionService) captureInvocationResults(i *domain.Invocation, contain
 
 func (s *FunctionService) failInvocation(i *domain.Invocation, logMsg string, err error) (*domain.Invocation, error) {
 	i.Status = "FAILED"
-	i.Logs = logMsg
+	i.Logs = fmt.Sprintf("%s: %v", logMsg, err)
 	_ = s.repo.CreateInvocation(context.Background(), i)
 	return i, errors.Wrap(errors.Internal, logMsg, err)
+}
+
+func (s *FunctionService) handleFailedInvocation(ctx context.Context, f *domain.Function, i *domain.Invocation, invokeErr error) {
+	i.RetryCount++
+	maxRetries := f.MaxRetries
+
+	if maxRetries <= 0 || i.RetryCount >= maxRetries {
+		// Move to DLQ
+		i.Status = "DLQ"
+		i.Logs = fmt.Sprintf("Invocation failed after %d retry attempt(s): %v", i.RetryCount, invokeErr)
+		s.logger.Warn("async invocation moved to DLQ",
+			"function_id", f.ID,
+			"invocation_id", i.ID,
+			"retry_count", i.RetryCount,
+			"error", invokeErr)
+	} else {
+		// Retry scheduling: exponential backoff (1s, 2s, 4s, 8s...)
+		// Note: actual retry requires a queue worker; current implementation
+		// records the retry state so users can inspect/manage via API.
+		backoffMs := (1 << (i.RetryCount - 1)) * 1000
+		i.Status = "FAILED"
+		i.Logs = fmt.Sprintf("Invocation failed (will retry %d/%d, backoff %dms): %v", i.RetryCount, maxRetries, backoffMs, invokeErr)
+		s.logger.Info("async invocation recorded for retry",
+			"function_id", f.ID,
+			"invocation_id", i.ID,
+			"retry_count", i.RetryCount,
+			"backoff_ms", backoffMs,
+			"error", invokeErr)
+	}
+
+	if recErr := s.repo.CreateInvocation(ctx, i); recErr != nil {
+		s.logger.Error("failed to record failed invocation", "error", recErr)
+	}
 }
 
 func (s *FunctionService) prepareCode(ctx context.Context, f *domain.Function) (string, error) {
@@ -576,4 +683,51 @@ func (s *FunctionService) extractZipFile(file *zip.File, tmpDir string) error {
 		return err
 	}
 	return nil
+}
+
+func (s *FunctionService) GetDLQInvocations(ctx context.Context, id uuid.UUID) ([]*domain.Invocation, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
+		return nil, err
+	}
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionFunctionRead, id.String()); err != nil {
+		return nil, err
+	}
+	return s.repo.GetDLQInvocations(ctx, id)
+}
+
+func (s *FunctionService) RetryDLQInvocation(ctx context.Context, functionID, invocationID uuid.UUID) (*domain.Invocation, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	// Verify function exists and user has access
+	f, err := s.repo.GetByID(ctx, functionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionFunctionInvoke, functionID.String()); err != nil {
+		return nil, err
+	}
+
+	// Get the invocation - must be DLQ and belong to this function
+	inv, err := s.repo.GetInvocationByID(ctx, invocationID)
+	if err != nil {
+		return nil, errors.Wrap(errors.NotFound, "invocation not found", err)
+	}
+	if inv.FunctionID != f.ID {
+		return nil, errors.New(errors.NotFound, "DLQ invocation not found")
+	}
+	if inv.Status != "DLQ" {
+		return nil, errors.New(errors.InvalidInput, "invocation is not in DLQ status")
+	}
+
+	// Reset for retry
+	inv.Status = "PENDING"
+	inv.RetryCount = 0
+	inv.EndedAt = nil
+	if err := s.repo.UpdateInvocation(ctx, inv); err != nil {
+		return nil, err
+	}
+	return inv, nil
 }

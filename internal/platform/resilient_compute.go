@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/poyrazk/thecloud/internal/core/ports"
@@ -55,14 +56,13 @@ func (o ResilientComputeOpts) withDefaults() ResilientComputeOpts {
 // ResilientCompute wraps a ComputeBackend with circuit breaker, bulkhead,
 // and per-call timeouts. It implements the ports.ComputeBackend interface.
 //
-// Note: the circuit breaker is per-backend-instance (one breaker guards all
-// operations on a single compute backend). If one operation fails repeatedly,
-// the breaker trips and blocks all subsequent calls to that backend until the
-// reset timeout expires. This is a deliberate design trade-off for simplicity.
-// For finer-grained isolation, each operation type could have its own breaker.
+// Note: since v2, the circuit breaker is per-operation (one breaker guards
+// each operation type on a single compute backend). If one operation fails
+// repeatedly, only that operation type is blocked — others continue working.
 type ResilientCompute struct {
 	inner    ports.ComputeBackend
-	cb       *CircuitBreaker
+	cb       map[string]*CircuitBreaker
+	cbMu     sync.Mutex
 	bulkhead *Bulkhead
 	logger   *slog.Logger
 	opts     ResilientComputeOpts
@@ -73,17 +73,6 @@ func NewResilientCompute(inner ports.ComputeBackend, logger *slog.Logger, opts R
 	opts = opts.withDefaults()
 	name := fmt.Sprintf("compute-%s", inner.Type())
 
-	cb := NewCircuitBreakerWithOpts(CircuitBreakerOpts{
-		Name:            name,
-		Threshold:       opts.CBThreshold,
-		ResetTimeout:    opts.CBResetTimeout,
-		SuccessRequired: 2,
-		OnStateChange: func(n string, from, to State) {
-			logger.Warn("circuit breaker state change",
-				"breaker", n, "from", from.String(), "to", to.String())
-		},
-	})
-
 	bh := NewBulkhead(BulkheadOpts{
 		Name:        name,
 		MaxConc:     opts.BulkheadMaxConc,
@@ -92,7 +81,7 @@ func NewResilientCompute(inner ports.ComputeBackend, logger *slog.Logger, opts R
 
 	return &ResilientCompute{
 		inner:    inner,
-		cb:       cb,
+		cb:       make(map[string]*CircuitBreaker),
 		bulkhead: bh,
 		logger:   logger.With("adapter", name),
 		opts:     opts,
@@ -101,10 +90,33 @@ func NewResilientCompute(inner ports.ComputeBackend, logger *slog.Logger, opts R
 
 // ---------- helpers ----------
 
-// callProtected runs fn through bulkhead → circuit breaker → timeout.
-func (r *ResilientCompute) callProtected(ctx context.Context, timeout time.Duration, fn func(ctx context.Context) error) error {
+// getOrCreateBreaker returns an existing per-operation breaker or creates
+// a new one. Thread-safe.
+func (r *ResilientCompute) getOrCreateBreaker(op string) *CircuitBreaker {
+	r.cbMu.Lock()
+	defer r.cbMu.Unlock()
+	if cb, ok := r.cb[op]; ok {
+		return cb
+	}
+	name := fmt.Sprintf("compute-%s-%s", r.inner.Type(), op)
+	cb := NewCircuitBreakerWithOpts(CircuitBreakerOpts{
+		Name:            name,
+		Threshold:       r.opts.CBThreshold,
+		ResetTimeout:    r.opts.CBResetTimeout,
+		SuccessRequired: 2,
+		OnStateChange: func(n string, from, to State) {
+			r.logger.Warn("circuit breaker state change",
+				"breaker", n, "from", from.String(), "to", to.String())
+		},
+	})
+	r.cb[op] = cb
+	return cb
+}
+
+// callProtected runs fn through bulkhead → per-operation circuit breaker → timeout.
+func (r *ResilientCompute) callProtected(ctx context.Context, timeout time.Duration, op string, fn func(ctx context.Context) error) error {
 	return r.bulkhead.Execute(ctx, func() error {
-		return r.cb.Execute(func() error {
+		return r.getOrCreateBreaker(op).Execute(func() error {
 			ctx2, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			return fn(ctx2)
@@ -117,7 +129,7 @@ func (r *ResilientCompute) callProtected(ctx context.Context, timeout time.Durat
 func (r *ResilientCompute) LaunchInstanceWithOptions(ctx context.Context, opts ports.CreateInstanceOptions) (string, []string, error) {
 	var id string
 	var ps []string
-	err := r.callProtected(ctx, r.opts.LongCallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.LongCallTimeout, "launch", func(ctx context.Context) error {
 		var e error
 		id, ps, e = r.inner.LaunchInstanceWithOptions(ctx, opts)
 		return e
@@ -126,50 +138,50 @@ func (r *ResilientCompute) LaunchInstanceWithOptions(ctx context.Context, opts p
 }
 
 func (r *ResilientCompute) StartInstance(ctx context.Context, id string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "start", func(ctx context.Context) error {
 		return r.inner.StartInstance(ctx, id)
 	})
 }
 
 func (r *ResilientCompute) StopInstance(ctx context.Context, id string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "stop", func(ctx context.Context) error {
 		return r.inner.StopInstance(ctx, id)
 	})
 }
 
 func (r *ResilientCompute) DeleteInstance(ctx context.Context, id string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "delete", func(ctx context.Context) error {
 		return r.inner.DeleteInstance(ctx, id)
 	})
 }
 
 func (r *ResilientCompute) ResizeInstance(ctx context.Context, id string, cpuNano, memoryBytes int64) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "resize", func(ctx context.Context) error {
 		return r.inner.ResizeInstance(ctx, id, cpuNano, memoryBytes)
 	})
 }
 
 func (r *ResilientCompute) CreateSnapshot(ctx context.Context, id, name string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "create_snapshot", func(ctx context.Context) error {
 		return r.inner.CreateSnapshot(ctx, id, name)
 	})
 }
 
 func (r *ResilientCompute) RestoreSnapshot(ctx context.Context, id, name string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "restore_snapshot", func(ctx context.Context) error {
 		return r.inner.RestoreSnapshot(ctx, id, name)
 	})
 }
 
 func (r *ResilientCompute) DeleteSnapshot(ctx context.Context, id, name string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "delete_snapshot", func(ctx context.Context) error {
 		return r.inner.DeleteSnapshot(ctx, id, name)
 	})
 }
 
 func (r *ResilientCompute) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
 	var rc io.ReadCloser
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "get_logs", func(ctx context.Context) error {
 		var e error
 		rc, e = r.inner.GetInstanceLogs(ctx, id)
 		return e
@@ -179,7 +191,7 @@ func (r *ResilientCompute) GetInstanceLogs(ctx context.Context, id string) (io.R
 
 func (r *ResilientCompute) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
 	var rc io.ReadCloser
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "stats", func(ctx context.Context) error {
 		var e error
 		rc, e = r.inner.GetInstanceStats(ctx, id)
 		return e
@@ -189,7 +201,7 @@ func (r *ResilientCompute) GetInstanceStats(ctx context.Context, id string) (io.
 
 func (r *ResilientCompute) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {
 	var port int
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "get_port", func(ctx context.Context) error {
 		var e error
 		port, e = r.inner.GetInstancePort(ctx, id, internalPort)
 		return e
@@ -199,7 +211,7 @@ func (r *ResilientCompute) GetInstancePort(ctx context.Context, id string, inter
 
 func (r *ResilientCompute) GetInstanceIP(ctx context.Context, id string) (string, error) {
 	var ip string
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "get_ip", func(ctx context.Context) error {
 		var e error
 		ip, e = r.inner.GetInstanceIP(ctx, id)
 		return e
@@ -209,7 +221,7 @@ func (r *ResilientCompute) GetInstanceIP(ctx context.Context, id string) (string
 
 func (r *ResilientCompute) GetConsoleURL(ctx context.Context, id string) (string, error) {
 	var url string
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "console_url", func(ctx context.Context) error {
 		var e error
 		url, e = r.inner.GetConsoleURL(ctx, id)
 		return e
@@ -221,7 +233,7 @@ func (r *ResilientCompute) GetConsoleURL(ctx context.Context, id string) (string
 
 func (r *ResilientCompute) Exec(ctx context.Context, id string, cmd []string) (string, error) {
 	var out string
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "exec", func(ctx context.Context) error {
 		var e error
 		out, e = r.inner.Exec(ctx, id, cmd)
 		return e
@@ -232,7 +244,7 @@ func (r *ResilientCompute) Exec(ctx context.Context, id string, cmd []string) (s
 func (r *ResilientCompute) RunTask(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
 	var id string
 	var ps []string
-	err := r.callProtected(ctx, r.opts.LongCallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.LongCallTimeout, "run_task", func(ctx context.Context) error {
 		var e error
 		id, ps, e = r.inner.RunTask(ctx, opts)
 		return e
@@ -242,7 +254,7 @@ func (r *ResilientCompute) RunTask(ctx context.Context, opts ports.RunTaskOption
 
 func (r *ResilientCompute) WaitTask(ctx context.Context, id string) (int64, error) {
 	var code int64
-	err := r.callProtected(ctx, r.opts.LongCallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.LongCallTimeout, "wait_task", func(ctx context.Context) error {
 		var e error
 		code, e = r.inner.WaitTask(ctx, id)
 		return e
@@ -254,7 +266,7 @@ func (r *ResilientCompute) WaitTask(ctx context.Context, id string) (int64, erro
 
 func (r *ResilientCompute) CreateNetwork(ctx context.Context, name string) (string, error) {
 	var id string
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "create_network", func(ctx context.Context) error {
 		var e error
 		id, e = r.inner.CreateNetwork(ctx, name)
 		return e
@@ -263,7 +275,7 @@ func (r *ResilientCompute) CreateNetwork(ctx context.Context, name string) (stri
 }
 
 func (r *ResilientCompute) DeleteNetwork(ctx context.Context, id string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "delete_network", func(ctx context.Context) error {
 		return r.inner.DeleteNetwork(ctx, id)
 	})
 }
@@ -272,7 +284,7 @@ func (r *ResilientCompute) DeleteNetwork(ctx context.Context, id string) error {
 
 func (r *ResilientCompute) AttachVolume(ctx context.Context, id string, volumePath string) (string, string, error) {
 	var devPath, containerID string
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "attach_volume", func(ctx context.Context) error {
 		var e error
 		devPath, containerID, e = r.inner.AttachVolume(ctx, id, volumePath)
 		return e
@@ -285,7 +297,7 @@ func (r *ResilientCompute) AttachVolume(ctx context.Context, id string, volumePa
 
 func (r *ResilientCompute) DetachVolume(ctx context.Context, id string, volumePath string) (string, error) {
 	var containerID string
-	err := r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	err := r.callProtected(ctx, r.opts.CallTimeout, "detach_volume", func(ctx context.Context) error {
 		var e error
 		containerID, e = r.inner.DetachVolume(ctx, id, volumePath)
 		return e
@@ -301,7 +313,7 @@ func (r *ResilientCompute) DetachVolume(ctx context.Context, id string, volumePa
 // Ping bypasses the bulkhead (low cost, used for health checks) but still
 // goes through the circuit breaker so a broken backend trips the circuit.
 func (r *ResilientCompute) Ping(ctx context.Context) error {
-	return r.cb.Execute(func() error {
+	return r.getOrCreateBreaker("ping").Execute(func() error {
 		ctx2, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
 		return r.inner.Ping(ctx2)
@@ -309,13 +321,13 @@ func (r *ResilientCompute) Ping(ctx context.Context) error {
 }
 
 func (r *ResilientCompute) PauseInstance(ctx context.Context, id string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "pause", func(ctx context.Context) error {
 		return r.inner.PauseInstance(ctx, id)
 	})
 }
 
 func (r *ResilientCompute) ResumeInstance(ctx context.Context, id string) error {
-	return r.callProtected(ctx, r.opts.CallTimeout, func(ctx context.Context) error {
+	return r.callProtected(ctx, r.opts.CallTimeout, "resume", func(ctx context.Context) error {
 		return r.inner.ResumeInstance(ctx, id)
 	})
 }
@@ -330,8 +342,12 @@ func (r *ResilientCompute) Unwrap() ports.ComputeBackend {
 	return r.inner
 }
 
-// ResetCircuitBreaker resets the circuit breaker state.
+// ResetCircuitBreaker resets all per-operation circuit breaker states.
 // Useful for E2E tests that need clean state between test suites.
 func (r *ResilientCompute) ResetCircuitBreaker() {
-	r.cb.Reset()
+	r.cbMu.Lock()
+	defer r.cbMu.Unlock()
+	for _, cb := range r.cb {
+		cb.Reset()
+	}
 }

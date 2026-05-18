@@ -76,7 +76,7 @@ func (s *GlobalLBService) Create(ctx context.Context, name, hostname string, pol
 		Policy:      policy,
 		HealthCheck: healthCheck,
 		Status:      "ACTIVE",
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now(),
 		Endpoints:   []*domain.GlobalEndpoint{},
 	}
@@ -223,7 +223,7 @@ func (s *GlobalLBService) AddEndpoint(ctx context.Context, glbID uuid.UUID, regi
 		Weight:     weight,
 		Priority:   priority,
 		Healthy:    true, // Assume healthy initially
-		CreatedAt:  time.Now(),
+		CreatedAt:  time.Now().UTC(),
 	}
 
 	if err := s.repo.AddEndpoint(ctx, ep); err != nil {
