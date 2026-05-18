@@ -402,88 +402,6 @@ func (a *FirecrackerAdapter) GetInstancePort(ctx context.Context, id string, int
 	return 0, fmt.Errorf("no host port mapping found for instance %s port %s", id, internalPort)
 }
 
-// setupPortForwarding configures iptables NAT rules for port mapping.
-// NOTE: This function is not yet integrated; Firecracker port forwarding requires
-// guest-side network configuration that is not yet implemented.
-func (a *FirecrackerAdapter) setupPortForwarding(id string, ip string, ports []string) { //nolint:unused
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	a.mu.Lock()
-	if a.portMappings[id] == nil {
-		a.portMappings[id] = make(map[string]int)
-	}
-	a.mu.Unlock()
-
-	for _, p := range ports {
-		parts := strings.Split(p, ":")
-		var hostPort, containerPort string
-		switch len(parts) {
-		case 2:
-			hostPort = parts[0]
-			containerPort = parts[1]
-		case 1:
-			hostPort = "0"
-			containerPort = parts[0]
-		default:
-			a.logger.Warn("invalid port format", "port", p)
-			continue
-		}
-
-		var hPort int
-		if hostPort == "0" {
-			// Auto-assign free port
-			addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-			if err != nil {
-				continue
-			}
-			l, err := net.ListenTCP("tcp", addr)
-			if err != nil {
-				continue
-			}
-			tcpAddr, ok := l.Addr().(*net.TCPAddr)
-			if !ok {
-				continue
-			}
-			l.Close()
-			hPort = tcpAddr.Port
-		} else {
-			if _, err := fmt.Sscanf(hostPort, "%d", &hPort); err != nil {
-				a.logger.Warn("invalid host port", "value", hostPort)
-				continue
-			}
-		}
-
-		cPort, _ := strconv.Atoi(containerPort)
-
-		// Validate ports before using in exec command
-		if !isValidPort(hPort) || !isValidPort(cPort) {
-			a.logger.Warn("invalid port value", "host_port", hPort, "container_port", cPort)
-			continue
-		}
-
-		// Validate IP format (basic check for injection)
-		if net.ParseIP(ip) == nil {
-			a.logger.Warn("invalid IP address", "ip", ip)
-			continue
-		}
-
-		a.mu.Lock()
-		a.portMappings[id][containerPort] = hPort
-		a.mu.Unlock()
-
-		// Set up iptables NAT rule using wrapper to avoid G204 gosec warning
-		iptReq := iptablesRequest{
-			HostPort:   hPort,
-			TargetIP:   ip,
-			TargetPort: cPort,
-		}
-		if err := execWrapper(ctx, "iptables-wrapper", iptReq); err != nil {
-			a.logger.Warn("failed to set up iptables rule", "host_port", hPort, "container_port", cPort, "error", err)
-		}
-	}
-}
-
 func (a *FirecrackerAdapter) GetInstanceIP(ctx context.Context, id string) (string, error) {
 	a.mu.RLock()
 	mac, ok := a.macAddresses[id]
@@ -873,13 +791,6 @@ type tarRequest struct {
 	ArchivePath string `json:"archive_path"`
 	TargetDir   string `json:"target_dir"`
 	FileName    string `json:"file_name"`
-}
-
-// iptablesRequest is the JSON structure for iptables-wrapper
-type iptablesRequest struct {
-	HostPort   int    `json:"host_port"`
-	TargetIP   string `json:"target_ip"`
-	TargetPort int    `json:"target_port"`
 }
 
 // execWrapper runs a wrapper binary with JSON request on stdin
