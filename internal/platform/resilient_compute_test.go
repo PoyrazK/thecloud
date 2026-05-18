@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/poyrazk/thecloud/internal/core/ports"
-	"log/slog"
 )
 
 // ---------- mock compute backend ----------
@@ -125,10 +125,10 @@ func (m *mockCompute) DeleteSnapshot(_ context.Context, _, _ string) error {
 	m.callCount.Add(1)
 	return m.err
 }
-func (m *mockCompute) Type() string { return "mock" }
-func (m *mockCompute) PauseInstance(_ context.Context, _ string) error { return nil }
+func (m *mockCompute) Type() string                                     { return "mock" }
+func (m *mockCompute) PauseInstance(_ context.Context, _ string) error  { return nil }
 func (m *mockCompute) ResumeInstance(_ context.Context, _ string) error { return nil }
-func (m *mockCompute) ResetCircuitBreaker() {}
+func (m *mockCompute) ResetCircuitBreaker()                             {}
 
 // ---------- tests ----------
 
@@ -334,6 +334,40 @@ func TestResilientComputeResizeInstance(t *testing.T) {
 			t.Fatalf("expected at least 1 call, got %d", mock.callCount.Load())
 		}
 	})
+}
+
+// Per-operation isolation: tripping one breaker shouldn't affect others.
+func TestResilientCompute_PerOperationIsolation(t *testing.T) {
+	// mockLaunch fails always, mockDelete succeeds always
+	mock := &mockCompute{}
+	logger := slog.Default()
+	rc := NewResilientCompute(mock, logger, ResilientComputeOpts{
+		CBThreshold:    2,
+		CBResetTimeout: 10 * time.Second,
+	})
+	ctx := context.Background()
+
+	// Trip the launch breaker (2 failures needed for threshold=2)
+	mock.err = errors.New("launch always fails")
+	for i := 0; i < 2; i++ {
+		_, _, _ = rc.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{})
+	}
+
+	// Verify launch breaker is open
+	_, _, err := rc.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{})
+	if !errors.Is(err, ErrCircuitOpen) {
+		t.Fatalf("expected launch breaker open, got %v", err)
+	}
+
+	// Reset so delete uses a fresh breaker
+	rc.ResetCircuitBreaker()
+
+	// Delete should still work — its own breaker is independent
+	mock.err = nil
+	err = rc.DeleteInstance(ctx, "any-id")
+	if err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
 }
 
 // ---------- test helpers ----------
