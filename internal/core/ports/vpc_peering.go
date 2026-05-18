@@ -29,7 +29,8 @@ type VPCPeeringRepository interface {
 // VPCPeeringService provides business logic for managing VPC peering connections.
 type VPCPeeringService interface {
 	// CreatePeering initiates a peering connection request between two VPCs.
-	CreatePeering(ctx context.Context, requesterVPCID, accepterVPCID uuid.UUID) (*domain.VPCPeering, error)
+	// For cross-tenant peering, accepterTenantID specifies the tenant of the accepter VPC.
+	CreatePeering(ctx context.Context, requesterVPCID, accepterVPCID, accepterTenantID uuid.UUID) (*domain.VPCPeering, error)
 	// AcceptPeering accepts a pending peering connection and establishes network routes.
 	AcceptPeering(ctx context.Context, peeringID uuid.UUID) (*domain.VPCPeering, error)
 	// RejectPeering rejects a pending peering connection request.

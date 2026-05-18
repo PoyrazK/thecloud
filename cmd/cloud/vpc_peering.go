@@ -21,14 +21,19 @@ var vpcPeeringCreateCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		reqVpc, _ := cmd.Flags().GetString("requester-vpc")
 		accVpc, _ := cmd.Flags().GetString("accepter-vpc")
+		accTenant, _ := cmd.Flags().GetString("accepter-tenant")
 
 		if reqVpc == "" || accVpc == "" {
 			fmt.Println("Error: --requester-vpc and --accepter-vpc are both required")
 			return
 		}
+		if accTenant == "" {
+			fmt.Println("Error: --accepter-tenant is required for cross-tenant peering")
+			return
+		}
 
 		client := createClient(opts)
-		peering, err := client.CreateVPCPeering(reqVpc, accVpc)
+		peering, err := client.CreateVPCPeering(reqVpc, accVpc, accTenant)
 		if err != nil {
 			fmt.Printf(errFmt, err)
 			return
@@ -102,6 +107,8 @@ var vpcPeeringGetCmd = &cobra.Command{
 		fmt.Printf("VPC Peering: %s\n", p.ID)
 		fmt.Printf("Requester VPC: %s\n", p.RequesterVPCID)
 		fmt.Printf("Accepter VPC: %s\n", p.AccepterVPCID)
+		fmt.Printf("Requester Tenant: %s\n", p.RequesterTenantID)
+		fmt.Printf("Accepter Tenant: %s\n", p.AccepterTenantID)
 		fmt.Printf("Status: %s\n", p.Status)
 		fmt.Printf("ARN: %s\n", p.ARN)
 		fmt.Printf("Created At: %s\n", p.CreatedAt.String())
@@ -159,6 +166,7 @@ var vpcPeeringRmCmd = &cobra.Command{
 func init() {
 	vpcPeeringCreateCmd.Flags().String("requester-vpc", "", "Requester VPC ID")
 	vpcPeeringCreateCmd.Flags().String("accepter-vpc", "", "Accepter VPC ID")
+	vpcPeeringCreateCmd.Flags().String("accepter-tenant", "", "Accepter VPC Tenant ID (required for cross-tenant peering)")
 
 	vpcPeeringCmd.AddCommand(
 		vpcPeeringCreateCmd,

@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	vpcPeeringColumns  = "id, requester_vpc_id, accepter_vpc_id, tenant_id, status, arn, created_at, updated_at"
-	errPeeringNotFound = "vpc peering not found"
+	vpcPeeringColumns      = "id, requester_vpc_id, accepter_vpc_id, requester_tenant_id, accepter_tenant_id, status, arn, created_at, updated_at"
+	errPeeringNotFound    = "vpc peering not found"
 )
 
 // VPCPeeringRepository provides a PostgreSQL implementation for managing VPC peering connections.
@@ -30,12 +30,13 @@ func NewVPCPeeringRepository(db DB) *VPCPeeringRepository {
 // Create inserts a new VPC peering connection record into the database.
 func (r *VPCPeeringRepository) Create(ctx context.Context, peering *domain.VPCPeering) error {
 	query := `
-		INSERT INTO vpc_peerings (id, requester_vpc_id, accepter_vpc_id, tenant_id, status, arn, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO vpc_peerings (id, requester_vpc_id, accepter_vpc_id, requester_tenant_id, accepter_tenant_id, status, arn, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	_, err := r.db.Exec(ctx, query,
 		peering.ID, peering.RequesterVPCID, peering.AccepterVPCID,
-		peering.TenantID, peering.Status, peering.ARN,
+		peering.RequesterTenantID, peering.AccepterTenantID,
+		peering.Status, peering.ARN,
 		peering.CreatedAt, peering.UpdatedAt,
 	)
 	if err != nil {
@@ -45,22 +46,23 @@ func (r *VPCPeeringRepository) Create(ctx context.Context, peering *domain.VPCPe
 }
 
 // GetByID retrieves a single VPC peering connection by its UUID.
+// Returns the peering if the caller belongs to either the requester or accepter tenant.
 func (r *VPCPeeringRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.VPCPeering, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		SELECT ` + vpcPeeringColumns + `
 		FROM vpc_peerings
-		WHERE id = $1 AND tenant_id = $2
+		WHERE id = $1 AND (requester_tenant_id = $2 OR accepter_tenant_id = $2)
 	`
 	return r.scanPeering(r.db.QueryRow(ctx, query, id, tenantID))
 }
 
-// List returns all VPC peering connections for a given tenant.
+// List returns all VPC peering connections for a given tenant (including cross-tenant peerings).
 func (r *VPCPeeringRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.VPCPeering, error) {
 	query := `
 		SELECT ` + vpcPeeringColumns + `
 		FROM vpc_peerings
-		WHERE tenant_id = $1 AND status != $2
+		WHERE (requester_tenant_id = $1 OR accepter_tenant_id = $1) AND status != $2
 		ORDER BY created_at DESC
 	`
 	rows, err := r.db.Query(ctx, query, tenantID, domain.PeeringStatusDeleted)
@@ -86,12 +88,13 @@ func (r *VPCPeeringRepository) ListByVPC(ctx context.Context, vpcID uuid.UUID) (
 }
 
 // UpdateStatus changes the status of a peering connection.
+// Allows update from either the requester or accepter tenant.
 func (r *VPCPeeringRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		UPDATE vpc_peerings
 		SET status = $1, updated_at = NOW()
-		WHERE id = $2 AND tenant_id = $3
+		WHERE id = $2 AND (requester_tenant_id = $3 OR accepter_tenant_id = $3)
 	`
 	cmd, err := r.db.Exec(ctx, query, status, id, tenantID)
 	if err != nil {
@@ -104,9 +107,10 @@ func (r *VPCPeeringRepository) UpdateStatus(ctx context.Context, id uuid.UUID, s
 }
 
 // Delete removes a VPC peering connection record from the database.
+// Allows deletion from either the requester or accepter tenant.
 func (r *VPCPeeringRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tenantID := appcontext.TenantIDFromContext(ctx)
-	query := `DELETE FROM vpc_peerings WHERE id = $1 AND tenant_id = $2`
+	query := `DELETE FROM vpc_peerings WHERE id = $1 AND (requester_tenant_id = $2 OR accepter_tenant_id = $2)`
 	cmd, err := r.db.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete vpc peering", err)
@@ -133,7 +137,8 @@ func (r *VPCPeeringRepository) scanPeering(row pgx.Row) (*domain.VPCPeering, err
 	var p domain.VPCPeering
 	err := row.Scan(
 		&p.ID, &p.RequesterVPCID, &p.AccepterVPCID,
-		&p.TenantID, &p.Status, &p.ARN,
+		&p.RequesterTenantID, &p.AccepterTenantID,
+		&p.Status, &p.ARN,
 		&p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {

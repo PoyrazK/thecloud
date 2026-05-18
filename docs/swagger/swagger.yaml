@@ -1884,6 +1884,8 @@ definitions:
     type: object
   domain.VPCPeering:
     properties:
+      accepter_tenant_id:
+        type: string
       accepter_vpc_id:
         type: string
       arn:
@@ -1892,11 +1894,11 @@ definitions:
         type: string
       id:
         type: string
+      requester_tenant_id:
+        type: string
       requester_vpc_id:
         type: string
       status:
-        type: string
-      tenant_id:
         type: string
       updated_at:
         type: string
@@ -2181,11 +2183,14 @@ definitions:
     type: object
   httphandlers.CreatePeeringRequest:
     properties:
+      accepter_tenant_id:
+        type: string
       accepter_vpc_id:
         type: string
       requester_vpc_id:
         type: string
     required:
+    - accepter_tenant_id
     - accepter_vpc_id
     - requester_vpc_id
     type: object

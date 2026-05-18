@@ -8,21 +8,24 @@ import (
 
 // VPCPeering describes a network peering connection resource.
 type VPCPeering struct {
-	ID             string    `json:"id"`
-	RequesterVPCID string    `json:"requester_vpc_id"`
-	AccepterVPCID  string    `json:"accepter_vpc_id"`
-	TenantID       string    `json:"tenant_id"`
-	Status         string    `json:"status"`
-	ARN            string    `json:"arn"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID                string    `json:"id"`
+	RequesterVPCID    string    `json:"requester_vpc_id"`
+	AccepterVPCID     string    `json:"accepter_vpc_id"`
+	RequesterTenantID string    `json:"requester_tenant_id"`
+	AccepterTenantID  string    `json:"accepter_tenant_id"`
+	Status            string    `json:"status"`
+	ARN               string    `json:"arn"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // CreateVPCPeering initiates a new VPC peering connection request.
-func (c *Client) CreateVPCPeering(requesterVPCID, accepterVPCID string) (*VPCPeering, error) {
+// For cross-tenant peering, provide the accepterVPCTenantID of the other tenant.
+func (c *Client) CreateVPCPeering(requesterVPCID, accepterVPCID, accepterVPCTenantID string) (*VPCPeering, error) {
 	body := map[string]string{
-		"requester_vpc_id": requesterVPCID,
-		"accepter_vpc_id":  accepterVPCID,
+		"requester_vpc_id":    requesterVPCID,
+		"accepter_vpc_id":     accepterVPCID,
+		"accepter_tenant_id":  accepterVPCTenantID,
 	}
 	var res Response[VPCPeering]
 	if err := c.post("/vpc-peerings", body, &res); err != nil {

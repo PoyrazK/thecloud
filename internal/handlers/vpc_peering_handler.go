@@ -20,8 +20,9 @@ type VPCPeeringHandler struct {
 
 // CreatePeeringRequest represents the body for creating a new peering connection.
 type CreatePeeringRequest struct {
-	RequesterVPCID string `json:"requester_vpc_id" binding:"required,uuid"`
-	AccepterVPCID  string `json:"accepter_vpc_id" binding:"required,uuid"`
+	RequesterVPCID   string `json:"requester_vpc_id" binding:"required,uuid"`
+	AccepterVPCID    string `json:"accepter_vpc_id" binding:"required,uuid"`
+	AccepterTenantID string `json:"accepter_tenant_id" binding:"required,uuid"`
 }
 
 // NewVPCPeeringHandler creates a new VPCPeeringHandler.
@@ -50,8 +51,9 @@ func (h *VPCPeeringHandler) Create(c *gin.Context) {
 
 	requesterID, _ := uuid.Parse(req.RequesterVPCID)
 	accepterID, _ := uuid.Parse(req.AccepterVPCID)
+	accepterTenantID, _ := uuid.Parse(req.AccepterTenantID)
 
-	peering, err := h.svc.CreatePeering(c.Request.Context(), requesterID, accepterID)
+	peering, err := h.svc.CreatePeering(c.Request.Context(), requesterID, accepterID, accepterTenantID)
 	if err != nil {
 		httputil.Error(c, err)
 		return
