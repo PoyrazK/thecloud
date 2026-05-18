@@ -95,8 +95,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, name, slug string, own
 		MaxVCPUs:     8,
 	}
 	if err := s.repo.UpdateQuota(ctx, quota); err != nil {
-		// Log but don't fail tenant creation
-		s.logger.Error("failed to set default quota", "tenant_id", tenant.ID, "err", err)
+		return nil, errors.Wrap(errors.Internal, "failed to set default quota", err)
 	}
 
 	// 5. Update user's default tenant if not set
