@@ -697,23 +697,32 @@ func (s *FunctionService) GetDLQInvocations(ctx context.Context, id uuid.UUID) (
 	return s.repo.GetDLQInvocations(ctx, id)
 }
 
-func (s *FunctionService) RetryDLQInvocation(ctx context.Context, invocationID uuid.UUID) (*domain.Invocation, error) {
+func (s *FunctionService) RetryDLQInvocation(ctx context.Context, functionID, invocationID uuid.UUID) (*domain.Invocation, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
-	invocations, err := s.repo.GetDLQInvocations(ctx, invocationID)
+
+	// Verify function exists and user has access
+	f, err := s.repo.GetByID(ctx, functionID)
 	if err != nil {
 		return nil, err
 	}
-	if len(invocations) == 0 {
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionFunctionInvoke, functionID.String()); err != nil {
+		return nil, err
+	}
+
+	// Get the invocation - must be DLQ and belong to this function
+	inv, err := s.repo.GetInvocationByID(ctx, invocationID)
+	if err != nil {
+		return nil, errors.Wrap(errors.NotFound, "invocation not found", err)
+	}
+	if inv.FunctionID != f.ID {
 		return nil, errors.New(errors.NotFound, "DLQ invocation not found")
 	}
-	inv := invocations[0]
-	if _, err := s.repo.GetByID(ctx, inv.FunctionID); err != nil {
-		return nil, err
+	if inv.Status != "DLQ" {
+		return nil, errors.New(errors.InvalidInput, "invocation is not in DLQ status")
 	}
-	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionFunctionInvoke, inv.FunctionID.String()); err != nil {
-		return nil, err
-	}
+
+	// Reset for retry
 	inv.Status = "PENDING"
 	inv.RetryCount = 0
 	inv.EndedAt = nil

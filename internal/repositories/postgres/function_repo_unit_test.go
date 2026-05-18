@@ -192,3 +192,30 @@ func TestFunctionRepositoryUpdateInvocation(t *testing.T) {
 	err = repo.UpdateInvocation(ctx, inv)
 	require.NoError(t, err)
 }
+
+func TestFunctionRepositoryGetInvocationByID(t *testing.T) {
+	t.Parallel()
+	mock, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mock.Close()
+
+	repo := NewFunctionRepository(mock)
+	id := uuid.New()
+	functionID := uuid.New()
+	tenantID := uuid.New()
+	ctx := appcontext.WithTenantID(context.Background(), tenantID)
+	now := time.Now()
+
+	mock.ExpectQuery("SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries FROM invocations WHERE id = \\$1").
+		WithArgs(id).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "function_id", "status", "started_at", "ended_at", "duration_ms", "status_code", "logs", "retry_count", "max_retries"}).
+			AddRow(id, functionID, "DLQ", now, nil, 500, 1, "failed after 3 retries", 3, 3))
+
+	inv, err := repo.GetInvocationByID(ctx, id)
+	require.NoError(t, err)
+	require.NotNil(t, inv)
+	assert.Equal(t, id, inv.ID)
+	assert.Equal(t, functionID, inv.FunctionID)
+	assert.Equal(t, "DLQ", inv.Status)
+	assert.Equal(t, 3, inv.RetryCount)
+}

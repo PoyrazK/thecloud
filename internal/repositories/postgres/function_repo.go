@@ -159,6 +159,12 @@ func (r *FunctionRepository) GetDLQInvocations(ctx context.Context, functionID u
 	return r.scanInvocations(rows)
 }
 
+func (r *FunctionRepository) GetInvocationByID(ctx context.Context, invocationID uuid.UUID) (*domain.Invocation, error) {
+	query := `SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries FROM invocations WHERE id = $1`
+	row := r.db.QueryRow(ctx, query, invocationID)
+	return r.scanInvocation(row)
+}
+
 func (r *FunctionRepository) UpdateInvocation(ctx context.Context, i *domain.Invocation) error {
 	query := `UPDATE invocations SET status = $1, ended_at = $2, duration_ms = $3, status_code = $4, logs = $5, retry_count = $6 WHERE id = $7`
 	_, err := r.db.Exec(ctx, query, i.Status, i.EndedAt, i.DurationMs, i.StatusCode, i.Logs, i.RetryCount, i.ID)

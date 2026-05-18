@@ -214,13 +214,18 @@ func (h *FunctionHandler) GetDLQ(c *gin.Context) {
 }
 
 func (h *FunctionHandler) RetryDLQ(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	functionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		httputil.Error(c, errors.New(errors.InvalidInput, invalidFunctionIDMsg))
 		return
 	}
+	invocationID, err := uuid.Parse(c.Param("invocation_id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid invocation id"))
+		return
+	}
 
-	invocation, err := h.svc.RetryDLQInvocation(c.Request.Context(), id)
+	invocation, err := h.svc.RetryDLQInvocation(c.Request.Context(), functionID, invocationID)
 	if err != nil {
 		httputil.Error(c, err)
 		return
