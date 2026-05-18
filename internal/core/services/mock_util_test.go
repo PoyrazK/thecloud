@@ -682,6 +682,20 @@ func (m *MockFunctionService) UpdateFunction(ctx context.Context, id uuid.UUID, 
 	}
 	return args.Get(0).(*domain.Function), args.Error(1)
 }
+func (m *MockFunctionService) GetDLQInvocations(ctx context.Context, id uuid.UUID) ([]*domain.Invocation, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Invocation), args.Error(1)
+}
+func (m *MockFunctionService) RetryDLQInvocation(ctx context.Context, functionID, invocationID uuid.UUID) (*domain.Invocation, error) {
+	args := m.Called(ctx, functionID, invocationID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Invocation), args.Error(1)
+}
 
 type MockFunctionScheduleService = MockFunctionScheduleServiceImpl
 
