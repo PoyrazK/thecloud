@@ -35,6 +35,9 @@ jobs:
         with:
           go-version: '1.25.0'
 
+      - name: Clear Go build cache
+        run: go clean -cache
+
       - name: Wait for Database
         run: |
           timeout 60s bash -c 'until pg_isready -h 127.0.0.1 -p 5433 -U cloud; do
