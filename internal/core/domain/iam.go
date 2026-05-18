@@ -41,11 +41,11 @@ type PolicyVersion struct {
 	ID            uuid.UUID   `json:"id"`
 	PolicyID      uuid.UUID   `json:"policy_id"`
 	VersionNumber int         `json:"version_number"`
-	Name         string      `json:"name"`
-	Description  string      `json:"description,omitempty"`
-	Statements   []Statement `json:"statements"`
-	CreatedAt    time.Time   `json:"created_at"`
-	CreatedBy   *uuid.UUID  `json:"created_by,omitempty"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description,omitempty"`
+	Statements    []Statement `json:"statements"`
+	CreatedAt     time.Time   `json:"created_at"`
+	CreatedBy     *uuid.UUID  `json:"created_by,omitempty"`
 }
 
 // UserPolicy maps a policy to a user.

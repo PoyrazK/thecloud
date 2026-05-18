@@ -273,7 +273,7 @@ func (s *iamService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UU
 
 	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_ROLLBACK", policyID.String(), "POLICY", map[string]interface{}{
 		"rolled_back_to_version": versionNumber,
-		"new_version":           newVersion.VersionNumber,
+		"new_version":            newVersion.VersionNumber,
 	}); err != nil {
 		s.logger.Warn("failed to record event", "action", "IAM_POLICY_ROLLBACK", "policy_id", policyID, "error", err)
 	}
