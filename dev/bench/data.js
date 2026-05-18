@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779123102961,
+  "lastUpdate": 1779125076189,
   "repoUrl": "https://github.com/poyrazK/thecloud",
   "entries": {
     "Go Benchmarks": [
@@ -318248,6 +318248,390 @@ window.BENCHMARK_DATA = {
             "value": 0,
             "unit": "allocs/op",
             "extra": "100000000 times\n4 procs"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "83272398+poyrazK@users.noreply.github.com",
+            "name": "Hüseyin Poyraz Küçükarslan",
+            "username": "poyrazK"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bb3a7ab6cb1152b50fd1f82d1523a97e88ebcca1",
+          "message": "Merge pull request #573 from poyrazK/fix/266-lifecycle-utc-timestamp\n\nfix: use UTC for CreatedAt in storage objects (Issue #266)",
+          "timestamp": "2026-05-18T20:23:17+03:00",
+          "tree_id": "024d1abab290a97c849a597566565dce30ba15bf",
+          "url": "https://github.com/poyrazK/thecloud/commit/bb3a7ab6cb1152b50fd1f82d1523a97e88ebcca1"
+        },
+        "date": 1779125066004,
+        "tool": "go",
+        "benches": [
+          {
+            "name": "BenchmarkInstanceServiceList/records=10",
+            "value": 71.14,
+            "unit": "ns/op\t      80 B/op\t       1 allocs/op",
+            "extra": "16783093 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=10 - ns/op",
+            "value": 71.14,
+            "unit": "ns/op",
+            "extra": "16783093 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=10 - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "16783093 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=10 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "16783093 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=100",
+            "value": 241.5,
+            "unit": "ns/op\t     896 B/op\t       1 allocs/op",
+            "extra": "5000437 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=100 - ns/op",
+            "value": 241.5,
+            "unit": "ns/op",
+            "extra": "5000437 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=100 - B/op",
+            "value": 896,
+            "unit": "B/op",
+            "extra": "5000437 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=100 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "5000437 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=1000",
+            "value": 2362,
+            "unit": "ns/op\t    8192 B/op\t       1 allocs/op",
+            "extra": "491804 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=1000 - ns/op",
+            "value": 2362,
+            "unit": "ns/op",
+            "extra": "491804 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=1000 - B/op",
+            "value": 8192,
+            "unit": "B/op",
+            "extra": "491804 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkInstanceServiceList/records=1000 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "491804 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVPCServiceGet",
+            "value": 166.2,
+            "unit": "ns/op\t     224 B/op\t       2 allocs/op",
+            "extra": "7962912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVPCServiceGet - ns/op",
+            "value": 166.2,
+            "unit": "ns/op",
+            "extra": "7962912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVPCServiceGet - B/op",
+            "value": 224,
+            "unit": "B/op",
+            "extra": "7962912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkVPCServiceGet - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "7962912 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceInvoke",
+            "value": 56711,
+            "unit": "ns/op\t    2352 B/op\t      32 allocs/op",
+            "extra": "20906 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceInvoke - ns/op",
+            "value": 56711,
+            "unit": "ns/op",
+            "extra": "20906 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceInvoke - B/op",
+            "value": 2352,
+            "unit": "B/op",
+            "extra": "20906 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceInvoke - allocs/op",
+            "value": 32,
+            "unit": "allocs/op",
+            "extra": "20906 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAuthServiceLoginParallel",
+            "value": 18698941,
+            "unit": "ns/op\t    6011 B/op\t      22 allocs/op",
+            "extra": "60 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAuthServiceLoginParallel - ns/op",
+            "value": 18698941,
+            "unit": "ns/op",
+            "extra": "60 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAuthServiceLoginParallel - B/op",
+            "value": 6011,
+            "unit": "B/op",
+            "extra": "60 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkAuthServiceLoginParallel - allocs/op",
+            "value": 22,
+            "unit": "allocs/op",
+            "extra": "60 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=10",
+            "value": 70.73,
+            "unit": "ns/op\t      80 B/op\t       1 allocs/op",
+            "extra": "16645010 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=10 - ns/op",
+            "value": 70.73,
+            "unit": "ns/op",
+            "extra": "16645010 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=10 - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "16645010 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=10 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "16645010 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=100",
+            "value": 246,
+            "unit": "ns/op\t     896 B/op\t       1 allocs/op",
+            "extra": "4883032 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=100 - ns/op",
+            "value": 246,
+            "unit": "ns/op",
+            "extra": "4883032 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=100 - B/op",
+            "value": 896,
+            "unit": "B/op",
+            "extra": "4883032 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=100 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "4883032 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=1000",
+            "value": 2368,
+            "unit": "ns/op\t    8192 B/op\t       1 allocs/op",
+            "extra": "494078 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=1000 - ns/op",
+            "value": 2368,
+            "unit": "ns/op",
+            "extra": "494078 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=1000 - B/op",
+            "value": 8192,
+            "unit": "B/op",
+            "extra": "494078 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseServiceList/records=1000 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "494078 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseContentionParallel",
+            "value": 257.8,
+            "unit": "ns/op\t     464 B/op\t       2 allocs/op",
+            "extra": "4791825 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseContentionParallel - ns/op",
+            "value": 257.8,
+            "unit": "ns/op",
+            "extra": "4791825 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseContentionParallel - B/op",
+            "value": 464,
+            "unit": "B/op",
+            "extra": "4791825 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkDatabaseContentionParallel - allocs/op",
+            "value": 2,
+            "unit": "allocs/op",
+            "extra": "4791825 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCacheServiceList",
+            "value": 10,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "120278376 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCacheServiceList - ns/op",
+            "value": 10,
+            "unit": "ns/op",
+            "extra": "120278376 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCacheServiceList - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "120278376 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkCacheServiceList - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "120278376 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=10",
+            "value": 69.09,
+            "unit": "ns/op\t      80 B/op\t       1 allocs/op",
+            "extra": "17275629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=10 - ns/op",
+            "value": 69.09,
+            "unit": "ns/op",
+            "extra": "17275629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=10 - B/op",
+            "value": 80,
+            "unit": "B/op",
+            "extra": "17275629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=10 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "17275629 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=100",
+            "value": 243.3,
+            "unit": "ns/op\t     896 B/op\t       1 allocs/op",
+            "extra": "5014364 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=100 - ns/op",
+            "value": 243.3,
+            "unit": "ns/op",
+            "extra": "5014364 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=100 - B/op",
+            "value": 896,
+            "unit": "B/op",
+            "extra": "5014364 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=100 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "5014364 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=1000",
+            "value": 2207,
+            "unit": "ns/op\t    8192 B/op\t       1 allocs/op",
+            "extra": "536402 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=1000 - ns/op",
+            "value": 2207,
+            "unit": "ns/op",
+            "extra": "536402 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=1000 - B/op",
+            "value": 8192,
+            "unit": "B/op",
+            "extra": "536402 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkStorageServiceList/records=1000 - allocs/op",
+            "value": 1,
+            "unit": "allocs/op",
+            "extra": "536402 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceList",
+            "value": 10,
+            "unit": "ns/op\t       0 B/op\t       0 allocs/op",
+            "extra": "120119853 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceList - ns/op",
+            "value": 10,
+            "unit": "ns/op",
+            "extra": "120119853 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceList - B/op",
+            "value": 0,
+            "unit": "B/op",
+            "extra": "120119853 times\n4 procs"
+          },
+          {
+            "name": "BenchmarkFunctionServiceList - allocs/op",
+            "value": 0,
+            "unit": "allocs/op",
+            "extra": "120119853 times\n4 procs"
           }
         ]
       }
