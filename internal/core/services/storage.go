@@ -727,10 +727,24 @@ func (s *StorageService) UploadPart(ctx context.Context, uploadID uuid.UUID, par
 	hash := sha256.New()
 	teeReader := io.TeeReader(r, hash)
 
-	// 3. Write to store (use temporary location)
+	// 3. Write to store (use temporary location).
+	// boundedReader rejects parts larger than maxPartSize instead of silently
+	// truncating, and tears down the partial object so a misbehaving client
+	// cannot exhaust disk by uploading huge parts. (#305)
 	partKey := fmt.Sprintf(partPathFormat, upload.ID.String(), partNumber)
-	size, err := s.store.Write(ctx, upload.Bucket, partKey, io.LimitReader(teeReader, maxPartSize))
+	br := &boundedReader{
+		r:     teeReader,
+		limit: maxPartSize,
+		cleanupFn: func() {
+			_ = s.store.Delete(ctx, upload.Bucket, partKey)
+		},
+	}
+	size, err := s.store.Write(ctx, upload.Bucket, partKey, br)
 	if err != nil {
+		var appErr errors.Error
+		if errors.As(err, &appErr) && appErr.Type == errors.ObjectTooLarge {
+			return nil, err
+		}
 		return nil, errors.Wrap(errors.Internal, "failed to write part", err)
 	}
 
