@@ -41,7 +41,7 @@ func (r *NoopInstanceRepository) ListByVPC(ctx context.Context, vpcID uuid.UUID)
 }
 func (r *NoopInstanceRepository) Update(ctx context.Context, i *domain.Instance) error { return nil }
 
-func (r *NoopInstanceRepository) Delete(ctx context.Context, id uuid.UUID) error      { return nil }
+func (r *NoopInstanceRepository) Delete(ctx context.Context, id uuid.UUID) error { return nil }
 
 // NoopVpcRepository
 type NoopVpcRepository struct{}
@@ -114,8 +114,8 @@ func NewNoopComputeBackend() *NoopComputeBackend {
 func (b *NoopComputeBackend) LaunchInstanceWithOptions(ctx context.Context, opts ports.CreateInstanceOptions) (string, []string, error) {
 	return uuid.New().String(), []string{}, nil
 }
-func (b *NoopComputeBackend) StartInstance(ctx context.Context, id string) error { return nil }
-func (b *NoopComputeBackend) StopInstance(ctx context.Context, id string) error  { return nil }
+func (b *NoopComputeBackend) StartInstance(ctx context.Context, id string) error  { return nil }
+func (b *NoopComputeBackend) StopInstance(ctx context.Context, id string) error   { return nil }
 func (b *NoopComputeBackend) DeleteInstance(ctx context.Context, id string) error { return nil }
 func (b *NoopComputeBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
@@ -152,14 +152,16 @@ func (b *NoopComputeBackend) DetachVolume(ctx context.Context, id string, volume
 	return "", nil
 }
 func (b *NoopComputeBackend) Ping(ctx context.Context) error                      { return nil }
-func (b *NoopComputeBackend) Type() string                                   { return "noop" }
-func (b *NoopComputeBackend) PauseInstance(ctx context.Context, id string) error   { return nil }
-func (b *NoopComputeBackend) ResumeInstance(ctx context.Context, id string) error  { return nil }
-func (b *NoopComputeBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error { return nil }
-func (b *NoopComputeBackend) CreateSnapshot(ctx context.Context, id, name string) error { return nil }
+func (b *NoopComputeBackend) Type() string                                        { return "noop" }
+func (b *NoopComputeBackend) PauseInstance(ctx context.Context, id string) error  { return nil }
+func (b *NoopComputeBackend) ResumeInstance(ctx context.Context, id string) error { return nil }
+func (b *NoopComputeBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error {
+	return nil
+}
+func (b *NoopComputeBackend) CreateSnapshot(ctx context.Context, id, name string) error  { return nil }
 func (b *NoopComputeBackend) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
-func (b *NoopComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error { return nil }
-func (b *NoopComputeBackend) ResetCircuitBreaker() {}
+func (b *NoopComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
+func (b *NoopComputeBackend) ResetCircuitBreaker()                                       {}
 
 // NoopDNSService is a no-op DNS service.
 type NoopDNSService struct{}
@@ -175,7 +177,9 @@ type NoopLogService struct{}
 func (s *NoopLogService) StreamLogs(ctx context.Context, instanceID string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
 }
-func (s *NoopLogService) GetLogs(ctx context.Context, instanceID string) (string, error) { return "", nil }
+func (s *NoopLogService) GetLogs(ctx context.Context, instanceID string) (string, error) {
+	return "", nil
+}
 
 // NoopEventService is a no-op event service.
 type NoopEventService struct{}
@@ -451,8 +455,10 @@ func (r *NoopFunctionRepository) GetByName(ctx context.Context, userID uuid.UUID
 func (r *NoopFunctionRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Function, error) {
 	return []*domain.Function{}, nil
 }
-func (r *NoopFunctionRepository) Update(ctx context.Context, id uuid.UUID, u *domain.FunctionUpdate) error { return nil }
-func (r *NoopFunctionRepository) Delete(ctx context.Context, id uuid.UUID) error        { return nil }
+func (r *NoopFunctionRepository) Update(ctx context.Context, id uuid.UUID, u *domain.FunctionUpdate) error {
+	return nil
+}
+func (r *NoopFunctionRepository) Delete(ctx context.Context, id uuid.UUID) error { return nil }
 func (r *NoopFunctionRepository) GetInvocations(ctx context.Context, fnID uuid.UUID, limit int) ([]*domain.Invocation, error) {
 	return []*domain.Invocation{}, nil
 }
@@ -533,8 +539,12 @@ func (s *NoopIdentityService) GetServiceAccount(ctx context.Context, id uuid.UUI
 func (s *NoopIdentityService) ListServiceAccounts(ctx context.Context, tenantID uuid.UUID) ([]*domain.ServiceAccount, error) {
 	return []*domain.ServiceAccount{}, nil
 }
-func (s *NoopIdentityService) UpdateServiceAccount(ctx context.Context, sa *domain.ServiceAccount) error { return nil }
-func (s *NoopIdentityService) DeleteServiceAccount(ctx context.Context, id uuid.UUID) error { return nil }
+func (s *NoopIdentityService) UpdateServiceAccount(ctx context.Context, sa *domain.ServiceAccount) error {
+	return nil
+}
+func (s *NoopIdentityService) DeleteServiceAccount(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
 func (s *NoopIdentityService) ValidateClientCredentials(ctx context.Context, clientID, clientSecret string) (string, error) {
 	return "noop-token", nil
 }
@@ -544,7 +554,9 @@ func (s *NoopIdentityService) ValidateAccessToken(ctx context.Context, token str
 func (s *NoopIdentityService) RotateServiceAccountSecret(ctx context.Context, saID uuid.UUID) (string, error) {
 	return "sa_newsecret", nil
 }
-func (s *NoopIdentityService) RevokeServiceAccountSecret(ctx context.Context, saID, secretID uuid.UUID) error { return nil }
+func (s *NoopIdentityService) RevokeServiceAccountSecret(ctx context.Context, saID, secretID uuid.UUID) error {
+	return nil
+}
 func (s *NoopIdentityService) ListServiceAccountSecrets(ctx context.Context, saID uuid.UUID) ([]*domain.ServiceAccountSecret, error) {
 	return []*domain.ServiceAccountSecret{}, nil
 }
@@ -580,7 +592,7 @@ func (r *NoopCacheRepository) GetByName(ctx context.Context, tenantID uuid.UUID,
 func (r *NoopCacheRepository) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.Cache, error) {
 	return []*domain.Cache{}, nil
 }
-func (r *NoopCacheRepository) Update(ctx context.Context, c *domain.Cache) error { return nil }
+func (r *NoopCacheRepository) Update(ctx context.Context, c *domain.Cache) error        { return nil }
 func (r *NoopCacheRepository) Delete(ctx context.Context, id, tenantID uuid.UUID) error { return nil }
 
 type NoopLBRepository struct {
@@ -699,16 +711,28 @@ func (r *NoopStorageRepository) ListParts(ctx context.Context, uploadID uuid.UUI
 }
 func (r *NoopStorageRepository) AttachVolume(ctx context.Context, volumeName, instanceID string) (string, error) {
 	return "/dev/vdb", nil
-} 
-func (r *NoopStorageRepository) CreateVolume(ctx context.Context, name string, sizeGB int) (string, error) { return "vol-1", nil } 
-func (r *NoopStorageRepository) DeleteVolume(ctx context.Context, name string) error { return nil } 
-func (r *NoopStorageRepository) ResizeVolume(ctx context.Context, name string, newSizeGB int) error { return nil } 
-func (r *NoopStorageRepository) DetachVolume(ctx context.Context, volumeName, instanceID string) error { return nil } 
-func (r *NoopStorageRepository) CreateSnapshot(ctx context.Context, volumeName, snapshotName string) error { return nil } 
-func (r *NoopStorageRepository) DeleteSnapshot(ctx context.Context, snapshotName string) error { return nil } 
-func (r *NoopStorageRepository) RestoreSnapshot(ctx context.Context, volumeName, snapshotName string) error { return nil } 
-func (r *NoopStorageRepository) Ping(ctx context.Context) error { return nil } 
-func (r *NoopStorageRepository) Type() string { return "noop" }
+}
+func (r *NoopStorageRepository) CreateVolume(ctx context.Context, name string, sizeGB int) (string, error) {
+	return "vol-1", nil
+}
+func (r *NoopStorageRepository) DeleteVolume(ctx context.Context, name string) error { return nil }
+func (r *NoopStorageRepository) ResizeVolume(ctx context.Context, name string, newSizeGB int) error {
+	return nil
+}
+func (r *NoopStorageRepository) DetachVolume(ctx context.Context, volumeName, instanceID string) error {
+	return nil
+}
+func (r *NoopStorageRepository) CreateSnapshot(ctx context.Context, volumeName, snapshotName string) error {
+	return nil
+}
+func (r *NoopStorageRepository) DeleteSnapshot(ctx context.Context, snapshotName string) error {
+	return nil
+}
+func (r *NoopStorageRepository) RestoreSnapshot(ctx context.Context, volumeName, snapshotName string) error {
+	return nil
+}
+func (r *NoopStorageRepository) Ping(ctx context.Context) error { return nil }
+func (r *NoopStorageRepository) Type() string                   { return "noop" }
 
 type NoopStorageBackend struct{}
 
@@ -761,7 +785,7 @@ func (s *NoopRBACService) ListRoles(ctx context.Context) ([]*domain.Role, error)
 	return []*domain.Role{}, nil
 }
 func (s *NoopRBACService) UpdateRole(ctx context.Context, role *domain.Role) error { return nil }
-func (s *NoopRBACService) DeleteRole(ctx context.Context, id uuid.UUID) error     { return nil }
+func (s *NoopRBACService) DeleteRole(ctx context.Context, id uuid.UUID) error      { return nil }
 func (s *NoopRBACService) AddPermissionToRole(ctx context.Context, roleID uuid.UUID, permission domain.Permission) error {
 	return nil
 }

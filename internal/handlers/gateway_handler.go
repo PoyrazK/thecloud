@@ -21,25 +21,25 @@ import (
 
 // CreateRouteRequest define the payload for creating a route.
 type CreateRouteRequest struct {
-	Name                  string   `json:"name" binding:"required"`
-	PathPrefix            string   `json:"path_prefix" binding:"required"`
-	TargetURL             string   `json:"target_url" binding:"required"`
-	Methods               []string `json:"methods"`
-	StripPrefix           bool     `json:"strip_prefix"`
-	RateLimit             int      `json:"rate_limit" binding:"gte=0"`
-	DialTimeout           int64    `json:"dial_timeout" binding:"gte=0"`
-	ResponseHeaderTimeout int64    `json:"response_header_timeout" binding:"gte=0"`
-	IdleConnTimeout       int64    `json:"idle_conn_timeout" binding:"gte=0"`
-	TLSSkipVerify         bool     `json:"tls_skip_verify"`
-	RequireTLS            bool     `json:"require_tls"`
-	AllowedCIDRs           []string `json:"allowed_cidrs"`
-	BlockedCIDRs           []string `json:"blocked_cidrs"`
-	MaxBodySize           int64    `json:"max_body_size" binding:"gte=0"`
-	Priority              int      `json:"priority" binding:"gte=0"`
-	CircuitBreakerThreshold int     `json:"circuit_breaker_threshold" binding:"gte=0"`
-	CircuitBreakerTimeout   int64   `json:"circuit_breaker_timeout" binding:"gte=0"`
-	MaxRetries              int     `json:"max_retries" binding:"gte=0"`
-	RetryTimeout            int64   `json:"retry_timeout" binding:"gte=0"`
+	Name                    string   `json:"name" binding:"required"`
+	PathPrefix              string   `json:"path_prefix" binding:"required"`
+	TargetURL               string   `json:"target_url" binding:"required"`
+	Methods                 []string `json:"methods"`
+	StripPrefix             bool     `json:"strip_prefix"`
+	RateLimit               int      `json:"rate_limit" binding:"gte=0"`
+	DialTimeout             int64    `json:"dial_timeout" binding:"gte=0"`
+	ResponseHeaderTimeout   int64    `json:"response_header_timeout" binding:"gte=0"`
+	IdleConnTimeout         int64    `json:"idle_conn_timeout" binding:"gte=0"`
+	TLSSkipVerify           bool     `json:"tls_skip_verify"`
+	RequireTLS              bool     `json:"require_tls"`
+	AllowedCIDRs            []string `json:"allowed_cidrs"`
+	BlockedCIDRs            []string `json:"blocked_cidrs"`
+	MaxBodySize             int64    `json:"max_body_size" binding:"gte=0"`
+	Priority                int      `json:"priority" binding:"gte=0"`
+	CircuitBreakerThreshold int      `json:"circuit_breaker_threshold" binding:"gte=0"`
+	CircuitBreakerTimeout   int64    `json:"circuit_breaker_timeout" binding:"gte=0"`
+	MaxRetries              int      `json:"max_retries" binding:"gte=0"`
+	RetryTimeout            int64    `json:"retry_timeout" binding:"gte=0"`
 }
 
 // GatewayHandler handles API gateway HTTP endpoints.
@@ -84,25 +84,25 @@ func (h *GatewayHandler) CreateRoute(c *gin.Context) {
 	}
 
 	params := ports.CreateRouteParams{
-		Name:                   req.Name,
-		Pattern:                req.PathPrefix,
-		Target:                 req.TargetURL,
-		Methods:                req.Methods,
-		StripPrefix:            req.StripPrefix,
-		RateLimit:              req.RateLimit,
-		DialTimeout:            req.DialTimeout,
-		ResponseHeaderTimeout:  req.ResponseHeaderTimeout,
-		IdleConnTimeout:        req.IdleConnTimeout,
-		TLSSkipVerify:          req.TLSSkipVerify,
-		RequireTLS:            req.RequireTLS,
-		AllowedCIDRs:           req.AllowedCIDRs,
-		BlockedCIDRs:           req.BlockedCIDRs,
-		MaxBodySize:            req.MaxBodySize,
-		Priority:               req.Priority,
+		Name:                    req.Name,
+		Pattern:                 req.PathPrefix,
+		Target:                  req.TargetURL,
+		Methods:                 req.Methods,
+		StripPrefix:             req.StripPrefix,
+		RateLimit:               req.RateLimit,
+		DialTimeout:             req.DialTimeout,
+		ResponseHeaderTimeout:   req.ResponseHeaderTimeout,
+		IdleConnTimeout:         req.IdleConnTimeout,
+		TLSSkipVerify:           req.TLSSkipVerify,
+		RequireTLS:              req.RequireTLS,
+		AllowedCIDRs:            req.AllowedCIDRs,
+		BlockedCIDRs:            req.BlockedCIDRs,
+		MaxBodySize:             req.MaxBodySize,
+		Priority:                req.Priority,
 		CircuitBreakerThreshold: req.CircuitBreakerThreshold,
 		CircuitBreakerTimeout:   req.CircuitBreakerTimeout,
-		MaxRetries:            req.MaxRetries,
-		RetryTimeout:          req.RetryTimeout,
+		MaxRetries:              req.MaxRetries,
+		RetryTimeout:            req.RetryTimeout,
 	}
 
 	route, err := h.svc.CreateRoute(c.Request.Context(), params)

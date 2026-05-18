@@ -45,9 +45,9 @@ var validBucketNameRe = regexp.MustCompile(`^[a-z0-9.-]+$`)
 // silent truncation. It uses a 1-byte probe to distinguish "object exactly at
 // limit" (underlying EOF on next Read) from "object exceeds limit" (extra data).
 type boundedReader struct {
-	r          io.Reader
-	limit      int64
-	count      int64
+	r         io.Reader
+	limit     int64
+	count     int64
 	cleanupFn func() // cleanup partial object on oversize; may be nil
 }
 

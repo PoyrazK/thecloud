@@ -355,7 +355,7 @@ func TestCircuitBreaker_GoesHalfOpenAfterTimeout(t *testing.T) {
 	cb := platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
 		Name:          "test",
 		Threshold:     2,
-		ResetTimeout: 50 * time.Millisecond,
+		ResetTimeout:  50 * time.Millisecond,
 		OnStateChange: nil,
 	})
 

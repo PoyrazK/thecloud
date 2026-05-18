@@ -31,40 +31,52 @@ type testComputeBackend struct{}
 func (t *testComputeBackend) LaunchInstanceWithOptions(ctx context.Context, opts ports.CreateInstanceOptions) (string, []string, error) {
 	return "", nil, nil
 }
-func (t *testComputeBackend) StartInstance(ctx context.Context, id string) error                  { return nil }
-func (t *testComputeBackend) StopInstance(ctx context.Context, id string) error                    { return nil }
-func (t *testComputeBackend) DeleteInstance(ctx context.Context, id string) error                  { return nil }
-func (t *testComputeBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) { return nil, nil }
+func (t *testComputeBackend) StartInstance(ctx context.Context, id string) error  { return nil }
+func (t *testComputeBackend) StopInstance(ctx context.Context, id string) error   { return nil }
+func (t *testComputeBackend) DeleteInstance(ctx context.Context, id string) error { return nil }
+func (t *testComputeBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
+	return nil, nil
+}
 func (t *testComputeBackend) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
 	return nil, nil
 }
 func (t *testComputeBackend) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {
 	return 0, nil
 }
-func (t *testComputeBackend) GetInstanceIP(ctx context.Context, id string) (string, error) { return "", nil }
-func (t *testComputeBackend) GetConsoleURL(ctx context.Context, id string) (string, error)   { return "", nil }
-func (t *testComputeBackend) Exec(ctx context.Context, id string, cmd []string) (string, error) { return "", nil }
+func (t *testComputeBackend) GetInstanceIP(ctx context.Context, id string) (string, error) {
+	return "", nil
+}
+func (t *testComputeBackend) GetConsoleURL(ctx context.Context, id string) (string, error) {
+	return "", nil
+}
+func (t *testComputeBackend) Exec(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
 func (t *testComputeBackend) RunTask(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
 	return "", nil, nil
 }
 func (t *testComputeBackend) WaitTask(ctx context.Context, id string) (int64, error) { return 0, nil }
-func (t *testComputeBackend) CreateNetwork(ctx context.Context, name string) (string, error) { return "", nil }
-func (t *testComputeBackend) DeleteNetwork(ctx context.Context, id string) error         { return nil }
+func (t *testComputeBackend) CreateNetwork(ctx context.Context, name string) (string, error) {
+	return "", nil
+}
+func (t *testComputeBackend) DeleteNetwork(ctx context.Context, id string) error { return nil }
 func (t *testComputeBackend) AttachVolume(ctx context.Context, id string, volumePath string) (string, string, error) {
 	return "", "", nil
 }
 func (t *testComputeBackend) DetachVolume(ctx context.Context, id string, volumePath string) (string, error) {
 	return "", nil
 }
-func (t *testComputeBackend) Ping(ctx context.Context) error                                        { return nil }
-func (t *testComputeBackend) Type() string                                                          { return "test" }
-func (t *testComputeBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error { return nil }
-func (t *testComputeBackend) CreateSnapshot(ctx context.Context, id, name string) error            { return nil }
-func (t *testComputeBackend) RestoreSnapshot(ctx context.Context, id, name string) error            { return nil }
-func (t *testComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error             { return nil }
-func (t *testComputeBackend) PauseInstance(ctx context.Context, id string) error                      { return nil }
-func (t *testComputeBackend) ResumeInstance(ctx context.Context, id string) error                     { return nil }
-func (t *testComputeBackend) ResetCircuitBreaker()                                                    {}
+func (t *testComputeBackend) Ping(ctx context.Context) error { return nil }
+func (t *testComputeBackend) Type() string                   { return "test" }
+func (t *testComputeBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error {
+	return nil
+}
+func (t *testComputeBackend) CreateSnapshot(ctx context.Context, id, name string) error  { return nil }
+func (t *testComputeBackend) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
+func (t *testComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
+func (t *testComputeBackend) PauseInstance(ctx context.Context, id string) error         { return nil }
+func (t *testComputeBackend) ResumeInstance(ctx context.Context, id string) error        { return nil }
+func (t *testComputeBackend) ResetCircuitBreaker()                                       {}
 
 // compile-time check that testComputeBackend satisfies ports.ComputeBackend
 var _ ports.ComputeBackend = (*testComputeBackend)(nil)

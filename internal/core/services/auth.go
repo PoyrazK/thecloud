@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
@@ -33,8 +33,8 @@ type DB interface {
 }
 
 const (
-	lockoutThreshold  = 5
-	defaultLockout    = 15 * time.Minute
+	lockoutThreshold = 5
+	defaultLockout   = 15 * time.Minute
 	// Hard size limits prevent unbounded map growth under high failure traffic.
 	// The probabilistic purge (every ~10 calls) may not keep up with rapid failures.
 	maxFailedAttemptsMap = 1000

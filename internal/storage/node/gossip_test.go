@@ -283,8 +283,8 @@ func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 
 	// Remote node rebooted — its heartbeat wrapped to 1, message timestamp is now
 	olderMsg := &pb.GossipMessage{
-		SenderId:   "node2",
-		Timestamp:  now.Add(-1 * time.Second).Unix(), // older than our LastSeen
+		SenderId:  "node2",
+		Timestamp: now.Add(-1 * time.Second).Unix(), // older than our LastSeen
 		Members: map[string]*pb.MemberState{
 			"node2": {Addr: testNode2Addr, Status: "alive", Heartbeat: 1},
 		},
@@ -298,8 +298,8 @@ func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 
 	// Newer message with wrapped heartbeat should win
 	newerMsg := &pb.GossipMessage{
-		SenderId:   "node2",
-		Timestamp:  now.Add(1 * time.Second).Unix(), // newer than our LastSeen
+		SenderId:  "node2",
+		Timestamp: now.Add(1 * time.Second).Unix(), // newer than our LastSeen
 		Members: map[string]*pb.MemberState{
 			"node2": {Addr: testNode2Addr, Status: "alive", Heartbeat: 1},
 		},

@@ -4,7 +4,7 @@ package sdk
 import (
 	"context"
 	"fmt"
-"strconv"
+	"strconv"
 	"strings"
 
 	"github.com/go-resty/resty/v2"
@@ -25,9 +25,9 @@ const (
 
 // ListResponse wraps paginated list responses.
 type ListResponse[T any] struct {
-	Data       []T   `json:"data"`
-	TotalCount int   `json:"total_count,omitempty"`
-	HasMore    bool  `json:"has_more,omitempty"`
+	Data       []T  `json:"data"`
+	TotalCount int  `json:"total_count,omitempty"`
+	HasMore    bool `json:"has_more,omitempty"`
 }
 
 // NewClient constructs a Client with the provided API URL and key.

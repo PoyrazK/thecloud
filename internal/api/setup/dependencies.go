@@ -10,6 +10,7 @@ import (
 
 	"strings"
 
+	"crypto/tls"
 	dnsadapter "github.com/poyrazk/thecloud/internal/adapters/dns"
 	"github.com/poyrazk/thecloud/internal/adapters/vault"
 	"github.com/poyrazk/thecloud/internal/core/ports"
@@ -25,7 +26,6 @@ import (
 	"github.com/poyrazk/thecloud/internal/workers"
 	redisv9 "github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
-	"crypto/tls"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )

@@ -39,6 +39,6 @@ const (
 	KeyRequestedTime ConditionKey = "aws:RequestedTime"
 
 	// thecloud-specific condition keys
-	KeyTenantID   ConditionKey = "thecloud:TenantId"
+	KeyTenantID  ConditionKey = "thecloud:TenantId"
 	KeyUserAgent ConditionKey = "thecloud:UserAgent"
 )

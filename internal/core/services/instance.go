@@ -1343,14 +1343,14 @@ func (s *InstanceService) calculateInstanceStats(stats *domain.RawDockerStats) *
 
 	return &domain.InstanceStats{
 		CPUPercentage:      cpuPercent,
-		MemoryUsageBytes:    memUsage,
-		MemoryLimitBytes:    memLimit,
-		MemoryPercentage:    memPercent,
-		NetworkRxBytes:      rxBytes,
-		NetworkTxBytes:      txBytes,
-		DiskReadBytes:       readBytes,
-		DiskWriteBytes:      writeBytes,
-		CPUTimeNanoseconds:  cpuTime,
+		MemoryUsageBytes:   memUsage,
+		MemoryLimitBytes:   memLimit,
+		MemoryPercentage:   memPercent,
+		NetworkRxBytes:     rxBytes,
+		NetworkTxBytes:     txBytes,
+		DiskReadBytes:      readBytes,
+		DiskWriteBytes:     writeBytes,
+		CPUTimeNanoseconds: cpuTime,
 	}
 }
 

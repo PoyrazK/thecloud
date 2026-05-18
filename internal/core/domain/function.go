@@ -86,10 +86,10 @@ type Function struct {
 	Runtime   string    `json:"runtime"`   // e.g. "python3.9", "go1.21"
 	Handler   string    `json:"handler"`   // Entry point (e.g. "main.Handle")
 	CodePath  string    `json:"code_path"` // Path to code artifact
-	Timeout   int       `json:"timeout"`    // Execution timeout in seconds
-	MemoryMB  int       `json:"memory_mb"`  // Memory allocation in MB
+	Timeout   int       `json:"timeout"`   // Execution timeout in seconds
+	MemoryMB  int       `json:"memory_mb"` // Memory allocation in MB
 	CPUs      float64   `json:"cpus"`      // CPU cores (e.g., 0.5, 1.0, 2.0)
-	Status    string    `json:"status"`     // e.g. "DEPLOYING", "READY"
+	Status    string    `json:"status"`    // e.g. "DEPLOYING", "READY"
 	EnvVars   []*EnvVar `json:"env_vars,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

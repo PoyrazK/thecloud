@@ -28,8 +28,8 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 				{
 					Statements: []domain.Statement{
 						{
-							Effect:  domain.EffectAllow,
-							Action:  []string{"instance:*"},
+							Effect:   domain.EffectAllow,
+							Action:   []string{"instance:*"},
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
@@ -53,8 +53,8 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 				{
 					Statements: []domain.Statement{
 						{
-							Effect:  domain.EffectAllow,
-							Action:  []string{"instance:*"},
+							Effect:   domain.EffectAllow,
+							Action:   []string{"instance:*"},
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
@@ -78,8 +78,8 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 				{
 					Statements: []domain.Statement{
 						{
-							Effect:  domain.EffectAllow,
-							Action:  []string{"instance:*"},
+							Effect:   domain.EffectAllow,
+							Action:   []string{"instance:*"},
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"NotIpAddress": {
@@ -504,8 +504,8 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 				{
 					Statements: []domain.Statement{
 						{
-							Effect:  domain.EffectAllow,
-							Action:  []string{"instance:*"},
+							Effect:   domain.EffectAllow,
+							Action:   []string{"instance:*"},
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
@@ -704,8 +704,8 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 				{
 					Statements: []domain.Statement{
 						{
-							Effect:  domain.EffectAllow,
-							Action:  []string{"instance:*"},
+							Effect:   domain.EffectAllow,
+							Action:   []string{"instance:*"},
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {

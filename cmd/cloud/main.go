@@ -26,9 +26,9 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(&cobra.Command{
-		Use:   "completion [bash|zsh|fish|powershell]",
-		Short: "Generate shell completion script",
-		Args:  cobra.ExactArgs(1),
+		Use:       "completion [bash|zsh|fish|powershell]",
+		Short:     "Generate shell completion script",
+		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch args[0] {

@@ -125,10 +125,10 @@ func (m *mockCompute) DeleteSnapshot(_ context.Context, _, _ string) error {
 	m.callCount.Add(1)
 	return m.err
 }
-func (m *mockCompute) Type() string { return "mock" }
-func (m *mockCompute) PauseInstance(_ context.Context, _ string) error { return nil }
+func (m *mockCompute) Type() string                                     { return "mock" }
+func (m *mockCompute) PauseInstance(_ context.Context, _ string) error  { return nil }
 func (m *mockCompute) ResumeInstance(_ context.Context, _ string) error { return nil }
-func (m *mockCompute) ResetCircuitBreaker() {}
+func (m *mockCompute) ResetCircuitBreaker()                             {}
 
 // ---------- tests ----------
 
