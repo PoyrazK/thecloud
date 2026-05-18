@@ -164,6 +164,11 @@ func (s *iamService) GetPoliciesForServiceAccount(ctx context.Context, saID uuid
 }
 
 func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Principal, actions []string, resources []string, evalCtx map[string]interface{}) (*ports.SimulateResult, error) {
+	const maxSimulatePairs = 100
+	if len(actions)*len(resources) > maxSimulatePairs {
+		return nil, errors.New(errors.InvalidInput, "too many action-resource pairs (max 100)")
+	}
+
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	var policies []*domain.Policy
 	var err error
@@ -178,11 +183,6 @@ func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Princip
 	}
 	if err != nil {
 		return nil, err
-	}
-
-	const maxSimulatePairs = 100
-	if len(actions)*len(resources) > maxSimulatePairs {
-		return nil, errors.New(errors.InvalidInput, "too many action-resource pairs (max 100)")
 	}
 
 	result := &ports.SimulateResult{Evaluated: 0}

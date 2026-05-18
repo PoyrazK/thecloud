@@ -12,6 +12,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/core/ports/mocks"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -178,6 +179,7 @@ func TestIAMHandler_SimulateServiceAccount(t *testing.T) {
 	require.NoError(t, err)
 	data := resp["data"].(map[string]interface{})
 	assert.Equal(t, "allow", data["decision"])
+	assert.InDelta(t, 1, data["evaluated"], 0)
 	svc.AssertExpectations(t)
 }
 
@@ -222,5 +224,73 @@ func TestIAMHandler_SimulateDenyWithCondition(t *testing.T) {
 	assert.Equal(t, "arn:thecloud:compute:us-east-1:*:instance/*", matched["resource"])
 	assert.Equal(t, "DenyDeletePolicy", matched["policy_name"])
 	assert.Equal(t, "deny-delete", matched["statement_sid"])
+	assert.InDelta(t, 1, data["evaluated"], 0)
+	svc.AssertExpectations(t)
+}
+
+func TestIAMHandler_SimulateTooManyPairs(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupIAMHandlerTest()
+	r.POST("/iam/simulate", handler.Simulate)
+
+	userID := uuid.New()
+	actions := make([]string, 11)
+	resources := make([]string, 10)
+	for i := range actions {
+		actions[i] = "compute:instance:launch"
+	}
+	for i := range resources {
+		resources[i] = "arn:thecloud:compute:us-east-1:*:instance/*"
+	}
+	// Mock returns INVALID_INPUT (as the service would when pair count > 100)
+	svc.On("SimulatePolicy", mock.Anything, ports.Principal{UserID: &userID}, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, errors.New(errors.InvalidInput, "too many action-resource pairs (max 100)"))
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"user_id":   userID.String(),
+		"actions":   actions,
+		"resources": resources,
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/iam/simulate", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	errData := resp["error"].(map[string]interface{})
+	assert.Equal(t, "INVALID_INPUT", errData["code"])
+	svc.AssertExpectations(t)
+}
+
+func TestIAMHandler_SimulateContextOverride(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupIAMHandlerTest()
+	r.POST("/iam/simulate", handler.Simulate)
+
+	userID := uuid.New()
+	overrideTime := "2025-01-01T00:00:00Z"
+	svc.On("SimulatePolicy", mock.Anything, ports.Principal{UserID: &userID}, []string{"compute:instance:launch"}, []string{"arn:thecloud:compute:us-east-1:*:instance/*"}, mock.MatchedBy(func(evalCtx map[string]interface{}) bool {
+		return evalCtx["aws:CurrentTime"] == overrideTime
+	})).
+		Return(&ports.SimulateResult{Decision: domain.EffectAllow, Evaluated: 1, Matched: &ports.StatementMatch{Effect: domain.EffectAllow, Reason: "allow statement matched"}}, nil)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"user_id":   userID.String(),
+		"actions":   []string{"compute:instance:launch"},
+		"resources": []string{"arn:thecloud:compute:us-east-1:*:instance/*"},
+		"context": map[string]interface{}{
+			"aws:CurrentTime": overrideTime,
+		},
+	})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/iam/simulate", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 	svc.AssertExpectations(t)
 }
