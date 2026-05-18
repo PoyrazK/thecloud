@@ -159,7 +159,7 @@ func TestIAMService_Integration_SimulatePolicy(t *testing.T) {
 					Resource: []string{"*"},
 					Condition: domain.Condition{
 						"DateGreaterThan": {
-							"aws:CurrentTime": pastTime,
+							"thecloud:CurrentTime": pastTime,
 						},
 					},
 				},
@@ -176,10 +176,10 @@ func TestIAMService_Integration_SimulatePolicy(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, domain.EffectAllow, result.Decision)
 
-		// Override aws:CurrentTime to a time far in the future → condition NOT met
+		// Override thecloud:CurrentTime to a time far in the future → condition NOT met
 		futureTime := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 		evalCtx := map[string]interface{}{
-			"aws:CurrentTime": futureTime,
+			"thecloud:CurrentTime": futureTime,
 		}
 		result, err = svc.SimulatePolicy(ctx, ports.Principal{UserID: &userID}, []string{"compute:instance:launch"}, []string{"instance:123"}, evalCtx)
 		require.NoError(t, err)

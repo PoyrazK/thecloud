@@ -2654,7 +2654,7 @@ definitions:
         additionalProperties: true
         description: |-
           Context overrides for condition evaluation.
-          Keys: aws:SourceIp, aws:CurrentTime, thecloud:TenantId, etc.
+          Keys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.
         type: object
       resources:
         description: Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]).

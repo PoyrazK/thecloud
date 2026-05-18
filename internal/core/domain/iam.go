@@ -13,7 +13,7 @@ const (
 )
 
 // Condition represents a set of dynamic rules for policy evaluation.
-// Example: {"IpAddress": {"aws:SourceIp": "192.168.1.0/24"}}
+// Example: {"IpAddress": {"thecloud:SourceIp": "192.168.1.0/24"}}
 type Condition map[string]map[string]interface{}
 
 // Statement is a single rule within a policy.

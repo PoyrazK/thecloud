@@ -205,7 +205,7 @@ func TestIAMHandler_SimulateDenyWithCondition(t *testing.T) {
 		"actions":   []string{"compute:instance:delete"},
 		"resources": []string{"arn:thecloud:compute:us-east-1:*:instance/*"},
 		"context": map[string]interface{}{
-			"aws:SourceIp": "10.0.0.1",
+			"thecloud:SourceIp": "10.0.0.1",
 		},
 	})
 	w := httptest.NewRecorder()
@@ -274,7 +274,7 @@ func TestIAMHandler_SimulateContextOverride(t *testing.T) {
 	userID := uuid.New()
 	overrideTime := "2025-01-01T00:00:00Z"
 	svc.On("SimulatePolicy", mock.Anything, ports.Principal{UserID: &userID}, []string{"compute:instance:launch"}, []string{"arn:thecloud:compute:us-east-1:*:instance/*"}, mock.MatchedBy(func(evalCtx map[string]interface{}) bool {
-		return evalCtx["aws:CurrentTime"] == overrideTime
+		return evalCtx["thecloud:CurrentTime"] == overrideTime
 	})).
 		Return(&ports.SimulateResult{Decision: domain.EffectAllow, Evaluated: 1, Matched: &ports.StatementMatch{Effect: domain.EffectAllow, Reason: "allow statement matched"}}, nil)
 
@@ -283,7 +283,7 @@ func TestIAMHandler_SimulateContextOverride(t *testing.T) {
 		"actions":   []string{"compute:instance:launch"},
 		"resources": []string{"arn:thecloud:compute:us-east-1:*:instance/*"},
 		"context": map[string]interface{}{
-			"aws:CurrentTime": overrideTime,
+			"thecloud:CurrentTime": overrideTime,
 		},
 	})
 	w := httptest.NewRecorder()

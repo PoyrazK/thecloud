@@ -33,7 +33,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
-									"aws:SourceIp": []interface{}{"192.168.1.0/24"},
+									"thecloud:SourceIp": []interface{}{"192.168.1.0/24"},
 								},
 							},
 						},
@@ -43,7 +43,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:SourceIp": "192.168.1.50",
+				"thecloud:SourceIp": "192.168.1.50",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -58,7 +58,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
-									"aws:SourceIp": []interface{}{"192.168.1.0/24"},
+									"thecloud:SourceIp": []interface{}{"192.168.1.0/24"},
 								},
 							},
 						},
@@ -68,7 +68,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:SourceIp": "10.0.0.1",
+				"thecloud:SourceIp": "10.0.0.1",
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -83,7 +83,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"NotIpAddress": {
-									"aws:SourceIp": []interface{}{"192.168.1.0/24"},
+									"thecloud:SourceIp": []interface{}{"192.168.1.0/24"},
 								},
 							},
 						},
@@ -93,7 +93,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:SourceIp": "10.0.0.1",
+				"thecloud:SourceIp": "10.0.0.1",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -158,7 +158,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"StringLike": {
-									"aws:UserId": "user-*",
+									"thecloud:UserId": "user-*",
 								},
 							},
 						},
@@ -168,7 +168,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:UserId": "user-abc-123",
+				"thecloud:UserId": "user-abc-123",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -233,7 +233,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"StringNotLike": {
-									"aws:UserId": "admin-*",
+									"thecloud:UserId": "admin-*",
 								},
 							},
 						},
@@ -243,7 +243,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:UserId": "user-abc-123",
+				"thecloud:UserId": "user-abc-123",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -258,7 +258,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"StringNotLike": {
-									"aws:UserId": "admin-*",
+									"thecloud:UserId": "admin-*",
 								},
 							},
 						},
@@ -268,7 +268,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:UserId": "admin-123",
+				"thecloud:UserId": "admin-123",
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -283,7 +283,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateEquals": {
-									"aws:CurrentTime": "2025-06-15T10:00:00Z",
+									"thecloud:CurrentTime": "2025-06-15T10:00:00Z",
 								},
 							},
 						},
@@ -293,7 +293,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": "2025-06-15T10:00:00Z",
+				"thecloud:CurrentTime": "2025-06-15T10:00:00Z",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -308,7 +308,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateGreaterThan": {
-									"aws:CurrentTime": "2020-01-01T00:00:00Z",
+									"thecloud:CurrentTime": "2020-01-01T00:00:00Z",
 								},
 							},
 						},
@@ -318,7 +318,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": "2030-06-15T10:00:00Z",
+				"thecloud:CurrentTime": "2030-06-15T10:00:00Z",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -333,7 +333,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateLessThan": {
-									"aws:CurrentTime": "2099-01-01T00:00:00Z",
+									"thecloud:CurrentTime": "2099-01-01T00:00:00Z",
 								},
 							},
 						},
@@ -343,7 +343,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": "2025-01-01T00:00:00Z",
+				"thecloud:CurrentTime": "2025-01-01T00:00:00Z",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -408,7 +408,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
-									"aws:SourceIp": []interface{}{"192.168.1.0/24"},
+									"thecloud:SourceIp": []interface{}{"192.168.1.0/24"},
 								},
 							},
 						},
@@ -418,7 +418,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:SourceIp": "192.168.1.50",
+				"thecloud:SourceIp": "192.168.1.50",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectDeny},
 		},
@@ -433,7 +433,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
-									"aws:SourceIp": []interface{}{"192.168.1.0/24"},
+									"thecloud:SourceIp": []interface{}{"192.168.1.0/24"},
 								},
 								"StringEquals": {
 									"thecloud:TenantId": "tenant-123",
@@ -446,7 +446,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:SourceIp":      "192.168.1.50",
+				"thecloud:SourceIp": "192.168.1.50",
 				"thecloud:TenantId": "tenant-123",
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
@@ -462,7 +462,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
-									"aws:SourceIp": []interface{}{"192.168.1.0/24"},
+									"thecloud:SourceIp": []interface{}{"192.168.1.0/24"},
 								},
 								"StringEquals": {
 									"thecloud:TenantId": "tenant-123",
@@ -475,7 +475,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:SourceIp":      "192.168.1.50",
+				"thecloud:SourceIp": "192.168.1.50",
 				"thecloud:TenantId": "tenant-456",
 			},
 			want: &domain.EvalResult{Effect: ""},
@@ -509,7 +509,7 @@ func TestIAMEvaluator_Evaluate_Conditions(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
-									"aws:SourceIp": []interface{}{"192.168.1.0/24"},
+									"thecloud:SourceIp": []interface{}{"192.168.1.0/24"},
 								},
 							},
 						},
@@ -661,7 +661,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"StringLike": {
-									"aws:UserId": "user-*",
+									"thecloud:UserId": "user-*",
 								},
 							},
 						},
@@ -671,7 +671,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:UserId": 12345, // int instead of string
+				"thecloud:UserId": 12345, // int instead of string
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -687,7 +687,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateEquals": {
-									"aws:CurrentTime": "2020-01-01", // missing time component
+									"thecloud:CurrentTime": "2020-01-01", // missing time component
 								},
 							},
 						},
@@ -697,7 +697,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": "not-a-valid-date",
+				"thecloud:CurrentTime": "not-a-valid-date",
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -713,7 +713,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"IpAddress": {
-									"aws:SourceIp": []interface{}{"999.999.999.999/24"},
+									"thecloud:SourceIp": []interface{}{"999.999.999.999/24"},
 								},
 							},
 						},
@@ -723,7 +723,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:SourceIp": "10.0.0.1",
+				"thecloud:SourceIp": "10.0.0.1",
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -765,7 +765,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateEquals": {
-									"aws:CurrentTime": "2025-06-15T10:00:00Z",
+									"thecloud:CurrentTime": "2025-06-15T10:00:00Z",
 								},
 							},
 						},
@@ -775,7 +775,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": time.Date(2025, 6, 15, 10, 0, 0, 0, time.UTC),
+				"thecloud:CurrentTime": time.Date(2025, 6, 15, 10, 0, 0, 0, time.UTC),
 			},
 			want: &domain.EvalResult{Effect: domain.EffectAllow},
 		},
@@ -791,7 +791,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateGreaterThan": {
-									"aws:CurrentTime": "2025-06-15T10:00:00Z",
+									"thecloud:CurrentTime": "2025-06-15T10:00:00Z",
 								},
 							},
 						},
@@ -801,7 +801,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": "2025-06-15T10:00:00Z", // exactly equal - not greater
+				"thecloud:CurrentTime": "2025-06-15T10:00:00Z", // exactly equal - not greater
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -817,7 +817,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateLessThan": {
-									"aws:CurrentTime": "2025-06-15T10:00:00Z",
+									"thecloud:CurrentTime": "2025-06-15T10:00:00Z",
 								},
 							},
 						},
@@ -827,7 +827,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": "2025-06-15T10:00:00Z", // exactly equal - not less
+				"thecloud:CurrentTime": "2025-06-15T10:00:00Z", // exactly equal - not less
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -869,7 +869,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"StringLike": {
-									"aws:UserId": "user-*",
+									"thecloud:UserId": "user-*",
 								},
 							},
 						},
@@ -879,7 +879,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:UserId": 123.456, // float instead of string
+				"thecloud:UserId": 123.456, // float instead of string
 			},
 			want: &domain.EvalResult{Effect: ""},
 		},
@@ -895,7 +895,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 							Resource: []string{"*"},
 							Condition: domain.Condition{
 								"DateEquals": {
-									"aws:CurrentTime": "invalid-date-format", // invalid expected
+									"thecloud:CurrentTime": "invalid-date-format", // invalid expected
 								},
 							},
 						},
@@ -905,7 +905,7 @@ func TestIAMEvaluator_EdgeCases(t *testing.T) {
 			action:   "instance:launch",
 			resource: "instance:123",
 			evalCtx: map[string]interface{}{
-				"aws:CurrentTime": "2025-06-15T10:00:00Z", // valid actual
+				"thecloud:CurrentTime": "2025-06-15T10:00:00Z", // valid actual
 			},
 			want: &domain.EvalResult{Effect: ""}, // parse fails → condition not met
 		},

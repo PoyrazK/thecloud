@@ -12939,7 +12939,7 @@ const docTemplate = `{
                     }
                 },
                 "context": {
-                    "description": "Context overrides for condition evaluation.\nKeys: aws:SourceIp, aws:CurrentTime, thecloud:TenantId, etc.",
+                    "description": "Context overrides for condition evaluation.\nKeys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.",
                     "type": "object",
                     "additionalProperties": true
                 },

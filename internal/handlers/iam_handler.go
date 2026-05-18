@@ -585,7 +585,7 @@ type SimulateRequest struct {
 	// Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]). Max 100.
 	Resources []string `json:"resources" binding:"required,min=1,max=100"`
 	// Context overrides for condition evaluation.
-	// Keys: aws:SourceIp, aws:CurrentTime, thecloud:TenantId, etc.
+	// Keys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.
 	Context map[string]interface{} `json:"context,omitempty"`
 }
 
@@ -666,14 +666,14 @@ func (h *IAMHandler) Simulate(c *gin.Context) {
 
 func buildSimulateCtx(c *gin.Context, overrides map[string]interface{}) map[string]interface{} {
 	ctx := map[string]interface{}{
-		"thecloud:TenantId": httputil.GetTenantID(c),
-		"aws:CurrentTime":   time.Now().Format(time.RFC3339),
+		"thecloud:TenantId":    httputil.GetTenantID(c),
+		"thecloud:CurrentTime": time.Now().Format(time.RFC3339),
 	}
 	if ip := c.ClientIP(); ip != "" {
-		ctx["aws:SourceIp"] = ip
+		ctx["thecloud:SourceIp"] = ip
 	}
 	if ua := c.GetHeader("User-Agent"); ua != "" {
-		ctx["aws:UserAgent"] = ua
+		ctx["thecloud:UserAgent"] = ua
 	}
 	for k, v := range overrides {
 		ctx[k] = v
