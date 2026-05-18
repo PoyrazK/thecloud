@@ -16,6 +16,11 @@ type IAMRepository interface {
 	UpdatePolicy(ctx context.Context, tenantID uuid.UUID, policy *domain.Policy) error
 	DeletePolicy(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
 
+	// Policy Versioning
+	ListPolicyVersions(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID) ([]*domain.PolicyVersion, error)
+	GetPolicyVersion(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error)
+	InsertPolicyVersion(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error
+
 	// User Policy Assignment
 	AttachPolicyToUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, policyID uuid.UUID) error
 	DetachPolicyFromUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, policyID uuid.UUID) error
@@ -55,6 +60,11 @@ type IAMService interface {
 	// SimulatePolicy evaluates what-if actions/resources against the given principal's policies.
 	// Returns the decision and which statement matched, for debugging.
 	SimulatePolicy(ctx context.Context, principal Principal, actions []string, resources []string, evalCtx map[string]interface{}) (*SimulateResult, error)
+
+	// Policy Versioning
+	ListPolicyVersions(ctx context.Context, policyID uuid.UUID) ([]*domain.PolicyVersion, error)
+	GetPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error)
+	RollbackPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) error
 }
 
 // Principal identifies the actor whose policies will be evaluated in a simulation.

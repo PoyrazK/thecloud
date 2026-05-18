@@ -27,12 +27,31 @@ func (r *iamRepository) CreatePolicy(ctx context.Context, tenantID uuid.UUID, po
 		return fmt.Errorf("failed to marshal statements: %w", err)
 	}
 
-	query := `
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Insert current policy row
+	_, err = tx.Exec(ctx, `
 		INSERT INTO policies (id, tenant_id, name, description, statements)
 		VALUES ($1, $2, $3, $4, $5)
-	`
-	_, err = r.db.Exec(ctx, query, policy.ID, tenantID, policy.Name, policy.Description, statementsJSON)
-	return err
+	`, policy.ID, tenantID, policy.Name, policy.Description, statementsJSON)
+	if err != nil {
+		return err
+	}
+
+	// Insert version 1
+	_, err = tx.Exec(ctx, `
+		INSERT INTO policy_versions (id, policy_id, version_number, name, description, statements)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, uuid.New(), policy.ID, 1, policy.Name, policy.Description, statementsJSON)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *iamRepository) GetPolicyByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*domain.Policy, error) {
@@ -82,24 +101,45 @@ func (r *iamRepository) ListPolicies(ctx context.Context, tenantID uuid.UUID) ([
 }
 
 func (r *iamRepository) UpdatePolicy(ctx context.Context, tenantID uuid.UUID, policy *domain.Policy) error {
+	// Get current max version number for this policy
+	var maxVersion int
+	err := r.db.QueryRow(ctx, "SELECT COALESCE(MAX(version_number), 0) FROM policy_versions WHERE policy_id = $1", policy.ID).Scan(&maxVersion)
+	if err != nil {
+		return err
+	}
+	newVersion := maxVersion + 1
+
 	statementsJSON, err := json.Marshal(policy.Statements)
 	if err != nil {
 		return fmt.Errorf("failed to marshal statements: %w", err)
 	}
 
-	query := `
-		UPDATE policies
-		SET name = $1, description = $2, statements = $3, updated_at = NOW()
-		WHERE id = $4 AND tenant_id = $5
-	`
-	result, err := r.db.Exec(ctx, query, policy.Name, policy.Description, statementsJSON, policy.ID, tenantID)
+	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if result.RowsAffected() == 0 {
-		return errors.New(errors.NotFound, "policy not found")
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Insert new version row
+	_, err = tx.Exec(ctx, `
+		INSERT INTO policy_versions (id, policy_id, version_number, name, description, statements)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, uuid.New(), policy.ID, newVersion, policy.Name, policy.Description, statementsJSON)
+	if err != nil {
+		return err
 	}
-	return nil
+
+	// Update current policy row for fast lookups
+	_, err = tx.Exec(ctx, `
+		UPDATE policies
+		SET name = $1, description = $2, statements = $3, updated_at = NOW()
+		WHERE id = $4 AND tenant_id = $5
+	`, policy.Name, policy.Description, statementsJSON, policy.ID, tenantID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (r *iamRepository) DeletePolicy(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error {
@@ -111,6 +151,75 @@ func (r *iamRepository) DeletePolicy(ctx context.Context, tenantID uuid.UUID, id
 		return errors.New(errors.NotFound, "policy not found")
 	}
 	return nil
+}
+
+func (r *iamRepository) ListPolicyVersions(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	query := `
+		SELECT pv.id, pv.policy_id, pv.version_number, pv.name, pv.description, pv.statements, pv.created_at, pv.created_by
+		FROM policy_versions pv
+		JOIN policies p ON pv.policy_id = p.id
+		WHERE pv.policy_id = $1 AND p.tenant_id = $2
+		ORDER BY pv.version_number DESC
+	`
+	rows, err := r.db.Query(ctx, query, policyID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var versions []*domain.PolicyVersion
+	for rows.Next() {
+		var pv domain.PolicyVersion
+		var statementsJSON []byte
+		if err := rows.Scan(&pv.ID, &pv.PolicyID, &pv.VersionNumber, &pv.Name, &pv.Description, &statementsJSON, &pv.CreatedAt, &pv.CreatedBy); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(statementsJSON, &pv.Statements); err != nil {
+			return nil, err
+		}
+		versions = append(versions, &pv)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return versions, nil
+}
+
+func (r *iamRepository) GetPolicyVersion(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	query := `
+		SELECT pv.id, pv.policy_id, pv.version_number, pv.name, pv.description, pv.statements, pv.created_at, pv.created_by
+		FROM policy_versions pv
+		JOIN policies p ON pv.policy_id = p.id
+		WHERE pv.policy_id = $1 AND p.tenant_id = $2 AND pv.version_number = $3
+	`
+	var pv domain.PolicyVersion
+	var statementsJSON []byte
+	err := r.db.QueryRow(ctx, query, policyID, tenantID, versionNumber).
+		Scan(&pv.ID, &pv.PolicyID, &pv.VersionNumber, &pv.Name, &pv.Description, &statementsJSON, &pv.CreatedAt, &pv.CreatedBy)
+	if err != nil {
+		if stdlib_errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New(errors.NotFound, "policy version not found")
+		}
+		return nil, err
+	}
+	if err := json.Unmarshal(statementsJSON, &pv.Statements); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal statements: %w", err)
+	}
+	return &pv, nil
+}
+
+func (r *iamRepository) InsertPolicyVersion(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	statementsJSON, err := json.Marshal(pv.Statements)
+	if err != nil {
+		return fmt.Errorf("failed to marshal statements: %w", err)
+	}
+
+	query := `
+		INSERT INTO policy_versions (id, policy_id, version_number, name, description, statements, created_by)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+	_, err = r.db.Exec(ctx, query, pv.ID, pv.PolicyID, pv.VersionNumber, pv.Name, pv.Description, statementsJSON, pv.CreatedBy)
+	return err
 }
 
 func (r *iamRepository) AttachPolicyToUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, policyID uuid.UUID) error {
