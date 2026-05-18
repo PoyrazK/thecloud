@@ -22,8 +22,8 @@ import (
 	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 	"github.com/google/uuid"
-	apierrors "github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	apierrors "github.com/poyrazk/thecloud/internal/errors"
 )
 
 const (
@@ -64,7 +64,7 @@ type FirecrackerAdapter struct {
 
 	// Network and port tracking
 	networks       map[string]string         // networkName -> TAP device name
-	portMappings   map[string]map[string]int  // instanceID -> internalPort -> hostPort
+	portMappings   map[string]map[string]int // instanceID -> internalPort -> hostPort
 	macAddresses   map[string]string         // instanceID -> MAC address
 	socketToInstID map[string]string         // socketPath -> instanceID (for IP lookup)
 }
