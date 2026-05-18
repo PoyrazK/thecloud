@@ -67,8 +67,8 @@ required either way.`,
 			name = args[0]
 		}
 		if name == "" {
-			fmt.Println("Error: secret name required (positional or -n/--name)")
-			return
+			fmt.Printf(secretsErrorFormat, "secret name required (use positional argument or -n/--name)")
+			os.Exit(1)
 		}
 		value, _ := cmd.Flags().GetString("value")
 		desc, _ := cmd.Flags().GetString("description")
