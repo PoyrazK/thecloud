@@ -356,3 +356,22 @@ func TestFirecrackerAdapter_StopInstance_RealMode_ShutdownError(t *testing.T) {
 	assert.Contains(t, err.Error(), "shutdown error")
 	failMachine.AssertExpectations(t)
 }
+
+func TestGenerateMAC(t *testing.T) {
+	mac := generateMAC("test-instance")
+	// MAC should be in format 02:xx:xx:xx:xx:xx
+	assert.Regexp(t, `02:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}`, mac)
+
+	// Different instances should produce different MACs
+	mac2 := generateMAC("instance-b")
+	assert.NotEqual(t, mac, mac2)
+
+	// Same instance should produce same MAC (deterministic)
+	mac3 := generateMAC("test-instance")
+	assert.Equal(t, mac, mac3)
+}
+
+func TestGetJiffiesPerSecond(t *testing.T) {
+	// Should return 100 (Linux default)
+	assert.Equal(t, int64(100), getJiffiesPerSecond())
+}

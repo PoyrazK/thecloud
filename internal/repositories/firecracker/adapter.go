@@ -384,38 +384,9 @@ func (a *FirecrackerAdapter) readProcessStats(pid int) (*processStats, error) {
 }
 
 // getJiffiesPerSecond returns the system clock tick rate (jiffies per second).
-// Returns 100 as default which is the Linux default on most architectures.
+// Returns 100 which is the Linux default on most architectures.
 func getJiffiesPerSecond() int64 {
-	data, err := os.ReadFile("/proc/version")
-	if err != nil {
-		return 100 // default
-	}
-	// Try to get HZ from syscall - use default 100 if unavailable
 	return 100
-}
-
-func getProcessCPUTimeFromStat(pid int) (uint64, error) {
-	statData, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if err != nil {
-		return 0, err
-	}
-
-	idx := strings.LastIndex(string(statData), ")")
-	if idx < 0 {
-		return 0, fmt.Errorf("invalid stat format")
-	}
-
-	fields := strings.Fields(string(statData)[idx+1:])
-	if len(fields) < 4 {
-		return 0, fmt.Errorf("not enough fields in stat")
-	}
-
-	utime, _ := strconv.ParseUint(fields[0], 10, 64)
-	stime, _ := strconv.ParseUint(fields[1], 10, 64)
-
-	// Convert jiffies to nanoseconds using the tick rate
-	jiffies := int64(utime + stime)
-	return uint64(jiffies * 1e9 / getJiffiesPerSecond()), nil
 }
 
 func (a *FirecrackerAdapter) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {
@@ -601,9 +572,12 @@ func (a *FirecrackerAdapter) WaitTask(ctx context.Context, id string) (int64, er
 }
 
 func (a *FirecrackerAdapter) CreateNetwork(ctx context.Context, name string) (string, error) {
-	tapName := "fc-" + name[:8]
-	if len(name) < 8 {
-		tapName = "fc-" + name
+	// Handle empty or short names by generating a unique suffix
+	tapName := "fc-" + name
+	if len(tapName) < 5 { // minimum "fc-X"
+		tapName = "fc-" + uuid.New().String()[:8]
+	} else if len(name) > 8 {
+		tapName = "fc-" + name[:8]
 	}
 
 	// Create TAP device
