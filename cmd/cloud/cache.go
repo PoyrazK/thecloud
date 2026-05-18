@@ -213,10 +213,10 @@ func resolveCacheID(idOrName string, client *sdk.Client) string {
 }
 
 func init() {
-	createCacheCmd.Flags().String("name", "", "Name of the cache")
+	createCacheCmd.Flags().StringP("name", "n", "", "Name of the cache")
 	createCacheCmd.Flags().String("version", "7.2", "Redis version")
 	createCacheCmd.Flags().Int("memory", 128, "Memory limit in MB")
-	createCacheCmd.Flags().String("vpc", "", "VPC ID to attach to")
+	createCacheCmd.Flags().StringP("vpc", "v", "", "VPC ID to attach to")
 	createCacheCmd.Flags().Bool("wait", false, "Wait for cache to be ready")
 	_ = createCacheCmd.MarkFlagRequired("name")
 

@@ -203,7 +203,7 @@ func init() {
 	dnsCreateZoneCmd.Flags().String("vpc-id", "", "VPC ID for private DNS (required)")
 	_ = dnsCreateZoneCmd.MarkFlagRequired("vpc-id")
 
-	dnsCreateRecordCmd.Flags().String("name", "", "Record name (e.g., 'www')")
+	dnsCreateRecordCmd.Flags().StringP("name", "n", "", "Record name (e.g., 'www')")
 	dnsCreateRecordCmd.Flags().String("type", "A", "Record type (A, AAAA, CNAME, MX, TXT)")
 	dnsCreateRecordCmd.Flags().String("content", "", "Record content (e.g., IP address)")
 	dnsCreateRecordCmd.Flags().Int("ttl", 3600, "Time To Live in seconds")
