@@ -118,7 +118,7 @@ func TestRPCServerGetClusterStatus(t *testing.T) {
 	assert.Empty(t, resp.Members)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	g := NewGossipProtocol("node1", "localhost:5001", nil, logger)
+	g := NewGossipProtocol("node1", "localhost:5001", nil, logger, nil)
 	g.AddPeer("node2", "localhost:5002")
 
 	server = NewRPCServer(nil, g)

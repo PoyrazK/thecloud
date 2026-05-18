@@ -37,31 +37,52 @@ type peerClient struct {
 	client pb.StorageNodeClient
 }
 
+// GossipConfig holds configurable gossip parameters.
+type GossipConfig struct {
+	FailureTimeout    time.Duration // default 5s
+	SuspectMultiplier int           // multiplies timeout to get dead threshold, default 3
+}
+
 // GossipProtocol manages membership and health gossip between nodes.
 type GossipProtocol struct {
-	nodeID   string
-	address  string
-	members  map[string]*MemberState
-	mu       sync.RWMutex
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	logger   *slog.Logger
-	dialOpts []grpc.DialOption
-	peers    map[string]*peerClient
+	nodeID         string
+	address        string
+	members        map[string]*MemberState
+	mu             sync.RWMutex
+	stopCh         chan struct{}
+	stopOnce       sync.Once
+	logger         *slog.Logger
+	dialOpts       []grpc.DialOption
+	peers          map[string]*peerClient
+	failureTimeout time.Duration
+	deadTimeout    time.Duration
 }
 
 // NewGossipProtocol constructs a GossipProtocol for a node.
 // dialOpts are the gRPC dial options to use when connecting to peers.
 // If nil, insecure credentials are used by default.
-func NewGossipProtocol(nodeID, address string, dialOpts []grpc.DialOption, logger *slog.Logger) *GossipProtocol {
+// cfg configures failure detection timeouts; if nil, defaults are used.
+func NewGossipProtocol(nodeID, address string, dialOpts []grpc.DialOption, logger *slog.Logger, cfg *GossipConfig) *GossipProtocol {
+	failureTimeout := 5 * time.Second
+	suspectMultiplier := 3
+	if cfg != nil {
+		if cfg.FailureTimeout > 0 {
+			failureTimeout = cfg.FailureTimeout
+		}
+		if cfg.SuspectMultiplier > 0 {
+			suspectMultiplier = cfg.SuspectMultiplier
+		}
+	}
 	g := &GossipProtocol{
-		nodeID:   nodeID,
-		address:  address,
-		members:  make(map[string]*MemberState),
-		stopCh:   make(chan struct{}),
-		logger:   logger,
-		peers:    make(map[string]*peerClient),
-		dialOpts: dialOpts,
+		nodeID:         nodeID,
+		address:        address,
+		members:        make(map[string]*MemberState),
+		stopCh:         make(chan struct{}),
+		logger:         logger,
+		peers:          make(map[string]*peerClient),
+		dialOpts:       dialOpts,
+		failureTimeout: failureTimeout,
+		deadTimeout:    failureTimeout * time.Duration(suspectMultiplier),
 	}
 	if g.dialOpts == nil {
 		g.dialOpts = []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
@@ -93,6 +114,10 @@ func (g *GossipProtocol) Start(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	failTicker := time.NewTicker(2 * time.Second) // Check failures often
 	go func() {
+		defer func() {
+			ticker.Stop()
+			failTicker.Stop()
+		}()
 		for {
 			select {
 			case <-ticker.C:
@@ -100,8 +125,6 @@ func (g *GossipProtocol) Start(interval time.Duration) {
 			case <-failTicker.C:
 				g.detectFailures()
 			case <-g.stopCh:
-				ticker.Stop()
-				failTicker.Stop()
 				return
 			}
 		}
@@ -113,7 +136,6 @@ func (g *GossipProtocol) detectFailures() {
 	defer g.mu.Unlock()
 
 	now := time.Now()
-	timeout := 5 * time.Second
 
 	for id, m := range g.members {
 		if id == g.nodeID {
@@ -121,10 +143,10 @@ func (g *GossipProtocol) detectFailures() {
 		}
 
 		switch {
-		case m.Status == "alive" && now.Sub(m.LastSeen) > timeout:
+		case m.Status == "alive" && now.Sub(m.LastSeen) > g.failureTimeout:
 			m.Status = "suspect"
 			g.logger.Warn("node flagged as suspect", "id", id, "last_seen", m.LastSeen)
-		case m.Status == "suspect" && now.Sub(m.LastSeen) > 3*timeout:
+		case m.Status == "suspect" && now.Sub(m.LastSeen) > g.deadTimeout:
 			m.Status = "dead"
 			m.DeadAt = now
 			g.logger.Error("node flagged as dead", "id", id, "last_seen", m.LastSeen)
@@ -184,6 +206,10 @@ func (g *GossipProtocol) gossip() {
 	g.mu.Lock()
 	// Increment own heartbeat
 	me := g.members[g.nodeID]
+	if me == nil {
+		g.mu.Unlock()
+		return
+	}
 	if me.Heartbeat == math.MaxUint64 {
 		me.Heartbeat = 0
 		g.logger.Warn("heartbeat counter overflow, reset to 0", "node_id", g.nodeID)

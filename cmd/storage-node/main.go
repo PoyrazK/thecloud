@@ -89,7 +89,7 @@ func run() error {
 	}
 
 	// 2. Init Gossiper
-	gossiper := node.NewGossipProtocol(*nodeID, "localhost:"+*port, dialOpts, logger)
+	gossiper := node.NewGossipProtocol(*nodeID, "localhost:"+*port, dialOpts, logger, nil)
 	if *peers != "" {
 		for _, peerAddr := range strings.Split(*peers, ",") {
 			gossiper.AddPeer(peerAddr, peerAddr)
