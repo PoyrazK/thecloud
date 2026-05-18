@@ -107,7 +107,7 @@ func InitHandlers(svcs *Services, cfg *platform.Config, logger *slog.Logger) *Ha
 		Queue:            httphandlers.NewQueueHandler(svcs.Queue),
 		Notify:           httphandlers.NewNotifyHandler(svcs.Notify),
 		Cron:             httphandlers.NewCronHandler(svcs.Cron),
-		Gateway:          httphandlers.NewGatewayHandler(svcs.Gateway, logger),
+		Gateway:          nil, // re-init'd in SetupRouter with per-route limiter
 		Container:        httphandlers.NewContainerHandler(svcs.Container),
 		Pipeline:         httphandlers.NewPipelineHandler(svcs.Pipeline),
 		Health:           httphandlers.NewHealthHandler(svcs.Health),
@@ -155,6 +155,9 @@ func SetupRouter(cfg *platform.Config, logger *slog.Logger, handlers *Handlers, 
 	limiter := ratelimit.NewIPRateLimiter(rate.Limit(globalRPS), globalRPS*2, logger)
 	r.Use(ratelimit.Middleware(limiter))
 	r.Use(httputil.Metrics())
+
+	// Re-init Gateway handler with per-route limiter
+	handlers.Gateway = httphandlers.NewGatewayHandler(services.Gateway, limiter, logger)
 
 	// 6. Routes
 	r.GET("/health/live", handlers.Health.Live)
@@ -251,6 +254,9 @@ func registerIAMRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		iamGroup.POST("/service-accounts/:id/policies/:policyId", handlers.IAM.AttachPolicyToServiceAccount)
 		iamGroup.DELETE("/service-accounts/:id/policies/:policyId", handlers.IAM.DetachPolicyFromServiceAccount)
 		iamGroup.GET("/service-accounts/:id/policies", handlers.IAM.GetServiceAccountPolicies)
+
+		// Policy simulation
+		iamGroup.POST("/simulate", handlers.IAM.Simulate)
 	}
 }
 
@@ -371,6 +377,7 @@ func registerNetworkRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		vpcGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcCreate), handlers.Vpc.Create)
 		vpcGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.Vpc.List)
 		vpcGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.Vpc.Get)
+		vpcGroup.PATCH("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.Vpc.Update)
 		vpcGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.Vpc.Delete)
 
 		vpcGroup.POST("/:id/subnets", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.Subnet.Create)
@@ -531,6 +538,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		volumeGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVolumeDelete), handlers.Volume.Delete)
 		volumeGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Attach)
 		volumeGroup.POST("/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Detach)
+		volumeGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Resize)
 	}
 
 	dbGroup := r.Group("/databases")
@@ -550,6 +558,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		dbGroup.POST("/:id/rotate-credentials", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.RotateCredentials)
 		dbGroup.POST("/:id/stop", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Stop)
 		dbGroup.POST("/:id/start", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Start)
+		dbGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Resize)
 	}
 
 	cacheGroup := r.Group("/caches")
@@ -562,6 +571,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		cacheGroup.GET("/:id/connection", httputil.Permission(svcs.RBAC, domain.PermissionCacheRead), handlers.Cache.GetConnectionString)
 		cacheGroup.POST("/:id/flush", httputil.Permission(svcs.RBAC, domain.PermissionCacheUpdate), handlers.Cache.Flush)
 		cacheGroup.GET("/:id/stats", httputil.Permission(svcs.RBAC, domain.PermissionCacheRead), handlers.Cache.GetStats)
+		cacheGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionCacheUpdate), handlers.Cache.Resize)
 	}
 
 	secretGroup := r.Group("/secrets")
@@ -585,6 +595,8 @@ func registerDevOpsRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		fnGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionFunctionDelete), handlers.Function.Delete)
 		fnGroup.POST("/:id/invoke", httputil.Permission(svcs.RBAC, domain.PermissionFunctionInvoke), handlers.Function.Invoke)
 		fnGroup.GET("/:id/logs", httputil.Permission(svcs.RBAC, domain.PermissionFunctionRead), handlers.Function.GetLogs)
+		fnGroup.GET("/:id/dlq", httputil.Permission(svcs.RBAC, domain.PermissionFunctionRead), handlers.Function.GetDLQ)
+		fnGroup.POST("/:id/dlq/:invocation_id/retry", httputil.Permission(svcs.RBAC, domain.PermissionFunctionInvoke), handlers.Function.RetryDLQ)
 	}
 
 	fnSchedGroup := r.Group("/function-schedules")
