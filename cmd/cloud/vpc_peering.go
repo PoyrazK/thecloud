@@ -28,7 +28,7 @@ var vpcPeeringCreateCmd = &cobra.Command{
 			return
 		}
 		if accTenant == "" {
-			fmt.Println("Error: --accepter-tenant is required for cross-tenant peering")
+			fmt.Println("Error: --accepter-tenant is required")
 			return
 		}
 

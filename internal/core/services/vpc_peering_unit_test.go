@@ -19,15 +19,17 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 	mockRepo := new(MockVPCPeeringRepo)
 	mockVpcRepo := new(MockVpcRepo)
 	mockRTRepo := new(MockRTRepo)
+	mockTenantRepo := new(MockTenantRepo)
 	mockNetwork := new(MockNetworkBackend)
 	mockAuditSvc := new(MockAuditService)
 	svc := services.NewVPCPeeringService(services.VPCPeeringServiceParams{
-		Repo:     mockRepo,
-		VpcRepo:  mockVpcRepo,
-		RTRepo:   mockRTRepo,
-		Network:  mockNetwork,
-		AuditSvc: mockAuditSvc,
-		Logger:   slog.Default(),
+		Repo:       mockRepo,
+		VpcRepo:    mockVpcRepo,
+		RTRepo:     mockRTRepo,
+		TenantRepo: mockTenantRepo,
+		Network:    mockNetwork,
+		AuditSvc:   mockAuditSvc,
+		Logger:     slog.Default(),
 	})
 
 	ctx := context.Background()
@@ -58,6 +60,7 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		requesterVPC := &domain.VPC{ID: requesterVPCID, Name: "req", CIDRBlock: "10.0.0.0/16"}
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(nil, fmt.Errorf("not found")).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Maybe()
 
 		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, tenantID)
 		require.Error(t, err)
@@ -71,6 +74,7 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "10.0.0.0/24"} // Overlaps
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Maybe()
 
 		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, tenantID)
 		require.Error(t, err)
@@ -84,6 +88,7 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "11.0.0.0/16"}
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Maybe()
 		mockRepo.On("GetActiveByVPCPair", mock.Anything, requesterVPCID, accepterVPCID).Return(&domain.VPCPeering{ID: uuid.New()}, nil).Once()
 
 		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, tenantID)
@@ -98,6 +103,7 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "11.0.0.0/16"}
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Once()
 		mockRepo.On("GetActiveByVPCPair", mock.Anything, requesterVPCID, accepterVPCID).Return(nil, nil).Once()
 		mockRepo.On("Create", mock.Anything, mock.Anything).Return(nil).Once()
 		mockAuditSvc.On("Log", mock.Anything, userID, "vpc_peering.create", "vpc_peering", mock.Anything, mock.Anything).Return(nil).Once()
@@ -121,6 +127,7 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "12.0.0.0/16"}
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, accepterTenantID).Return(&domain.Tenant{ID: accepterTenantID}, nil).Once()
 		mockRepo.On("GetActiveByVPCPair", mock.Anything, requesterVPCID, accepterVPCID).Return(nil, nil).Once()
 		mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *domain.VPCPeering) bool {
 			return p.RequesterTenantID == tenantID && p.AccepterTenantID == accepterTenantID

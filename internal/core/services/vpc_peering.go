@@ -22,33 +22,36 @@ const vpcPeeringTracer = "vpc-peering-service"
 // VPCPeeringService manages VPC peering connection lifecycle,
 // including CIDR validation and OVS flow rule programming.
 type VPCPeeringService struct {
-	repo     ports.VPCPeeringRepository
-	vpcRepo  ports.VpcRepository
-	rtRepo   ports.RouteTableRepository
-	network  ports.NetworkBackend
-	auditSvc ports.AuditService
-	logger   *slog.Logger
+	repo       ports.VPCPeeringRepository
+	vpcRepo    ports.VpcRepository
+	rtRepo     ports.RouteTableRepository
+	tenantRepo ports.TenantRepository
+	network    ports.NetworkBackend
+	auditSvc   ports.AuditService
+	logger     *slog.Logger
 }
 
 // VPCPeeringServiceParams holds dependencies for VPCPeeringService.
 type VPCPeeringServiceParams struct {
-	Repo     ports.VPCPeeringRepository
-	VpcRepo  ports.VpcRepository
-	RTRepo   ports.RouteTableRepository
-	Network  ports.NetworkBackend
-	AuditSvc ports.AuditService
-	Logger   *slog.Logger
+	Repo       ports.VPCPeeringRepository
+	VpcRepo    ports.VpcRepository
+	RTRepo     ports.RouteTableRepository
+	TenantRepo ports.TenantRepository
+	Network    ports.NetworkBackend
+	AuditSvc   ports.AuditService
+	Logger     *slog.Logger
 }
 
 // NewVPCPeeringService constructs a VPCPeeringService with its dependencies.
 func NewVPCPeeringService(params VPCPeeringServiceParams) *VPCPeeringService {
 	return &VPCPeeringService{
-		repo:     params.Repo,
-		vpcRepo:  params.VpcRepo,
-		rtRepo:   params.RTRepo,
-		network:  params.Network,
-		auditSvc: params.AuditSvc,
-		logger:   params.Logger,
+		repo:       params.Repo,
+		vpcRepo:    params.VpcRepo,
+		rtRepo:     params.RTRepo,
+		tenantRepo: params.TenantRepo,
+		network:    params.Network,
+		auditSvc:   params.AuditSvc,
+		logger:     params.Logger,
 	}
 }
 
@@ -80,6 +83,11 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 	accepterVPC, err := s.vpcRepo.GetByID(ctx, accepterVPCID)
 	if err != nil {
 		return nil, errors.Wrap(errors.NotFound, "accepter VPC not found", err)
+	}
+
+	// Verify accepter tenant exists (for cross-tenant peering)
+	if _, err := s.tenantRepo.GetByID(ctx, accepterTenantID); err != nil {
+		return nil, errors.Wrap(errors.NotFound, "accepter tenant not found", err)
 	}
 
 	// 3. CIDR overlap check
