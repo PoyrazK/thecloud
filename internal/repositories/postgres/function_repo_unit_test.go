@@ -42,9 +42,9 @@ func TestFunctionRepositoryCreate(t *testing.T) {
 		Status:                   "ready",
 		MaxConcurrentInvocations: 0,
 		MaxQueueDepth:            0,
-MaxRetries:               0,
-		CreatedAt:               time.Now(),
-		UpdatedAt:               time.Now(),
+		MaxRetries:               0,
+		CreatedAt:                time.Now(),
+		UpdatedAt:                time.Now(),
 	}
 
 	mock.ExpectExec("INSERT INTO functions").
