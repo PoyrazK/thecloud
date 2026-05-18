@@ -781,6 +781,35 @@ definitions:
       vpc_id:
         type: string
     type: object
+  domain.Invocation:
+    properties:
+      duration_ms:
+        description: Execution time in milliseconds
+        type: integer
+      ended_at:
+        type: string
+      function_id:
+        type: string
+      id:
+        type: string
+      logs:
+        description: Captured stdout/stderr
+        type: string
+      max_retries:
+        description: Max retries before moving to DLQ
+        type: integer
+      retry_count:
+        description: Number of retry attempts
+        type: integer
+      started_at:
+        type: string
+      status:
+        description: '"PENDING", "RUNNING", "SUCCESS", "FAILED", "DLQ"'
+        type: string
+      status_code:
+        description: Exit code or HTTP status
+        type: integer
+    type: object
   domain.LBStatus:
     enum:
     - CREATING
@@ -4316,6 +4345,60 @@ paths:
       summary: Disassociate Elastic IP
       tags:
       - elastic-ips
+  /functions/{id}/dlq:
+    get:
+      description: Gets all dead letter queue invocations for a function
+      parameters:
+      - description: Function ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.Invocation'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: Get DLQ invocations
+  /functions/{id}/dlq/{invocation_id}/retry:
+    post:
+      description: Retries a failed invocation from the dead letter queue by resetting
+        its status to PENDING
+      parameters:
+      - description: Function ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Invocation ID
+        in: path
+        name: invocation_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Invocation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      summary: Retry DLQ invocation
   /gateway/routes:
     get:
       description: Gets a list of all registered API gateway routes
