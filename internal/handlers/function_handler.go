@@ -198,6 +198,13 @@ func (h *FunctionHandler) GetLogs(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, logs)
 }
 
+// @Summary Get DLQ invocations
+// @Description Gets all dead letter queue invocations for a function
+// @Param id path string true "Function ID"
+// @Success 200 {array} domain.Invocation
+// @Failure 400 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /functions/{id}/dlq [get]
 func (h *FunctionHandler) GetDLQ(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -213,6 +220,14 @@ func (h *FunctionHandler) GetDLQ(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, invocations)
 }
 
+// @Summary Retry DLQ invocation
+// @Description Retries a failed invocation from the dead letter queue by resetting its status to PENDING
+// @Param id path string true "Function ID"
+// @Param invocation_id path string true "Invocation ID"
+// @Success 200 {object} domain.Invocation
+// @Failure 400 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /functions/{id}/dlq/{invocation_id}/retry [post]
 func (h *FunctionHandler) RetryDLQ(c *gin.Context) {
 	functionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
