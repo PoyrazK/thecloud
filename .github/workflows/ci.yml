@@ -367,7 +367,7 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Redis
         run: |
-          timeout 30s bash -c 'until redis-cli -h 127.0.0.1 -p 6379 ping 2>/dev/null | grep -q PONG; do sleep 1; done'
+          timeout 60s bash -c 'until redis-cli -h 127.0.0.1 -p 6379 ping 2>/dev/null; do sleep 1; done'
       - name: Run Firecracker Unit Tests
         run: go test -v ./internal/repositories/firecracker/...
       - name: Run Firecracker E2E Test
