@@ -105,7 +105,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, name string
 		PasswordHash: string(hashedPassword),
 		Name:         name,
 		Role:         domain.RoleDeveloper,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now(),
 	}
 

@@ -104,7 +104,7 @@ func (s *GatewayService) CreateRoute(ctx context.Context, params ports.CreateRou
 		MaxRetries:              params.MaxRetries,
 		RetryTimeout:            params.RetryTimeout,
 		Priority:                params.Priority,
-		CreatedAt:               time.Now(),
+		CreatedAt:               time.Now().UTC(),
 		UpdatedAt:               time.Now(),
 	}
 

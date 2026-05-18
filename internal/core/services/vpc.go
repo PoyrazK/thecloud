@@ -145,7 +145,7 @@ func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock, idempotency
 		VXLANID:        vxlanID,
 		Status:         "active",
 		ARN:            arn,
-		CreatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
 		IdempotencyKey: idempotencyKey,
 	}
 

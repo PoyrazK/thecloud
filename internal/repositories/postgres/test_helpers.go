@@ -115,7 +115,7 @@ func SetupTestUser(t *testing.T, db *pgxpool.Pool) context.Context {
 		PasswordHash: "hash",
 		Name:         "Test User",
 		Role:         "user",
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now(),
 	}
 

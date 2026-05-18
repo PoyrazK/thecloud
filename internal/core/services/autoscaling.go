@@ -99,7 +99,7 @@ func (s *AutoScalingService) CreateGroup(ctx context.Context, params ports.Creat
 		CurrentCount:   0, // Worker will spawn these
 		Status:         domain.ScalingGroupStatusActive,
 		Version:        1,
-		CreatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now(),
 	}
 

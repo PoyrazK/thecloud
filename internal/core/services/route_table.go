@@ -85,7 +85,7 @@ func (s *RouteTableService) CreateRouteTable(ctx context.Context, vpcID uuid.UUI
 		Name:      name,
 		IsMain:    isMain,
 		Routes:    []domain.Route{},
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := rt.Validate(); err != nil {
@@ -190,7 +190,7 @@ func (s *RouteTableService) AddRoute(ctx context.Context, rtID uuid.UUID, destin
 		TargetType:      targetType,
 		TargetID:        targetID,
 		TargetName:      string(targetType),
-		CreatedAt:       time.Now(),
+		CreatedAt:       time.Now().UTC(),
 	}
 
 	if err := route.Validate(); err != nil {

@@ -207,7 +207,7 @@ func (s *StorageService) Upload(ctx context.Context, bucketName, key string, r i
 		SizeBytes:    0,
 		ContentType:  contentType,
 		UploadStatus: domain.UploadStatusPending,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC().UTC(),
 	}
 
 	// Generate ARN
@@ -513,7 +513,7 @@ func (s *StorageService) CreateBucket(ctx context.Context, name string, isPublic
 		UserID:    userID,
 		TenantID:  tenantID,
 		IsPublic:  isPublic,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC().UTC(),
 	}
 
 	if err := s.repo.CreateBucket(ctx, bucket); err != nil {
@@ -688,7 +688,7 @@ func (s *StorageService) CreateMultipartUpload(ctx context.Context, bucket, key 
 		UserID:    userID,
 		Bucket:    bucket,
 		Key:       key,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC().UTC(),
 	}
 
 	if err := s.repo.SaveMultipartUpload(ctx, upload); err != nil {
@@ -832,7 +832,7 @@ func (s *StorageService) CompleteMultipartUpload(ctx context.Context, uploadID u
 		IsLatest:     true,
 		SizeBytes:    size,
 		UploadStatus: domain.UploadStatusAvailable,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC().UTC(),
 	}
 
 	// Sniff content type and calculate checksum from the assembled file

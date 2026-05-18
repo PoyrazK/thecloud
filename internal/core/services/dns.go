@@ -108,7 +108,7 @@ func (s *DNSService) CreateZone(ctx context.Context, vpcID uuid.UUID, name, desc
 		Status:      domain.ZoneStatusActive,
 		DefaultTTL:  defaultTTL,
 		PowerDNSID:  powerdnsZone,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now(),
 	}
 
@@ -276,7 +276,7 @@ func (s *DNSService) CreateRecord(ctx context.Context, zoneID uuid.UUID, name st
 		Priority:    priority,
 		Disabled:    false,
 		AutoManaged: false,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now(),
 	}
 
@@ -445,7 +445,7 @@ func (s *DNSService) RegisterInstance(ctx context.Context, instance *domain.Inst
 		TTL:         zone.DefaultTTL,
 		AutoManaged: true,
 		InstanceID:  &instance.ID,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now(),
 	}
 

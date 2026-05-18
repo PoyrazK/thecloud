@@ -73,7 +73,7 @@ func (s *elasticIPService) AllocateIP(ctx context.Context) (*domain.ElasticIP, e
 			PublicIP:  publicIP,
 			Status:    domain.EIPStatusAllocated,
 			ARN:       fmt.Sprintf("arn:thecloud:vpc:local:%s:eip/%s", userID, id),
-			CreatedAt: time.Now(),
+			CreatedAt: time.Now().UTC(),
 			UpdatedAt: time.Now(),
 		}
 

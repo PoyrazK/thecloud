@@ -104,7 +104,7 @@ func (r *PostgresQueueRepository) SendMessage(ctx context.Context, queueID uuid.
 		QueueID:   queueID,
 		Body:      body,
 		VisibleAt: time.Now(),
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 	query := `INSERT INTO queue_messages (id, queue_id, body, visible_at, created_at) VALUES ($1, $2, $3, $4, $5)`
 	var err error
