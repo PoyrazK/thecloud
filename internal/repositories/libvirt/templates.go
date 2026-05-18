@@ -149,13 +149,25 @@ func generateDomainXML(name, diskPath, networkID, isoPath string, memoryMB, vcpu
     <graphics type='vnc' port='-1' autoport='yes' listen='0.0.0.0'>
       <listen type='address' address='0.0.0.0'/>
     </graphics>
+    <serial type='pty'>
+      <target type='isa-serial' port='0'>
+        <model name='isa-serial'/>
+      </target>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+      <source mode='server' path='/var/lib/libvirt/qemu/channel/target/%s.0'/>
+    </channel>
     <rng model='virtio'>
       <backend model='random'>/dev/urandom</backend>
     </rng>
   </devices>
   <qemu:commandline>%s
   </qemu:commandline>
-</domain>`, escapedName, memoryKB, vcpu, arch, machine, loaderXML, escapedDiskPath, isoXML, additionalDisksXML, interfaceXML, qemuArgsXML)
+</domain>`, escapedName, memoryKB, vcpu, arch, machine, loaderXML, escapedDiskPath, isoXML, additionalDisksXML, interfaceXML, escapedName, qemuArgsXML)
 }
 
 func generateNetworkXML(name, bridgeName, gatewayIP, rangeStart, rangeEnd string) string {

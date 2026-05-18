@@ -4,6 +4,7 @@ package libvirt
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
 
 	"github.com/digitalocean/go-libvirt"
@@ -280,4 +281,60 @@ func (r *RealLibvirtClient) StorageVolGetPath(ctx context.Context, vol libvirt.S
 	default:
 	}
 	return r.conn.StorageVolGetPath(vol)
+}
+
+func (r *RealLibvirtClient) DomainOpenConsole(ctx context.Context, dom libvirt.Domain, devName string, flags ConsoleFlags) (io.ReadCloser, io.WriteCloser, error) {
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	default:
+	}
+
+	// DomainOpenConsole returns a Stream which uses callback-based I/O.
+	// For simplicity, we use a pipe-based approach where we read/write
+	// to the console via a separate goroutine.
+	reader, writer, err := io.Pipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create pipe: %w", err)
+	}
+
+	// Open the console - this returns a Stream for I/O
+	stream, err := r.conn.DomainOpenConsole(dom, devName, libvirt.ConnectOpenConsoleFlags(flags))
+	if err != nil {
+		reader.Close()
+		writer.Close()
+		return nil, nil, fmt.Errorf("failed to open console: %w", err)
+	}
+
+	// Create a struct that implements ReadCloser and WriteCloser using the stream
+	return &consoleReader{stream: stream}, &consoleWriter{stream: stream}, nil
+}
+
+// consoleReader reads from a libvirt stream.
+type consoleReader struct {
+	stream *libvirt.Stream
+}
+
+func (c *consoleReader) Read(p []byte) (n int, err error) {
+	// Use blocking recv - libvirt streams are blocking by default
+	return c.stream.Recv(p)
+}
+
+func (c *consoleReader) Close() error {
+	c.stream.Free()
+	return nil
+}
+
+// consoleWriter writes to a libvirt stream.
+type consoleWriter struct {
+	stream *libvirt.Stream
+}
+
+func (c *consoleWriter) Write(p []byte) (n int, err error) {
+	return c.stream.Send(p)
+}
+
+func (c *consoleWriter) Close() error {
+	c.stream.Free()
+	return nil
 }

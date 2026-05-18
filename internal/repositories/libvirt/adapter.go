@@ -1409,11 +1409,63 @@ func (a *LibvirtAdapter) StartPoolInstance(ctx context.Context, opts ports.RunTa
 }
 
 // ExecInInstance executes a command in a warm (already running) VM.
+// It uses the serial console to send the command and capture output.
 func (a *LibvirtAdapter) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
-	// Libvirt VMs would need QEMU guest agent or serial console access for exec.
-	// This would require additional setup (agent channel, serial config).
-	// For now, return not implemented.
-	return "", fmt.Errorf("exec not implemented for libvirt: requires QEMU guest agent")
+	dom, err := a.client.DomainLookupByName(ctx, id)
+	if err != nil {
+		return "", fmt.Errorf("failed to lookup domain: %w", err)
+	}
+
+	// Open console to the serial device (empty devName uses first console)
+	reader, writer, err := a.client.DomainOpenConsole(ctx, dom, "", ConsoleForce)
+	if err != nil {
+		return "", fmt.Errorf("failed to open console: %w", err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	// Send the command followed by newline
+	cmdLine := strings.Join(cmd, " ") + "\n"
+	if _, err := writer.Write([]byte(cmdLine)); err != nil {
+		return "", fmt.Errorf("failed to write command: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return "", fmt.Errorf("failed to close writer: %w", err)
+	}
+
+	// Read output with timeout
+	var output strings.Builder
+	buf := make([]byte, 4096)
+	deadline := time.Now().Add(60 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return output.String(), ctx.Err()
+		case <-ticker.C:
+			n, err := reader.Read(buf)
+			if n > 0 {
+				output.Write(buf[:n])
+			}
+			if err != nil && err != io.EOF {
+				return output.String(), fmt.Errorf("console read error: %w", err)
+			}
+			// Check for shell prompt indicating command completed
+			s := output.String()
+			if strings.Contains(s, "$ ") || strings.Contains(s, "# ") || strings.Contains(s, "\r\n$") || strings.Contains(s, "\r\n#") {
+				// Command completed - trim prompt echo
+				break
+			}
+			if time.Now().After(deadline) {
+				return output.String(), fmt.Errorf("exec timed out after 60s")
+			}
+		}
+		break
+	}
+
+	return output.String(), nil
 }
 
 // GetInstanceReady checks if a VM is fully initialized and ready to accept work.
