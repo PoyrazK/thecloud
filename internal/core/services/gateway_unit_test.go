@@ -18,9 +18,9 @@ import (
 
 const (
 	defaultCircuitBreakerThreshold = 5
-	defaultCircuitBreakerTimeout  = 30000 // ms
-	defaultMaxRetries            = 2
-	defaultRetryTimeout          = 5000  // ms
+	defaultCircuitBreakerTimeout   = 30000 // ms
+	defaultMaxRetries              = 2
+	defaultRetryTimeout            = 5000 // ms
 )
 
 type mockGatewayRepo struct {

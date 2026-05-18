@@ -208,7 +208,7 @@ func (s *rbacService) evaluatePolicies(ctx context.Context, policies []*domain.P
 
 func (s *rbacService) buildEvalCtx(ctx context.Context, tenantID uuid.UUID) map[string]interface{} {
 	evalCtx := map[string]interface{}{
-		string(domain.KeyTenantID):  tenantID.String(),
+		string(domain.KeyTenantID):    tenantID.String(),
 		string(domain.KeyCurrentTime): time.Now().UTC(),
 	}
 

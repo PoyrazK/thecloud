@@ -29,21 +29,21 @@ func TestFunctionRepositoryCreate(t *testing.T) {
 	repo := NewFunctionRepository(mock)
 	tenantID := uuid.New()
 	f := &domain.Function{
-		ID:                      uuid.New(),
-		UserID:                  uuid.New(),
-		TenantID:                tenantID,
-		Name:                    testFuncName,
-		Runtime:                 testFuncRuntime,
-		Handler:                 testFuncHandler,
-		CodePath:                testFuncPath,
-		Timeout:                 30,
-		MemoryMB:                128,
-		CPUs:                    0.5,
-		Status:                  "ready",
+		ID:                       uuid.New(),
+		UserID:                   uuid.New(),
+		TenantID:                 tenantID,
+		Name:                     testFuncName,
+		Runtime:                  testFuncRuntime,
+		Handler:                  testFuncHandler,
+		CodePath:                 testFuncPath,
+		Timeout:                  30,
+		MemoryMB:                 128,
+		CPUs:                     0.5,
+		Status:                   "ready",
 		MaxConcurrentInvocations: 0,
 		MaxQueueDepth:            0,
-		CreatedAt:               time.Now(),
-		UpdatedAt:               time.Now(),
+		CreatedAt:                time.Now(),
+		UpdatedAt:                time.Now(),
 	}
 
 	mock.ExpectExec("INSERT INTO functions").

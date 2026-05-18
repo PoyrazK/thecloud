@@ -42,6 +42,22 @@ jobs:
             git diff docs/swagger
             exit 1
           fi
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Files not formatted. Run 'gofmt -w .' and commit:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+            echo "go.mod/go.sum are out of sync. Run 'go mod tidy' and commit."
+            git diff go.mod go.sum
+            exit 1
+          fi
       - name: Lint
         run: |
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
@@ -349,6 +365,12 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
           openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
           openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+      - name: Wait for Redis
+        run: |
+          timeout 60s bash -c 'until nc -z 127.0.0.1 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done'
       - name: Run Firecracker Unit Tests
         run: go test -v ./internal/repositories/firecracker/...
       - name: Run Firecracker E2E Test

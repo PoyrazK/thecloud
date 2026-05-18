@@ -59,9 +59,9 @@ func TestLocalStorePathTraversal(t *testing.T) {
 
 	// Table-driven tests for path isolation edge cases
 	testCases := []struct {
-		name         string
-		key          string
-		wantErr      bool
+		name    string
+		key     string
+		wantErr bool
 	}{
 		{name: "dot key", key: ".", wantErr: true},
 		{name: "dot slash", key: "./", wantErr: true},

@@ -22,14 +22,14 @@ type EnvVar struct {
 // to distinguish "not provided" from "set to empty string" — this is intentional
 // and differs from the pointer pattern used by other fields.
 type FunctionUpdate struct {
-	Handler                 *string   `json:"handler,omitempty"`
-	Timeout                 *int      `json:"timeout,omitempty"`
-	MemoryMB                *int      `json:"memory_mb,omitempty"`
-	CPUs                    *float64  `json:"cpus,omitempty"`
-	Status                  string    `json:"status,omitempty"`
-	EnvVars                 []*EnvVar `json:"env_vars,omitempty"`
-	MaxConcurrentInvocations *int     `json:"max_concurrent_invocations,omitempty"`
-	MaxQueueDepth           *int     `json:"max_queue_depth,omitempty"`
+	Handler                  *string   `json:"handler,omitempty"`
+	Timeout                  *int      `json:"timeout,omitempty"`
+	MemoryMB                 *int      `json:"memory_mb,omitempty"`
+	CPUs                     *float64  `json:"cpus,omitempty"`
+	Status                   string    `json:"status,omitempty"`
+	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
+	MaxConcurrentInvocations *int      `json:"max_concurrent_invocations,omitempty"`
+	MaxQueueDepth            *int      `json:"max_queue_depth,omitempty"`
 }
 
 // Validate checks that timeout, memory, and CPU values are within acceptable bounds.
@@ -93,22 +93,22 @@ func (u *FunctionUpdate) SetColumns() []string {
 // Function represents a serverless function.
 // Functions are event-driven units of execution (FaaS).
 type Function struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"user_id"`
-	TenantID  uuid.UUID `json:"tenant_id"`
-	Name      string    `json:"name"`
-	Runtime   string    `json:"runtime"`   // e.g. "python3.9", "go1.21"
-	Handler   string    `json:"handler"`   // Entry point (e.g. "main.Handle")
-	CodePath  string    `json:"code_path"` // Path to code artifact
-	Timeout   int       `json:"timeout"`    // Execution timeout in seconds
-	MemoryMB  int       `json:"memory_mb"`  // Memory allocation in MB
-	CPUs      float64   `json:"cpus"`                     // CPU cores (e.g., 0.5, 1.0, 2.0)
-	Status    string    `json:"status"`                  // e.g. "DEPLOYING", "READY"
-	EnvVars   []*EnvVar `json:"env_vars,omitempty"`
-	MaxConcurrentInvocations int `json:"max_concurrent_invocations"` // 0 = unlimited
-	MaxQueueDepth            int `json:"max_queue_depth"`           // 0 = no queue (fail fast)
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                       uuid.UUID `json:"id"`
+	UserID                   uuid.UUID `json:"user_id"`
+	TenantID                 uuid.UUID `json:"tenant_id"`
+	Name                     string    `json:"name"`
+	Runtime                  string    `json:"runtime"`   // e.g. "python3.9", "go1.21"
+	Handler                  string    `json:"handler"`   // Entry point (e.g. "main.Handle")
+	CodePath                 string    `json:"code_path"` // Path to code artifact
+	Timeout                  int       `json:"timeout"`   // Execution timeout in seconds
+	MemoryMB                 int       `json:"memory_mb"` // Memory allocation in MB
+	CPUs                     float64   `json:"cpus"`      // CPU cores (e.g., 0.5, 1.0, 2.0)
+	Status                   string    `json:"status"`    // e.g. "DEPLOYING", "READY"
+	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
+	MaxConcurrentInvocations int       `json:"max_concurrent_invocations"` // 0 = unlimited
+	MaxQueueDepth            int       `json:"max_queue_depth"`            // 0 = no queue (fail fast)
+	CreatedAt                time.Time `json:"created_at"`
+	UpdatedAt                time.Time `json:"updated_at"`
 }
 
 // Invocation represents a single execution of a Function.

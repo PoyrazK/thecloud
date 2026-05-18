@@ -62,12 +62,12 @@ func TestDatabaseService_RotateCredentials(t *testing.T) {
 	ctx := context.Background()
 	dbID := uuid.New()
 	db := &domain.Database{
-		ID:               dbID,
-		UserID:           uuid.New(),
-		Name:             "test-db",
-		Engine:           domain.EnginePostgres,
-		Username:         "cloud_user",
-		ContainerID:      "cid-1",
+		ID:                dbID,
+		UserID:            uuid.New(),
+		Name:              "test-db",
+		Engine:            domain.EnginePostgres,
+		Username:          "cloud_user",
+		ContainerID:       "cid-1",
 		CredentialPath:    "secret/rds/" + dbID.String() + "/credentials",
 		CredentialVersion: 1,
 	}
@@ -75,13 +75,13 @@ func TestDatabaseService_RotateCredentials(t *testing.T) {
 	t.Run("RotateCredentials_Success", func(t *testing.T) {
 		// Create a fresh db for this test to avoid mutation from previous test affecting this one
 		testDB := &domain.Database{
-			ID:               db.ID,
-			UserID:           db.UserID,
-			Name:             db.Name,
-			Engine:           db.Engine,
-			Username:         db.Username,
-			ContainerID:      db.ContainerID,
-			CredentialPath:   "secret/rds/" + dbID.String() + "/credentials",
+			ID:                db.ID,
+			UserID:            db.UserID,
+			Name:              db.Name,
+			Engine:            db.Engine,
+			Username:          db.Username,
+			ContainerID:       db.ContainerID,
+			CredentialPath:    "secret/rds/" + dbID.String() + "/credentials",
 			CredentialVersion: 1,
 		}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(testDB, nil).Once()
@@ -118,13 +118,13 @@ func TestDatabaseService_RotateCredentials(t *testing.T) {
 
 	t.Run("RotateCredentials_ExecFailure_RollsBackOrphanedVaultEntry", func(t *testing.T) {
 		testDB := &domain.Database{
-			ID:               db.ID,
-			UserID:           db.UserID,
-			Name:             db.Name,
-			Engine:           domain.EnginePostgres,
-			Username:         db.Username,
-			ContainerID:      db.ContainerID,
-			CredentialPath:   "secret/rds/" + dbID.String() + "/credentials",
+			ID:                db.ID,
+			UserID:            db.UserID,
+			Name:              db.Name,
+			Engine:            domain.EnginePostgres,
+			Username:          db.Username,
+			ContainerID:       db.ContainerID,
+			CredentialPath:    "secret/rds/" + dbID.String() + "/credentials",
 			CredentialVersion: 1,
 		}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(testDB, nil).Once()
@@ -147,13 +147,13 @@ func TestDatabaseService_RotateCredentials(t *testing.T) {
 
 	t.Run("RotateCredentials_ExecFailure_RollbackFails_StillReturnsOriginalError", func(t *testing.T) {
 		testDB := &domain.Database{
-			ID:               db.ID,
-			UserID:           db.UserID,
-			Name:             db.Name,
-			Engine:           domain.EnginePostgres,
-			Username:         db.Username,
-			ContainerID:      db.ContainerID,
-			CredentialPath:   "secret/rds/" + dbID.String() + "/credentials",
+			ID:                db.ID,
+			UserID:            db.UserID,
+			Name:              db.Name,
+			Engine:            domain.EnginePostgres,
+			Username:          db.Username,
+			ContainerID:       db.ContainerID,
+			CredentialPath:    "secret/rds/" + dbID.String() + "/credentials",
 			CredentialVersion: 1,
 		}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(testDB, nil).Once()
@@ -175,13 +175,13 @@ func TestDatabaseService_RotateCredentials(t *testing.T) {
 
 	t.Run("RotateCredentials_RepoUpdateFails_AfterRotation_LogsExplicitRecovery", func(t *testing.T) {
 		testDB := &domain.Database{
-			ID:               db.ID,
-			UserID:           db.UserID,
-			Name:             db.Name,
-			Engine:           domain.EnginePostgres,
-			Username:         db.Username,
-			ContainerID:      db.ContainerID,
-			CredentialPath:   "secret/rds/" + dbID.String() + "/credentials",
+			ID:                db.ID,
+			UserID:            db.UserID,
+			Name:              db.Name,
+			Engine:            domain.EnginePostgres,
+			Username:          db.Username,
+			ContainerID:       db.ContainerID,
+			CredentialPath:    "secret/rds/" + dbID.String() + "/credentials",
 			CredentialVersion: 1,
 		}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(testDB, nil).Once()
@@ -206,13 +206,13 @@ func TestDatabaseService_RotateCredentials(t *testing.T) {
 	t.Run("RotateCredentials_VaultFailure_WithoutDBChange", func(t *testing.T) {
 		// Create a fresh db for this test
 		testDB := &domain.Database{
-			ID:               db.ID,
-			UserID:           db.UserID,
-			Name:             db.Name,
-			Engine:           db.Engine,
-			Username:         db.Username,
-			ContainerID:      db.ContainerID,
-			CredentialPath:   "secret/rds/" + dbID.String() + "/credentials",
+			ID:                db.ID,
+			UserID:            db.UserID,
+			Name:              db.Name,
+			Engine:            db.Engine,
+			Username:          db.Username,
+			ContainerID:       db.ContainerID,
+			CredentialPath:    "secret/rds/" + dbID.String() + "/credentials",
 			CredentialVersion: 1,
 		}
 		mockRepo.On("GetByID", mock.Anything, dbID).Return(testDB, nil).Once()

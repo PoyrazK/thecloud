@@ -272,8 +272,8 @@ func (s *IdentityService) generateSAToken(saID, tenantID uuid.UUID, role string)
 			ID:        uuid.New().String(),
 		},
 		ServiceAccountID: saID,
-		TenantID:        tenantID,
-		Role:            role,
+		TenantID:         tenantID,
+		Role:             role,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -349,7 +349,7 @@ func (s *IdentityService) CreateServiceAccount(ctx context.Context, tenantID uui
 
 	return &domain.ServiceAccountWithSecret{
 		ServiceAccount: *sa,
-		PlainSecret:   secretStr,
+		PlainSecret:    secretStr,
 	}, nil
 }
 

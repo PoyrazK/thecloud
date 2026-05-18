@@ -7,9 +7,9 @@ import (
 
 func TestContentDispositionAttachment(t *testing.T) {
 	cases := []struct {
-		name           string
-		key            string
-		wantFilename   string
+		name             string
+		key              string
+		wantFilename     string
 		wantFilenameStar string
 	}{
 		{

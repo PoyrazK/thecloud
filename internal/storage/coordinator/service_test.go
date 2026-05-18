@@ -345,8 +345,8 @@ func TestCoordinatorWriteRepair(t *testing.T) {
 
 	// Node1 and Node3 succeed; Node2 fails mid-stream
 	sm1 := new(MockStoreClient)
-	sm1.On("Send", mock.Anything).Return(nil).Once()  // metadata
-	sm1.On("Send", mock.Anything).Return(nil).Once()  // chunk
+	sm1.On("Send", mock.Anything).Return(nil).Once() // metadata
+	sm1.On("Send", mock.Anything).Return(nil).Once() // chunk
 	sm1.On("CloseAndRecv").Return(&pb.StoreResponse{Success: true}, nil)
 
 	sm3 := new(MockStoreClient)
@@ -355,7 +355,7 @@ func TestCoordinatorWriteRepair(t *testing.T) {
 
 	// Node2 fails on chunk send (not at CloseAndRecv — that would count as quorum failure)
 	sm2Write := new(MockStoreClient)
-	sm2Write.On("Send", mock.Anything).Return(nil).Once()  // metadata succeeds
+	sm2Write.On("Send", mock.Anything).Return(nil).Once() // metadata succeeds
 	sm2Write.On("Send", mock.Anything).Return(errors.New("mid-stream failure")).Once()
 	// CloseAndRecv is still called on the failed stream for cleanup
 	sm2Write.On("CloseAndRecv").Return(&pb.StoreResponse{Success: false, Error: "stream error"}, nil)
@@ -594,7 +594,7 @@ func TestCoordinatorRepairStreamFailureContinues(t *testing.T) {
 
 	// Repair streams: node2 fails on first chunk, node3 succeeds
 	smRepair2 := new(MockStoreClient)
-	smRepair2.On("Send", mock.Anything).Return(nil).Once()  // metadata
+	smRepair2.On("Send", mock.Anything).Return(nil).Once() // metadata
 	smRepair2.On("Send", mock.Anything).Return(errors.New("repair node2 failure")).Once()
 	smRepair2.On("CloseAndRecv").Return(&pb.StoreResponse{Success: false, Error: "repair failed"}, nil)
 	c2.On("Store", mock.Anything).Return(smRepair2, nil)

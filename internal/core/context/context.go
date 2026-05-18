@@ -14,7 +14,7 @@ const (
 	tenantIDKey         contextKey = "tenant_id"
 	internalKey         contextKey = "is_internal"
 	sourceIPKey         contextKey = "source_ip"
-	serviceAccountIDKey  contextKey = "service_account_id"
+	serviceAccountIDKey contextKey = "service_account_id"
 
 	systemUserIDStr = "00000000-0000-0000-0000-000000000001"
 )
