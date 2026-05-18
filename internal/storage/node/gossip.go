@@ -64,35 +64,45 @@ type GossipProtocol struct {
 	dialOpts []grpc.DialOption
 	peers    map[string]*peerClient
 
-	// Tunable timeouts. Defaults applied in NewGossipProtocol; tests/embedders
-	// can override them via SetFailureDetectionTimeout, SetGossipRPCTimeout,
-	// and SetFailCheckInterval before calling Start.
-	failureDetectionTimeout time.Duration
-	gossipRPCTimeout        time.Duration
-	failCheckInterval       time.Duration
+	// started tracks whether Start() has been called. Once true, tunable
+	// setters no-op to prevent confusing race conditions where a goroutine
+	// reads the new value while the old value is already live in tickers.
+	started                    bool
+	failureDetectionTimeout    time.Duration
+	gossipRPCTimeout          time.Duration
+	failCheckInterval          time.Duration
 }
 
 // SetFailureDetectionTimeout overrides the alive→suspect promotion threshold.
-// Must be called before Start.
+// Must be called before Start; changes after Start are ignored.
 func (g *GossipProtocol) SetFailureDetectionTimeout(d time.Duration) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if g.started {
+		return
+	}
 	g.failureDetectionTimeout = d
 }
 
 // SetGossipRPCTimeout overrides the per-RPC Gossip timeout.
-// Must be called before Start.
+// Must be called before Start; changes after Start are ignored.
 func (g *GossipProtocol) SetGossipRPCTimeout(d time.Duration) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if g.started {
+		return
+	}
 	g.gossipRPCTimeout = d
 }
 
 // SetFailCheckInterval overrides how often detectFailures runs.
-// Must be called before Start.
+// Must be called before Start; changes after Start are ignored.
 func (g *GossipProtocol) SetFailCheckInterval(d time.Duration) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if g.started {
+		return
+	}
 	g.failCheckInterval = d
 }
 
@@ -134,6 +144,10 @@ func (g *GossipProtocol) AddPeer(id, addr string) {
 }
 
 func (g *GossipProtocol) Start(interval time.Duration) {
+	g.mu.Lock()
+	g.started = true
+	g.mu.Unlock()
+
 	ticker := time.NewTicker(interval)
 	g.mu.RLock()
 	failInterval := g.failCheckInterval
