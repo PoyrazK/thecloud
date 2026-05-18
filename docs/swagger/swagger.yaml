@@ -2647,6 +2647,7 @@ definitions:
           100.
         items:
           type: string
+        maxItems: 100
         minItems: 1
         type: array
       context:
@@ -2660,6 +2661,7 @@ definitions:
           Max 100.
         items:
           type: string
+        maxItems: 100
         minItems: 1
         type: array
       service_account_id:
