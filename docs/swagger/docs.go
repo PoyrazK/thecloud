@@ -2585,6 +2585,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/functions/{id}/dlq": {
+            "get": {
+                "description": "Gets all dead letter queue invocations for a function",
+                "summary": "Get DLQ invocations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Function ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Invocation"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/functions/{id}/dlq/{invocation_id}/retry": {
+            "post": {
+                "description": "Retries a failed invocation from the dead letter queue by resetting its status to PENDING",
+                "summary": "Retry DLQ invocation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Function ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Invocation ID",
+                        "name": "invocation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Invocation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/gateway/routes": {
             "get": {
                 "security": [
@@ -9981,6 +10061,47 @@ const docTemplate = `{
                 },
                 "vpc_id": {
                     "type": "string"
+                }
+            }
+        },
+        "domain.Invocation": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "description": "Execution time in milliseconds",
+                    "type": "integer"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "function_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "logs": {
+                    "description": "Captured stdout/stderr",
+                    "type": "string"
+                },
+                "max_retries": {
+                    "description": "Max retries before moving to DLQ",
+                    "type": "integer"
+                },
+                "retry_count": {
+                    "description": "Number of retry attempts",
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"PENDING\", \"RUNNING\", \"SUCCESS\", \"FAILED\", \"DLQ\"",
+                    "type": "string"
+                },
+                "status_code": {
+                    "description": "Exit code or HTTP status",
+                    "type": "integer"
                 }
             }
         },
