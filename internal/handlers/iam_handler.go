@@ -580,9 +580,9 @@ type SimulateRequest struct {
 	// Exactly one of UserID or ServiceAccountID must be set.
 	UserID           *uuid.UUID `json:"user_id,omitempty"`
 	ServiceAccountID *uuid.UUID `json:"service_account_id,omitempty"`
-	// Actions to simulate (e.g., ["compute:instance:launch"]). Max 100 per array.
+	// Actions to simulate (e.g., ["compute:instance:launch"]). Max 100.
 	Actions []string `json:"actions" binding:"required,min=1,max=100"`
-	// Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]). Max 100 per array.
+	// Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]). Max 100.
 	Resources []string `json:"resources" binding:"required,min=1,max=100"`
 	// Context overrides for condition evaluation.
 	// Keys: aws:SourceIp, aws:CurrentTime, thecloud:TenantId, etc.
