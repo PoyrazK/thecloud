@@ -89,6 +89,23 @@ func (m *IAMRepository) GetPoliciesForServiceAccount(ctx context.Context, tenant
 	return r0, args.Error(1)
 }
 
+func (m *IAMRepository) ListPolicyVersions(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	args := m.Called(ctx, tenantID, policyID)
+	r0, _ := args.Get(0).([]*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMRepository) GetPolicyVersion(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	args := m.Called(ctx, tenantID, policyID, versionNumber)
+	r0, _ := args.Get(0).(*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMRepository) InsertPolicyVersion(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	args := m.Called(ctx, tenantID, pv)
+	return args.Error(0)
+}
+
 // IAMService is a mock for ports.IAMService
 type IAMService struct {
 	mock.Mock
@@ -173,6 +190,23 @@ func (m *IAMService) SimulatePolicy(ctx context.Context, principal ports.Princip
 	args := m.Called(ctx, principal, actions, resources, evalCtx)
 	r0, _ := args.Get(0).(*ports.SimulateResult)
 	return r0, args.Error(1)
+}
+
+func (m *IAMService) ListPolicyVersions(ctx context.Context, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	args := m.Called(ctx, policyID)
+	r0, _ := args.Get(0).([]*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) GetPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	args := m.Called(ctx, policyID, versionNumber)
+	r0, _ := args.Get(0).(*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) error {
+	args := m.Called(ctx, policyID, versionNumber)
+	return args.Error(0)
 }
 
 // UserRepository is a mock for ports.UserRepository

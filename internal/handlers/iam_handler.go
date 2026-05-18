@@ -3,6 +3,7 @@ package httphandlers
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,6 +173,102 @@ func (h *IAMHandler) DeletePolicy(c *gin.Context) {
 	}
 
 	httputil.Success(c, http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// GetPolicyVersions lists all versions of a policy.
+// @Summary List Policy Versions
+// @Description List all historical versions of a specific IAM policy.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Policy ID"
+// @Success 200 {object} httputil.Response{data=[]domain.PolicyVersion}
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/policies/{id}/versions [get]
+func (h *IAMHandler) GetPolicyVersions(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	versions, err := h.svc.ListPolicyVersions(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, versions)
+}
+
+// GetPolicyVersion returns a specific version of a policy.
+// @Summary Get Policy Version
+// @Description Get a specific historical version of an IAM policy.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Policy ID"
+// @Param version path int true "Version Number"
+// @Success 200 {object} httputil.Response{data=domain.PolicyVersion}
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/policies/{id}/versions/{version} [get]
+func (h *IAMHandler) GetPolicyVersion(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	versionStr := c.Param("version")
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid version number"))
+		return
+	}
+
+	pv, err := h.svc.GetPolicyVersion(c.Request.Context(), id, version)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, pv)
+}
+
+// RollbackPolicyVersion restores a policy to a specific historical version.
+// @Summary Rollback Policy Version
+// @Description Restore a policy to a specific historical version by creating a new version with the old content.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Policy ID"
+// @Param version path int true "Version Number to Rollback To"
+// @Success 200 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/policies/{id}/rollback/{version} [post]
+func (h *IAMHandler) RollbackPolicyVersion(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	versionStr := c.Param("version")
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid version number"))
+		return
+	}
+
+	if err := h.svc.RollbackPolicyVersion(c.Request.Context(), id, version); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, gin.H{"status": "rolled_back", "version": version})
 }
 
 // AttachPolicyToUser attaches a policy to a user.

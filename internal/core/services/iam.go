@@ -225,3 +225,70 @@ func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Princip
 
 	return result, nil
 }
+
+func (s *iamService) ListPolicyVersions(ctx context.Context, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.ListPolicyVersions(ctx, tenantID, policyID)
+}
+
+func (s *iamService) GetPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetPolicyVersion(ctx, tenantID, policyID, versionNumber)
+}
+
+func (s *iamService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	// Fetch the version to restore
+	pv, err := s.repo.GetPolicyVersion(ctx, tenantID, policyID, versionNumber)
+	if err != nil {
+		return err
+	}
+
+	// Get current policy to preserve tenant_id
+	current, err := s.repo.GetPolicyByID(ctx, tenantID, policyID)
+	if err != nil {
+		return err
+	}
+
+	// Get max version to determine new version number
+	versions, err := s.repo.ListPolicyVersions(ctx, tenantID, policyID)
+	if err != nil {
+		return err
+	}
+	maxVersion := 0
+	if len(versions) > 0 {
+		maxVersion = versions[0].VersionNumber
+	}
+
+	// Create a new version with the same content as the rollback target
+	newVersion := &domain.PolicyVersion{
+		ID:            uuid.New(),
+		PolicyID:      policyID,
+		VersionNumber: maxVersion + 1,
+		Name:          pv.Name,
+		Description:   pv.Description,
+		Statements:    pv.Statements,
+	}
+
+	// Insert the rollback as a new version
+	if err := s.repo.InsertPolicyVersion(ctx, tenantID, newVersion); err != nil {
+		return err
+	}
+
+	// Update the current policy row to match
+	current.Statements = pv.Statements
+	current.Name = pv.Name
+	current.Description = pv.Description
+	if err := s.repo.UpdatePolicy(ctx, tenantID, current); err != nil {
+		return err
+	}
+
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_ROLLBACK", policyID.String(), "POLICY", map[string]interface{}{
+		"rolled_back_to_version": versionNumber,
+		"new_version":           newVersion.VersionNumber,
+	}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_ROLLBACK", "policy_id", policyID, "error", err)
+	}
+	return nil
+}

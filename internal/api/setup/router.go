@@ -233,6 +233,11 @@ func registerIAMRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		iamGroup.GET(policyIDRoute, handlers.IAM.GetPolicyByID)
 		iamGroup.DELETE(policyIDRoute, handlers.IAM.DeletePolicy)
 
+		// Policy versioning
+		iamGroup.GET("/policies/:id/versions", handlers.IAM.GetPolicyVersions)
+		iamGroup.GET("/policies/:id/versions/:version", handlers.IAM.GetPolicyVersion)
+		iamGroup.POST("/policies/:id/rollback/:version", handlers.IAM.RollbackPolicyVersion)
+
 		iamGroup.POST("/users/:userId/policies/:policyId", handlers.IAM.AttachPolicyToUser)
 		iamGroup.DELETE("/users/:userId/policies/:policyId", handlers.IAM.DetachPolicyFromUser)
 		iamGroup.GET("/users/:userId/policies", handlers.IAM.GetUserPolicies)

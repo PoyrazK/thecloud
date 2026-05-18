@@ -140,6 +140,23 @@ func (m *MockIAMRepository) GetPoliciesForServiceAccount(ctx context.Context, te
 	}
 	return args.Get(0).([]*domain.Policy), args.Error(1)
 }
+func (m *MockIAMRepository) ListPolicyVersions(ctx context.Context, tenantID, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	args := m.Called(ctx, tenantID, policyID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.PolicyVersion), args.Error(1)
+}
+func (m *MockIAMRepository) GetPolicyVersion(ctx context.Context, tenantID, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	args := m.Called(ctx, tenantID, policyID, versionNumber)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.PolicyVersion), args.Error(1)
+}
+func (m *MockIAMRepository) InsertPolicyVersion(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	return m.Called(ctx, tenantID, pv).Error(0)
+}
 
 // MockIdentityService
 type MockIdentityService struct {
