@@ -1,0 +1,110 @@
+name: "PR Keyword Labeler"
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Check PR keywords
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const title = pr.title.toLowerCase();
+            const body = (pr.body || '').toLowerCase();
+
+            const labels = [];
+
+            // Bug
+            if (title.includes('fix') || title.includes('bug') || title.includes('patch')) {
+              labels.push('bug');
+            }
+
+            // Enhancement/Feature
+            if (title.includes('feat') || title.includes('add') || title.includes('implement')) {
+              labels.push('enhancement');
+            }
+
+            // Documentation
+            if (title.includes('docs') || body.includes('documentation') || body.includes('readme')) {
+              labels.push('documentation');
+            }
+
+            // Security
+            if (title.includes('security') || body.includes('cve-') || body.includes('vulnerability')) {
+              labels.push('security');
+            }
+
+            // Breaking change
+            if (body.includes('breaking change') || body.includes('!--')) {
+              labels.push('breaking-change');
+            }
+
+            // Refactor
+            if (title.includes('refactor') || title.includes('cleanup') || title.includes('restructure')) {
+              labels.push('refactor');
+            }
+
+            // Performance
+            if (title.includes('perf') || title.includes('optimize') || title.includes('faster')) {
+              labels.push('performance');
+            }
+
+            // Database
+            if (title.includes('migration') || title.includes('schema') || body.includes('database')) {
+              labels.push('database');
+            }
+
+            // API change
+            if (title.includes('endpoint') || title.includes('api') || title.includes('route')) {
+              labels.push('api-change');
+            }
+
+            // Config
+            if (title.includes('config') || title.includes('settings')) {
+              labels.push('config');
+            }
+
+            // Deps
+            if (body.includes('dependency') || body.includes('bump') || title.includes('update deps')) {
+              labels.push('deps');
+            }
+
+            // Build
+            if (title.includes('docker') || title.includes('build') || title.includes('compile')) {
+              labels.push('build');
+            }
+
+            // Size detection based on files changed
+            const prFiles = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+            const fileCount = prFiles.data.length;
+            if (fileCount <= 3) {
+              labels.push('size/xs');
+            } else if (fileCount <= 10) {
+              labels.push('size/sm');
+            } else if (fileCount <= 30) {
+              labels.push('size/md');
+            } else if (fileCount <= 100) {
+              labels.push('size/lg');
+            } else {
+              labels.push('size/xl');
+            }
+
+            // Apply labels
+            if (labels.length > 0) {
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: labels
+              });
+            }
