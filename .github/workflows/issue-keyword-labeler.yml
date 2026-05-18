@@ -1,0 +1,104 @@
+name: "Issue Keyword Labeler"
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check issue keywords
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+
+            const labels = [];
+
+            // Bug
+            if (title.includes('bug') || title.includes('broken') || title.includes('not working')) {
+              labels.push('bug');
+            }
+
+            // Enhancement
+            if (title.includes('feature') || title.includes('request') || title.includes('enhancement') || title.includes('wish')) {
+              labels.push('enhancement');
+            }
+
+            // Documentation
+            if (title.includes('docs') || body.includes('documentation')) {
+              labels.push('documentation');
+            }
+
+            // Security
+            if (title.includes('security') || body.includes('cve-') || body.includes('vulnerability')) {
+              labels.push('security');
+            }
+
+            // Performance
+            if (title.includes('slow') || title.includes('performance') || title.includes('optimize')) {
+              labels.push('performance');
+            }
+
+            // Database
+            if (title.includes('migration') || title.includes('schema') || title.includes('database')) {
+              labels.push('database');
+            }
+
+            // Config
+            if (title.includes('config') || title.includes('settings') || title.includes('configuration')) {
+              labels.push('config');
+            }
+
+            // Build
+            if (title.includes('build') || title.includes('docker') || title.includes('compile')) {
+              labels.push('build');
+            }
+
+            // Area detection based on keywords in title
+            if (title.includes('cli') || title.includes('command') || title.includes('terminal')) {
+              labels.push('area/cli');
+            }
+
+            if (title.includes('api') || title.includes('endpoint') || title.includes('rest')) {
+              labels.push('area/api');
+            }
+
+            if (title.includes('web') || title.includes('frontend') || title.includes('ui') || title.includes('dashboard')) {
+              labels.push('area/web');
+            }
+
+            if (title.includes('storage') || title.includes('disk') || title.includes('volume')) {
+              labels.push('area/storage');
+            }
+
+            if (title.includes('kubernetes') || title.includes('k8s') || title.includes('deploy')) {
+              labels.push('area/k8s');
+            }
+
+            if (title.includes('handler') || title.includes('controller')) {
+              labels.push('area/handlers');
+            }
+
+            if (title.includes('service')) {
+              labels.push('area/services');
+            }
+
+            if (title.includes('repository') || title.includes('db') || title.includes('sql')) {
+              labels.push('area/repositories');
+            }
+
+            // Apply labels
+            if (labels.length > 0) {
+              github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labels
+              });
+            }

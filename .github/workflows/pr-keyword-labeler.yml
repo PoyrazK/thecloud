@@ -56,12 +56,12 @@ jobs:
             }
 
             // Database
-            if (title.includes('migration') || title.includes('schema') || body.includes('database')) {
+            if (title.includes('migration') || title.includes('schema') || title.includes('database')) {
               labels.push('database');
             }
 
             // API change
-            if (title.includes('endpoint') || title.includes('api') || title.includes('route')) {
+            if (title.includes('endpoint') || title.includes('rest api') || title.includes('grpc')) {
               labels.push('api-change');
             }
 

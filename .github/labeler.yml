@@ -69,12 +69,9 @@ api-change:
 config:
   - changed-files:
       - any-glob-to-any-file:
-          - '*.yaml'
-          - '*.yml'
-          - '*.json'
-          - '.env*'
           - 'config/**'
           - 'deploy/**'
+          - '.env*'
 
 deps:
   - changed-files:
