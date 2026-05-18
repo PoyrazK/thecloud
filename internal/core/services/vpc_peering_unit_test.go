@@ -142,6 +142,21 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
+	t.Run("CreatePeering_AccepterTenantNotFound", func(t *testing.T) {
+		requesterVPCID := uuid.New()
+		accepterVPCID := uuid.New()
+		accepterTenantID := uuid.New()
+		requesterVPC := &domain.VPC{ID: requesterVPCID, Name: "req", CIDRBlock: "10.0.0.0/16"}
+		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "12.0.0.0/16"}
+		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
+		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, accepterTenantID).Return(nil, fmt.Errorf("tenant not found")).Once()
+
+		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, accepterTenantID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "accepter tenant not found")
+	})
+
 	t.Run("AcceptPeering_WrongStatus", func(t *testing.T) {
 		peeringID := uuid.New()
 		peering := &domain.VPCPeering{ID: peeringID, Status: domain.PeeringStatusActive}
