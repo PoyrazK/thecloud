@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockSecurityGroupService provides a mock implementation for security group operations.
 type MockSecurityGroupService struct{ mock.Mock }
 
 func (m *MockSecurityGroupService) CreateGroup(ctx context.Context, vpcID uuid.UUID, name, description string) (*domain.SecurityGroup, error) {
