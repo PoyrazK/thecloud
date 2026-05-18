@@ -28,6 +28,8 @@ type FunctionUpdate struct {
 	CPUs                     *float64  `json:"cpus,omitempty"`
 	Status                   string    `json:"status,omitempty"`
 	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
+	PoolConfig               *PoolConfig `json:"pool_config,omitempty"`
+	CodePath                 *string   `json:"code_path,omitempty"` // For internal use to detect code changes
 	MaxConcurrentInvocations *int      `json:"max_concurrent_invocations,omitempty"`
 	MaxQueueDepth            *int      `json:"max_queue_depth,omitempty"`
 	MaxRetries               *int      `json:"max_retries,omitempty"`
@@ -85,6 +87,9 @@ func (u *FunctionUpdate) SetColumns() []string {
 	if u.EnvVars != nil {
 		cols = append(cols, "env_vars")
 	}
+	if u.PoolConfig != nil {
+		cols = append(cols, "pool_config")
+	}
 	if u.MaxConcurrentInvocations != nil {
 		cols = append(cols, "max_concurrent_invocations")
 	}
@@ -112,11 +117,19 @@ type Function struct {
 	CPUs                     float64   `json:"cpus"`      // CPU cores (e.g., 0.5, 1.0, 2.0)
 	Status                   string    `json:"status"`    // e.g. "DEPLOYING", "READY"
 	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
+	PoolConfig               *PoolConfig `json:"pool_config,omitempty"` // Warm pool settings (nil = disabled)
 	MaxConcurrentInvocations int       `json:"max_concurrent_invocations"` // 0 = unlimited
 	MaxQueueDepth            int       `json:"max_queue_depth"`            // 0 = no queue (fail fast)
 	MaxRetries               int       `json:"max_retries"`                // 0 = no retries, -1 = infinite retries
 	CreatedAt                time.Time `json:"created_at"`
 	UpdatedAt                time.Time `json:"updated_at"`
+}
+
+// PoolConfig holds the sizing parameters for a function's warm container pool.
+type PoolConfig struct {
+	MinSize     int `json:"min_size"`      // Minimum warm instances to maintain (default: 1)
+	MaxSize     int `json:"max_size"`      // Maximum warm instances / scale-out limit (default: 10)
+	MaxIdleSecs int `json:"max_idle_secs"` // Seconds before reaping idle warm instances (default: 300)
 }
 
 // Invocation represents a single execution of a Function.

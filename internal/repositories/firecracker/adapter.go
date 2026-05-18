@@ -303,3 +303,39 @@ func (a *FirecrackerAdapter) DeleteSnapshot(ctx context.Context, id, name string
 // ResetCircuitBreaker is a no-op for the raw Firecracker adapter.
 // The circuit breaker lives in ResilientCompute wrapping this backend.
 func (a *FirecrackerAdapter) ResetCircuitBreaker() {}
+
+// StartPoolInstance starts a warm microVM that stays running but waiting for work.
+func (a *FirecrackerAdapter) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	return a.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{
+		Name:        opts.Name,
+		ImageName:   opts.Image,
+		Env:         opts.Env,
+		Cmd:         []string{"tail", "-f", "/dev/null"}, // Keep-alive
+		CPULimit:    int64(opts.CPUs),
+		MemoryLimit: opts.MemoryMB * 1024 * 1024,
+	})
+}
+
+// ExecInInstance executes a command in a warm (already running) microVM.
+func (a *FirecrackerAdapter) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	// Firecracker doesn't support exec into running VMs directly.
+	// The VM would need to expose a shell/agent via serial or other mechanism.
+	// For now, return not implemented - this would require a guest agent.
+	return "", fmt.Errorf("exec not implemented for firecracker: requires guest agent")
+}
+
+// GetInstanceReady checks if a microVM is fully initialized and ready to accept work.
+func (a *FirecrackerAdapter) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	if a.cfg.MockMode {
+		return true, nil
+	}
+	a.mu.RLock()
+	m, ok := a.machines[id]
+	a.mu.RUnlock()
+	if !ok {
+		return false, nil
+	}
+	// A machine is ready if it's been created (present in the map)
+	// Note: full "running" state would require checking the VM's internal state
+	return true, nil
+}

@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/pool"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/platform"
@@ -75,13 +76,14 @@ type FunctionService struct {
 	fileStore        ports.FileStore
 	auditSvc         ports.AuditService
 	secretSvc        ports.SecretService
+	poolMgr          *pool.PoolManagerImpl
 	logger           *slog.Logger
 	bulkheadRegistry map[uuid.UUID]*platform.Bulkhead
 	bulkheadMu       sync.RWMutex
 }
 
 // NewFunctionService constructs a FunctionService with its dependencies.
-func NewFunctionService(repo ports.FunctionRepository, rbacSvc ports.RBACService, compute ports.ComputeBackend, fileStore ports.FileStore, auditSvc ports.AuditService, secretSvc ports.SecretService, logger *slog.Logger) *FunctionService {
+func NewFunctionService(repo ports.FunctionRepository, rbacSvc ports.RBACService, compute ports.ComputeBackend, fileStore ports.FileStore, auditSvc ports.AuditService, secretSvc ports.SecretService, poolMgr *pool.PoolManagerImpl, logger *slog.Logger) *FunctionService {
 	return &FunctionService{
 		repo:             repo,
 		rbacSvc:          rbacSvc,
@@ -89,6 +91,7 @@ func NewFunctionService(repo ports.FunctionRepository, rbacSvc ports.RBACService
 		fileStore:        fileStore,
 		auditSvc:         auditSvc,
 		secretSvc:        secretSvc,
+		poolMgr:          poolMgr,
 		logger:           logger,
 		bulkheadRegistry: make(map[uuid.UUID]*platform.Bulkhead),
 	}
@@ -145,6 +148,12 @@ func (s *FunctionService) CreateFunction(ctx context.Context, name, runtime, han
 		return nil, err
 	}
 
+	// Register with pool manager if pool config is set
+	if f.PoolConfig != nil {
+		opts := s.buildTaskOptionsForPool(ctx, f)
+		s.poolMgr.RegisterFunction(f.ID, *f.PoolConfig, opts)
+	}
+
 	if err := s.auditSvc.Log(ctx, f.UserID, "function.create", "function", f.ID.String(), map[string]interface{}{
 		"name":    f.Name,
 		"runtime": f.Runtime,
@@ -199,6 +208,16 @@ func (s *FunctionService) UpdateFunction(ctx context.Context, id uuid.UUID, req 
 		return nil, err
 	}
 
+	// Invalidate pool if handler changed (requires fresh containers with new code)
+	if req.Handler != nil {
+		_ = s.poolMgr.InvalidateFunction(ctx, id)
+		// Re-register with new task options if pool config exists
+		if f.PoolConfig != nil {
+			opts := s.buildTaskOptionsForPool(ctx, f)
+			s.poolMgr.RegisterFunction(f.ID, *f.PoolConfig, opts)
+		}
+	}
+
 	if err := s.auditSvc.Log(ctx, f.UserID, "function.update", "function", f.ID.String(), map[string]interface{}{
 		"name": f.Name,
 	}); err != nil {
@@ -231,6 +250,9 @@ func (s *FunctionService) DeleteFunction(ctx context.Context, id uuid.UUID) erro
 	s.bulkheadMu.Lock()
 	delete(s.bulkheadRegistry, id)
 	s.bulkheadMu.Unlock()
+
+	// Invalidate warm pool for this function
+	_ = s.poolMgr.InvalidateFunction(ctx, id)
 
 	// Async delete from file store
 	go func() {
@@ -360,6 +382,64 @@ func (s *FunctionService) InvokeFunction(ctx context.Context, id uuid.UUID, payl
 func (s *FunctionService) runInvocation(ctx context.Context, f *domain.Function, i *domain.Invocation, payload []byte) (*domain.Invocation, error) {
 	i.Status = "RUNNING"
 
+	// Try warm pool first if configured
+	if f.PoolConfig != nil {
+		inst, release, err := s.poolMgr.Acquire(ctx, f.ID)
+		if err == nil {
+			return s.runPooledInvocation(ctx, f, i, payload, inst, release)
+		}
+		s.logger.Warn("pool acquisition failed, falling back to cold start", "function_id", f.ID, "error", err)
+	}
+
+	// Cold start path (existing behavior)
+	return s.runColdInvocation(ctx, f, i, payload)
+}
+
+func (s *FunctionService) runPooledInvocation(ctx context.Context, f *domain.Function, i *domain.Invocation, payload []byte, inst *ports.PoolInstance, release func(error)) (*domain.Invocation, error) {
+	defer func() {
+		execErr := s.getLastInvocationError(i)
+		release(execErr)
+	}()
+
+	tmpDir, err := s.prepareCode(ctx, f)
+	if err != nil {
+		return s.failInvocation(i, "function invocation failed", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	opts := s.buildTaskOptions(ctx, f, tmpDir, payload)
+
+	// Execute in the warm instance (already running)
+	output, err := s.compute.ExecInInstance(ctx, inst.BackendID, opts.Command)
+	if err != nil {
+		return s.failInvocation(i, "function invocation failed", err)
+	}
+
+	// For warm pool exec, we get output directly. Build results manually.
+	i.Status = "SUCCESS"
+	i.EndedAt = new(time.Time)
+	*i.EndedAt = time.Now()
+	i.DurationMs = int(i.EndedAt.Sub(i.StartedAt).Milliseconds())
+	i.Logs = output
+	i.StatusCode = 0
+
+	if err := s.repo.CreateInvocation(ctx, i); err != nil {
+		s.logger.Error("failed to record invocation", "error", err)
+	}
+
+	return i, nil
+}
+
+func (s *FunctionService) getLastInvocationError(i *domain.Invocation) error {
+	if i.Status == "FAILED" {
+		return fmt.Errorf("invocation failed with status code %d", i.StatusCode)
+	}
+	return nil
+}
+
+func (s *FunctionService) runColdInvocation(ctx context.Context, f *domain.Function, i *domain.Invocation, payload []byte) (*domain.Invocation, error) {
+	i.Status = "RUNNING"
+
 	tmpDir, err := s.prepareCode(ctx, f)
 	if err != nil {
 		return s.failInvocation(i, "function invocation failed", err)
@@ -466,6 +546,33 @@ func (s *FunctionService) buildTaskOptions(ctx context.Context, f *domain.Functi
 		ReadOnlyRootfs:  true,
 		WorkingDir:      "/var/task",
 		Binds:           []string{fmt.Sprintf("%s:/var/task:ro", tmpDir)},
+		PidsLimit:       &pidsLimit,
+	}
+}
+
+// buildTaskOptionsForPool builds task options for the pool manager.
+// Unlike buildTaskOptions, this does not include the code bind mount
+// because code is mounted fresh per invocation.
+func (s *FunctionService) buildTaskOptionsForPool(ctx context.Context, f *domain.Function) ports.RunTaskOptions {
+	config := runtimes[f.Runtime]
+	pidsLimit := int64(50)
+
+	handler := s.normalizeHandler(f.Runtime, f.Handler)
+
+	// For warm pool instances, we don't set PAYLOAD env var here
+	// because payload is passed per-invocation
+	env := []string{}
+
+	return ports.RunTaskOptions{
+		Image:           config.Image,
+		Command:         append(config.Entrypoint, handler),
+		Env:             env,
+		MemoryMB:        int64(f.MemoryMB),
+		CPUs:            f.CPUs,
+		NetworkDisabled: true,
+		ReadOnlyRootfs:  true,
+		WorkingDir:      "/var/task",
+		Binds:           []string{}, // No bind mount in pool - code mounted fresh per invocation
 		PidsLimit:       &pidsLimit,
 	}
 }

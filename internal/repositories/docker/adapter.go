@@ -1056,3 +1056,98 @@ func (a *DockerAdapter) Exec(ctx context.Context, containerID string, cmd []stri
 // ResetCircuitBreaker is a no-op for the raw Docker adapter.
 // The circuit breaker lives in ResilientCompute wrapping this backend.
 func (a *DockerAdapter) ResetCircuitBreaker() {}
+
+// StartPoolInstance starts a warm container that stays running but waiting for work.
+func (a *DockerAdapter) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	// 1. Ensure image exists
+	pullCtx, pullCancel := context.WithTimeout(ctx, ImagePullTimeout)
+	defer pullCancel()
+
+	reader, err := a.cli.ImagePull(pullCtx, opts.Image, image.PullOptions{})
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to pull image: %w", err)
+	}
+	defer func() { _ = reader.Close() }()
+	_, _ = io.Copy(io.Discard, reader)
+
+	// 2. Configure container with security defaults and a keep-alive command
+	config := &container.Config{
+		Image:           opts.Image,
+		Cmd:             []string{"tail", "-f", "/dev/null"}, // Keep-alive
+		Env:             opts.Env,
+		WorkingDir:      opts.WorkingDir,
+		NetworkDisabled: opts.NetworkDisabled,
+	}
+
+	hostConfig := &container.HostConfig{
+		Resources: container.Resources{
+			Memory:   opts.MemoryMB * 1024 * 1024,
+			NanoCPUs: int64(opts.CPUs * 1e9),
+		},
+		Binds:          opts.Binds,
+		ReadonlyRootfs: opts.ReadOnlyRootfs,
+	}
+
+	if opts.PidsLimit != nil {
+		hostConfig.PidsLimit = opts.PidsLimit
+	}
+
+	// 3. Create container
+	resp, err := a.cli.ContainerCreate(ctx, config, hostConfig, nil, nil, opts.Name)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create warm container: %w", err)
+	}
+
+	// 4. Start container
+	if err := a.cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		_ = a.cli.ContainerRemove(ctx, resp.ID, container.RemoveOptions{Force: true})
+		return "", nil, fmt.Errorf("failed to start warm container: %w", err)
+	}
+
+	return resp.ID, nil, nil
+}
+
+// ExecInInstance executes a command in a running warm instance.
+func (a *DockerAdapter) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	config := container.ExecOptions{
+		Cmd:          cmd,
+		AttachStdout: true,
+		AttachStderr: true,
+	}
+
+	execResp, err := a.cli.ContainerExecCreate(ctx, id, config)
+	if err != nil {
+		return "", fmt.Errorf("failed to create exec in warm instance: %w", err)
+	}
+
+	resp, err := a.cli.ContainerExecAttach(ctx, execResp.ID, container.ExecStartOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to attach exec in warm instance: %w", err)
+	}
+	defer resp.Close()
+
+	var outBuf strings.Builder
+	if _, err := stdcopy.StdCopy(&outBuf, &outBuf, resp.Reader); err != nil {
+		return "", fmt.Errorf("failed to read exec output: %w", err)
+	}
+
+	execInspect, err := a.cli.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		return outBuf.String(), fmt.Errorf("failed to inspect exec result: %w", err)
+	}
+
+	if execInspect.ExitCode != 0 {
+		return outBuf.String(), fmt.Errorf("command execution failed with exit code %d: %s", execInspect.ExitCode, outBuf.String())
+	}
+
+	return outBuf.String(), nil
+}
+
+// GetInstanceReady checks if an instance is fully initialized and ready to accept work.
+func (a *DockerAdapter) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	inspect, err := a.cli.ContainerInspect(ctx, id)
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect warm instance: %w", err)
+	}
+	return inspect.State.Running, nil
+}
