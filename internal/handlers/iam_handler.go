@@ -573,15 +573,17 @@ func (h *IAMHandler) GetServiceAccountPolicies(c *gin.Context) {
 }
 
 // SimulateRequest is the payload for policy simulation.
+// SimulateRequest is the payload for policy simulation.
+// max 100 actions and 100 resources per request; pair count capped at 100 in the service.
 type SimulateRequest struct {
 	// Principal identifies whose policies to simulate.
 	// Exactly one of UserID or ServiceAccountID must be set.
 	UserID           *uuid.UUID `json:"user_id,omitempty"`
 	ServiceAccountID *uuid.UUID `json:"service_account_id,omitempty"`
-	// Actions to simulate (e.g., ["compute:instance:launch"]).
-	Actions []string `json:"actions" binding:"required,min=1"`
-	// Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]).
-	Resources []string `json:"resources" binding:"required,min=1"`
+	// Actions to simulate (e.g., ["compute:instance:launch"]). Max 100.
+	Actions []string `json:"actions" binding:"required,min=1,maxitems=100"`
+	// Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]). Max 100.
+	Resources []string `json:"resources" binding:"required,min=1,maxitems=100"`
 	// Context overrides for condition evaluation.
 	// Keys: aws:SourceIp, aws:CurrentTime, thecloud:TenantId, etc.
 	Context map[string]interface{} `json:"context,omitempty"`

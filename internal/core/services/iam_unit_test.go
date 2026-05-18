@@ -172,7 +172,7 @@ func TestIAMService_Unit(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("SimulatePolicy_LastAllowWins", func(t *testing.T) {
+	t.Run("SimulatePolicy_FirstAllowWins", func(t *testing.T) {
 		userID := uuid.New()
 		firstPolicy := &domain.Policy{
 			ID:   uuid.New(),
@@ -181,20 +181,20 @@ func TestIAMService_Unit(t *testing.T) {
 				{Effect: domain.EffectAllow, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
 			},
 		}
-		lastPolicy := &domain.Policy{
+		secondPolicy := &domain.Policy{
 			ID:   uuid.New(),
-			Name: "LastAllow",
+			Name: "SecondAllow",
 			Statements: []domain.Statement{
 				{Effect: domain.EffectAllow, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
 			},
 		}
-		mockRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{firstPolicy, lastPolicy}, nil).Once()
+		mockRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{firstPolicy, secondPolicy}, nil).Once()
 
 		result, err := svc.SimulatePolicy(ctx, ports.Principal{UserID: &userID}, []string{"compute:instance:launch"}, []string{"instance:123"}, nil)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, domain.EffectAllow, result.Decision)
-		assert.Equal(t, "FirstAllow", result.Matched.PolicyName) // First allow wins (no overwrite since allowResult already set)
+		assert.Equal(t, "FirstAllow", result.Matched.PolicyName) // First allow wins (allowResult is set once and not overwritten)
 		assert.Equal(t, 1, result.Evaluated)
 		mockRepo.AssertExpectations(t)
 	})

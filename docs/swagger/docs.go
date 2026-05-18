@@ -12930,7 +12930,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "actions": {
-                    "description": "Actions to simulate (e.g., [\"compute:instance:launch\"]).",
+                    "description": "Actions to simulate (e.g., [\"compute:instance:launch\"]). Max 100.",
                     "type": "array",
                     "minItems": 1,
                     "items": {
@@ -12943,7 +12943,7 @@ const docTemplate = `{
                     "additionalProperties": true
                 },
                 "resources": {
-                    "description": "Resources to test (e.g., [\"arn:thecloud:compute:us-east-1:*:instance/*\"]).",
+                    "description": "Resources to test (e.g., [\"arn:thecloud:compute:us-east-1:*:instance/*\"]). Max 100.",
                     "type": "array",
                     "minItems": 1,
                     "items": {
