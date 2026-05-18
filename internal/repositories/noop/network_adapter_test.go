@@ -33,7 +33,7 @@ func TestNoopNetworkAdapter_ListBridges(t *testing.T) {
 	t.Parallel()
 	adapter := NewNoopNetworkAdapter(slog.Default())
 	result, err := adapter.ListBridges(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, result)
 }
 
@@ -83,7 +83,7 @@ func TestNoopNetworkAdapter_ListFlowRules(t *testing.T) {
 	t.Parallel()
 	adapter := NewNoopNetworkAdapter(slog.Default())
 	result, err := adapter.ListFlowRules(context.Background(), "br-test")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, result)
 }
 

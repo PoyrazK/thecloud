@@ -227,5 +227,5 @@ func TestIGWRepository_ListAll_Empty(t *testing.T) {
 
 	result, err := repo.ListAll(ctx)
 	require.NoError(t, err)
-	assert.Len(t, result, 0)
+	assert.Empty(t, result)
 }

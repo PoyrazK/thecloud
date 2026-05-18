@@ -109,7 +109,7 @@ func TestNATGatewayRepository_ListBySubnet_Empty(t *testing.T) {
 
 	result, err := repo.ListBySubnet(ctx, subnetID)
 	require.NoError(t, err)
-	assert.Len(t, result, 0)
+	assert.Empty(t, result)
 }
 
 // TestNATGatewayRepository_ListByVPC skipped: NATGatewayStatus scan requires string→custom-type

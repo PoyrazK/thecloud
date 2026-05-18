@@ -56,6 +56,6 @@ func TestNoopDNSBackend_ListRecords(t *testing.T) {
 	t.Parallel()
 	backend := NewNoopDNSBackend()
 	result, err := backend.ListRecords(context.Background(), "example.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, result)
 }

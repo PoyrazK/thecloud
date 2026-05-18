@@ -190,5 +190,5 @@ func TestFunctionScheduleRepository_GetScheduleRuns_Empty(t *testing.T) {
 
 	result, err := repo.GetScheduleRuns(context.Background(), scheduleID, 10)
 	require.NoError(t, err)
-	assert.Len(t, result, 0)
+	assert.Empty(t, result)
 }
