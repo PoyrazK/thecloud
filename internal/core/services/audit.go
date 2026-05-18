@@ -60,7 +60,7 @@ func (s *AuditService) Log(ctx context.Context, userID uuid.UUID, action, resour
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
 		Details:      details,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 	}
 
 	err := s.repo.Create(ctx, log)

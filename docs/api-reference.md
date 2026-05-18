@@ -997,6 +997,28 @@ Create a new volume.
 }
 ```
 
+### POST /volumes/:id/resize
+Resize a volume to a larger capacity.
+
+**Request:**
+```json
+{
+  "new_size_gb": 50
+}
+```
+
+**Response:**
+```json
+{
+  "message": "volume resized",
+  "new_size_gb": 50
+}
+```
+
+**Error Responses:**
+- `400` — Invalid input (size must be at least 1)
+- `404` — Volume not found
+
 ---
 
 ## Managed Databases (RDS)
@@ -1091,6 +1113,28 @@ Start a stopped database instance.
   "message": "database started"
 }
 ```
+
+### POST /databases/:id/resize
+Resize the allocated storage for a database instance.
+
+**Request:**
+```json
+{
+  "allocated_storage": 100
+}
+```
+
+**Response:**
+```json
+{
+  "message": "database resized",
+  "allocated_storage": 100
+}
+```
+
+**Error Responses:**
+- `400` — Invalid input (size must be larger than current allocated storage)
+- `404` — Database not found
 
 ---
 
@@ -1319,6 +1363,28 @@ Provision a new Redis cache.
 
 ### DELETE /caches/:id
 Terminate a cache instance.
+
+### POST /caches/:id/resize
+Resize a cache instance's memory allocation (requires docker compute backend).
+
+**Request:**
+```json
+{
+  "memory_mb": 512
+}
+```
+
+**Response:**
+```json
+{
+  "message": "cache resized",
+  "memory_mb": 512
+}
+```
+
+**Error Responses:**
+- `400` — Invalid input (memory must be larger than current, docker backend required)
+- `404` — Cache not found
 
 ---
 

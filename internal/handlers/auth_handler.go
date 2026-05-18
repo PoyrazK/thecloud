@@ -12,16 +12,16 @@ import (
 
 // AuthHandler handles authentication and password reset endpoints.
 type AuthHandler struct {
-	authSvc    ports.AuthService
-	pwdSvc     ports.PasswordResetService
+	authSvc     ports.AuthService
+	pwdSvc      ports.PasswordResetService
 	identitySvc ports.IdentityService
 }
 
 // NewAuthHandler constructs an AuthHandler.
 func NewAuthHandler(authSvc ports.AuthService, pwdSvc ports.PasswordResetService, identitySvc ports.IdentityService) *AuthHandler {
 	return &AuthHandler{
-		authSvc:    authSvc,
-		pwdSvc:     pwdSvc,
+		authSvc:     authSvc,
+		pwdSvc:      pwdSvc,
 		identitySvc: identitySvc,
 	}
 }

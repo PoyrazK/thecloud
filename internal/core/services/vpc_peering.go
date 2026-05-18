@@ -105,8 +105,8 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 		AccepterTenantID:   accepterTenantID,
 		Status:            domain.PeeringStatusPendingAcceptance,
 		ARN:               arn,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
+		CreatedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
 	}
 
 	if err := s.repo.Create(ctx, peering); err != nil {

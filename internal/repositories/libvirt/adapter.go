@@ -24,8 +24,8 @@ import (
 
 	"github.com/digitalocean/go-libvirt"
 	"github.com/google/uuid"
-	apierrors "github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	apierrors "github.com/poyrazk/thecloud/internal/errors"
 )
 
 var domainNameSanitizeRe = regexp.MustCompile(`[^a-zA-Z0-9-]`)
@@ -91,7 +91,7 @@ type LibvirtAdapter struct {
 	osOpen             func(name string) (*os.File, error)
 
 	// Pre-compiled regexes for applyDomainResize
-	memoryResizeRe    *regexp.Regexp
+	memoryResizeRe     *regexp.Regexp
 	currentMemResizeRe *regexp.Regexp
 	vcpuResizeRe       *regexp.Regexp
 }

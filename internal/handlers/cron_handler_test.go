@@ -407,10 +407,10 @@ func TestCronHandlerUpdateJob(t *testing.T) {
 	svc.On("UpdateJob", mock.Anything, id, "updated-job", "0 0 * * *", "http://updated.example.com", "GET", "").Return(job, nil)
 
 	body, err := json.Marshal(map[string]interface{}{
-		"name":           "updated-job",
-		"schedule":       "0 0 * * *",
-		"target_url":     "http://updated.example.com",
-		"target_method":  "GET",
+		"name":          "updated-job",
+		"schedule":      "0 0 * * *",
+		"target_url":    "http://updated.example.com",
+		"target_method": "GET",
 	})
 	require.NoError(t, err)
 	w := httptest.NewRecorder()

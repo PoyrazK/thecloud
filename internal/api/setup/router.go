@@ -32,103 +32,103 @@ const (
 
 // Handlers bundles HTTP handlers used by the router.
 type Handlers struct {
-	Audit         *httphandlers.AuditHandler
-	Identity      *httphandlers.IdentityHandler
-	Tenant        *httphandlers.TenantHandler
-	Auth          *httphandlers.AuthHandler
-	Vpc           *httphandlers.VpcHandler
-	Subnet        *httphandlers.SubnetHandler
-	Instance      *httphandlers.InstanceHandler
-	Event         *httphandlers.EventHandler
-	Volume        *httphandlers.VolumeHandler
-	LB            *httphandlers.LBHandler
-	Dashboard     *httphandlers.DashboardHandler
-	RBAC          *httphandlers.RBACHandler
-	Snapshot      *httphandlers.SnapshotHandler
-	Stack         *httphandlers.StackHandler
-	Storage       *httphandlers.StorageHandler
-	Database      *httphandlers.DatabaseHandler
-	Secret        *httphandlers.SecretHandler
-	Function      *httphandlers.FunctionHandler
+	Audit            *httphandlers.AuditHandler
+	Identity         *httphandlers.IdentityHandler
+	Tenant           *httphandlers.TenantHandler
+	Auth             *httphandlers.AuthHandler
+	Vpc              *httphandlers.VpcHandler
+	Subnet           *httphandlers.SubnetHandler
+	Instance         *httphandlers.InstanceHandler
+	Event            *httphandlers.EventHandler
+	Volume           *httphandlers.VolumeHandler
+	LB               *httphandlers.LBHandler
+	Dashboard        *httphandlers.DashboardHandler
+	RBAC             *httphandlers.RBACHandler
+	Snapshot         *httphandlers.SnapshotHandler
+	Stack            *httphandlers.StackHandler
+	Storage          *httphandlers.StorageHandler
+	Database         *httphandlers.DatabaseHandler
+	Secret           *httphandlers.SecretHandler
+	Function         *httphandlers.FunctionHandler
 	FunctionSchedule *httphandlers.FunctionScheduleHandler
-	Cache         *httphandlers.CacheHandler
-	Queue         *httphandlers.QueueHandler
-	Notify        *httphandlers.NotifyHandler
-	Cron          *httphandlers.CronHandler
-	Gateway       *httphandlers.GatewayHandler
-	Container     *httphandlers.ContainerHandler
-	Pipeline      *httphandlers.PipelineHandler
-	Health        *httphandlers.HealthHandler
-	SecurityGroup *httphandlers.SecurityGroupHandler
-	AutoScaling   *httphandlers.AutoScalingHandler
-	Accounting    *httphandlers.AccountingHandler
-	Image         *httphandlers.ImageHandler
-	Cluster       *httphandlers.ClusterHandler
-	Lifecycle     *httphandlers.LifecycleHandler
-	DNS           *httphandlers.DNSHandler
-	InstanceType  *httphandlers.InstanceTypeHandler
-	GlobalLB      *httphandlers.GlobalLBHandler
-	SSHKey        *httphandlers.SSHKeyHandler
-	ElasticIP     *httphandlers.ElasticIPHandler
-	Log           *httphandlers.LogHandler
-	IAM           *httphandlers.IAMHandler
-	VPCPeering    *httphandlers.VPCPeeringHandler
-	RouteTable    *httphandlers.RouteTableHandler
-	InternetGateway *httphandlers.InternetGatewayHandler
-	NATGateway    *httphandlers.NATGatewayHandler
-	Ws            *ws.Handler
-	Admin         *httphandlers.AdminHandler
+	Cache            *httphandlers.CacheHandler
+	Queue            *httphandlers.QueueHandler
+	Notify           *httphandlers.NotifyHandler
+	Cron             *httphandlers.CronHandler
+	Gateway          *httphandlers.GatewayHandler
+	Container        *httphandlers.ContainerHandler
+	Pipeline         *httphandlers.PipelineHandler
+	Health           *httphandlers.HealthHandler
+	SecurityGroup    *httphandlers.SecurityGroupHandler
+	AutoScaling      *httphandlers.AutoScalingHandler
+	Accounting       *httphandlers.AccountingHandler
+	Image            *httphandlers.ImageHandler
+	Cluster          *httphandlers.ClusterHandler
+	Lifecycle        *httphandlers.LifecycleHandler
+	DNS              *httphandlers.DNSHandler
+	InstanceType     *httphandlers.InstanceTypeHandler
+	GlobalLB         *httphandlers.GlobalLBHandler
+	SSHKey           *httphandlers.SSHKeyHandler
+	ElasticIP        *httphandlers.ElasticIPHandler
+	Log              *httphandlers.LogHandler
+	IAM              *httphandlers.IAMHandler
+	VPCPeering       *httphandlers.VPCPeeringHandler
+	RouteTable       *httphandlers.RouteTableHandler
+	InternetGateway  *httphandlers.InternetGatewayHandler
+	NATGateway       *httphandlers.NATGatewayHandler
+	Ws               *ws.Handler
+	Admin            *httphandlers.AdminHandler
 }
 
 // InitHandlers constructs HTTP handlers and websocket hub.
 func InitHandlers(svcs *Services, cfg *platform.Config, logger *slog.Logger) *Handlers {
 	origins := strings.Split(cfg.DashboardAllowedOrigins, ",")
 	return &Handlers{
-		Audit:         httphandlers.NewAuditHandler(svcs.Audit),
-		Identity:      httphandlers.NewIdentityHandler(svcs.Identity),
-		Tenant:        httphandlers.NewTenantHandler(svcs.Tenant),
-		Auth:          httphandlers.NewAuthHandler(svcs.Auth, svcs.PasswordReset, svcs.Identity),
-		Vpc:           httphandlers.NewVpcHandler(svcs.Vpc),
-		Subnet:        httphandlers.NewSubnetHandler(svcs.Subnet),
-		Instance:      httphandlers.NewInstanceHandler(svcs.Instance),
-		Event:         httphandlers.NewEventHandler(svcs.Event),
-		Volume:        httphandlers.NewVolumeHandler(svcs.Volume),
-		LB:            httphandlers.NewLBHandler(svcs.LB),
-		Dashboard:     httphandlers.NewDashboardHandler(svcs.Dashboard, logger, origins...),
-		RBAC:          httphandlers.NewRBACHandler(svcs.RBAC),
-		Snapshot:      httphandlers.NewSnapshotHandler(svcs.Snapshot),
-		Stack:         httphandlers.NewStackHandler(svcs.Stack),
-		Storage:       httphandlers.NewStorageHandler(svcs.Storage, cfg),
-		Database:      httphandlers.NewDatabaseHandler(svcs.Database),
-		Secret:        httphandlers.NewSecretHandler(svcs.Secret),
-		Function:      httphandlers.NewFunctionHandler(svcs.Function),
+		Audit:            httphandlers.NewAuditHandler(svcs.Audit),
+		Identity:         httphandlers.NewIdentityHandler(svcs.Identity),
+		Tenant:           httphandlers.NewTenantHandler(svcs.Tenant),
+		Auth:             httphandlers.NewAuthHandler(svcs.Auth, svcs.PasswordReset, svcs.Identity),
+		Vpc:              httphandlers.NewVpcHandler(svcs.Vpc),
+		Subnet:           httphandlers.NewSubnetHandler(svcs.Subnet),
+		Instance:         httphandlers.NewInstanceHandler(svcs.Instance),
+		Event:            httphandlers.NewEventHandler(svcs.Event),
+		Volume:           httphandlers.NewVolumeHandler(svcs.Volume),
+		LB:               httphandlers.NewLBHandler(svcs.LB),
+		Dashboard:        httphandlers.NewDashboardHandler(svcs.Dashboard, logger, origins...),
+		RBAC:             httphandlers.NewRBACHandler(svcs.RBAC),
+		Snapshot:         httphandlers.NewSnapshotHandler(svcs.Snapshot),
+		Stack:            httphandlers.NewStackHandler(svcs.Stack),
+		Storage:          httphandlers.NewStorageHandler(svcs.Storage, cfg),
+		Database:         httphandlers.NewDatabaseHandler(svcs.Database),
+		Secret:           httphandlers.NewSecretHandler(svcs.Secret),
+		Function:         httphandlers.NewFunctionHandler(svcs.Function),
 		FunctionSchedule: httphandlers.NewFunctionScheduleHandler(svcs.FunctionSchedule),
-		Cache:         httphandlers.NewCacheHandler(svcs.Cache),
-		Queue:         httphandlers.NewQueueHandler(svcs.Queue),
-		Notify:        httphandlers.NewNotifyHandler(svcs.Notify),
-		Cron:          httphandlers.NewCronHandler(svcs.Cron),
-		Gateway:       httphandlers.NewGatewayHandler(svcs.Gateway, logger),
-		Container:     httphandlers.NewContainerHandler(svcs.Container),
-		Pipeline:      httphandlers.NewPipelineHandler(svcs.Pipeline),
-		Health:        httphandlers.NewHealthHandler(svcs.Health),
-		SecurityGroup: httphandlers.NewSecurityGroupHandler(svcs.SecurityGroup),
-		AutoScaling:   httphandlers.NewAutoScalingHandler(svcs.AutoScaling),
-		Accounting:    httphandlers.NewAccountingHandler(svcs.Accounting),
-		Image:         httphandlers.NewImageHandler(svcs.Image),
-		Cluster:       httphandlers.NewClusterHandler(svcs.Cluster),
-		Lifecycle:     httphandlers.NewLifecycleHandler(svcs.Lifecycle),
-		DNS:           httphandlers.NewDNSHandler(svcs.DNS),
-		InstanceType:  httphandlers.NewInstanceTypeHandler(svcs.InstanceType),
-		GlobalLB:      httphandlers.NewGlobalLBHandler(svcs.GlobalLB),
-		SSHKey:        httphandlers.NewSSHKeyHandler(svcs.SSHKey),
-		ElasticIP:     httphandlers.NewElasticIPHandler(svcs.ElasticIP),
-		Log:           httphandlers.NewLogHandler(svcs.Log),
-		IAM:           httphandlers.NewIAMHandler(svcs.IAM, svcs.Identity),
-		VPCPeering:    httphandlers.NewVPCPeeringHandler(svcs.VPCPeering),
-		RouteTable:    httphandlers.NewRouteTableHandler(svcs.RouteTable),
-		InternetGateway: httphandlers.NewInternetGatewayHandler(svcs.InternetGateway),
-		NATGateway:    httphandlers.NewNATGatewayHandler(svcs.NATGateway),
-		Ws:            ws.NewHandler(svcs.WsHub, svcs.Identity, logger, cfg.WSAllowedOrigins),
+		Cache:            httphandlers.NewCacheHandler(svcs.Cache),
+		Queue:            httphandlers.NewQueueHandler(svcs.Queue),
+		Notify:           httphandlers.NewNotifyHandler(svcs.Notify),
+		Cron:             httphandlers.NewCronHandler(svcs.Cron),
+		Gateway:          nil, // re-init'd in SetupRouter with per-route limiter
+		Container:        httphandlers.NewContainerHandler(svcs.Container),
+		Pipeline:         httphandlers.NewPipelineHandler(svcs.Pipeline),
+		Health:           httphandlers.NewHealthHandler(svcs.Health),
+		SecurityGroup:    httphandlers.NewSecurityGroupHandler(svcs.SecurityGroup),
+		AutoScaling:      httphandlers.NewAutoScalingHandler(svcs.AutoScaling),
+		Accounting:       httphandlers.NewAccountingHandler(svcs.Accounting),
+		Image:            httphandlers.NewImageHandler(svcs.Image),
+		Cluster:          httphandlers.NewClusterHandler(svcs.Cluster),
+		Lifecycle:        httphandlers.NewLifecycleHandler(svcs.Lifecycle),
+		DNS:              httphandlers.NewDNSHandler(svcs.DNS),
+		InstanceType:     httphandlers.NewInstanceTypeHandler(svcs.InstanceType),
+		GlobalLB:         httphandlers.NewGlobalLBHandler(svcs.GlobalLB),
+		SSHKey:           httphandlers.NewSSHKeyHandler(svcs.SSHKey),
+		ElasticIP:        httphandlers.NewElasticIPHandler(svcs.ElasticIP),
+		Log:              httphandlers.NewLogHandler(svcs.Log),
+		IAM:              httphandlers.NewIAMHandler(svcs.IAM, svcs.Identity),
+		VPCPeering:       httphandlers.NewVPCPeeringHandler(svcs.VPCPeering),
+		RouteTable:       httphandlers.NewRouteTableHandler(svcs.RouteTable),
+		InternetGateway:  httphandlers.NewInternetGatewayHandler(svcs.InternetGateway),
+		NATGateway:       httphandlers.NewNATGatewayHandler(svcs.NATGateway),
+		Ws:               ws.NewHandler(svcs.WsHub, svcs.Identity, logger, cfg.WSAllowedOrigins),
 	}
 }
 
@@ -155,6 +155,9 @@ func SetupRouter(cfg *platform.Config, logger *slog.Logger, handlers *Handlers, 
 	limiter := ratelimit.NewIPRateLimiter(rate.Limit(globalRPS), globalRPS*2, logger)
 	r.Use(ratelimit.Middleware(limiter))
 	r.Use(httputil.Metrics())
+
+	// Re-init Gateway handler with per-route limiter
+	handlers.Gateway = httphandlers.NewGatewayHandler(services.Gateway, limiter, logger)
 
 	// 6. Routes
 	r.GET("/health/live", handlers.Health.Live)
@@ -251,6 +254,9 @@ func registerIAMRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		iamGroup.POST("/service-accounts/:id/policies/:policyId", handlers.IAM.AttachPolicyToServiceAccount)
 		iamGroup.DELETE("/service-accounts/:id/policies/:policyId", handlers.IAM.DetachPolicyFromServiceAccount)
 		iamGroup.GET("/service-accounts/:id/policies", handlers.IAM.GetServiceAccountPolicies)
+
+		// Policy simulation
+		iamGroup.POST("/simulate", handlers.IAM.Simulate)
 	}
 }
 
@@ -430,43 +436,43 @@ func registerNetworkRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		peeringGroup.POST("/:id/accept", httputil.Permission(svcs.RBAC, domain.PermissionVpcPeeringAccept), handlers.VPCPeering.Accept)
 		peeringGroup.POST("/:id/reject", httputil.Permission(svcs.RBAC, domain.PermissionVpcPeeringAccept), handlers.VPCPeering.Reject)
 		peeringGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcPeeringDelete), handlers.VPCPeering.Delete)
-		}
+	}
 
-		// Route Tables
-		rtGroup := r.Group("/route-tables")
-		rtGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
-		{
-			rtGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.Create)
-			rtGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.RouteTable.List)
-			rtGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.RouteTable.Get)
-			rtGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.RouteTable.Delete)
-			rtGroup.POST("/:id/routes", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.AddRoute)
-			rtGroup.DELETE("/:id/routes", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.RemoveRoute)
-			rtGroup.POST("/:id/associate", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.AssociateSubnet)
-			rtGroup.POST("/:id/disassociate", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.DisassociateSubnet)
-		}
+	// Route Tables
+	rtGroup := r.Group("/route-tables")
+	rtGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
+	{
+		rtGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.Create)
+		rtGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.RouteTable.List)
+		rtGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.RouteTable.Get)
+		rtGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.RouteTable.Delete)
+		rtGroup.POST("/:id/routes", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.AddRoute)
+		rtGroup.DELETE("/:id/routes", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.RemoveRoute)
+		rtGroup.POST("/:id/associate", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.AssociateSubnet)
+		rtGroup.POST("/:id/disassociate", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.RouteTable.DisassociateSubnet)
+	}
 
-		// Internet Gateways
-		igwGroup := r.Group("/internet-gateways")
-		igwGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
-		{
-			igwGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcCreate), handlers.InternetGateway.Create)
-			igwGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.InternetGateway.List)
-			igwGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.InternetGateway.Get)
-			igwGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.InternetGateway.Delete)
-			igwGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.InternetGateway.Attach)
-			igwGroup.POST("/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.InternetGateway.Detach)
-		}
+	// Internet Gateways
+	igwGroup := r.Group("/internet-gateways")
+	igwGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
+	{
+		igwGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcCreate), handlers.InternetGateway.Create)
+		igwGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.InternetGateway.List)
+		igwGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.InternetGateway.Get)
+		igwGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.InternetGateway.Delete)
+		igwGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.InternetGateway.Attach)
+		igwGroup.POST("/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.InternetGateway.Detach)
+	}
 
-		// NAT Gateways
-		natGroup := r.Group("/nat-gateways")
-		natGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
-		{
-			natGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcCreate), handlers.NATGateway.Create)
-			natGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.NATGateway.List)
-			natGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.NATGateway.Get)
-			natGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.NATGateway.Delete)
-		}
+	// NAT Gateways
+	natGroup := r.Group("/nat-gateways")
+	natGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
+	{
+		natGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcCreate), handlers.NATGateway.Create)
+		natGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.NATGateway.List)
+		natGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.NATGateway.Get)
+		natGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.NATGateway.Delete)
+	}
 }
 
 func registerGlobalLBRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
@@ -532,6 +538,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		volumeGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVolumeDelete), handlers.Volume.Delete)
 		volumeGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Attach)
 		volumeGroup.POST("/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Detach)
+		volumeGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Resize)
 	}
 
 	dbGroup := r.Group("/databases")
@@ -551,6 +558,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		dbGroup.POST("/:id/rotate-credentials", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.RotateCredentials)
 		dbGroup.POST("/:id/stop", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Stop)
 		dbGroup.POST("/:id/start", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Start)
+		dbGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Resize)
 	}
 
 	cacheGroup := r.Group("/caches")
@@ -563,6 +571,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		cacheGroup.GET("/:id/connection", httputil.Permission(svcs.RBAC, domain.PermissionCacheRead), handlers.Cache.GetConnectionString)
 		cacheGroup.POST("/:id/flush", httputil.Permission(svcs.RBAC, domain.PermissionCacheUpdate), handlers.Cache.Flush)
 		cacheGroup.GET("/:id/stats", httputil.Permission(svcs.RBAC, domain.PermissionCacheRead), handlers.Cache.GetStats)
+		cacheGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionCacheUpdate), handlers.Cache.Resize)
 	}
 
 	secretGroup := r.Group("/secrets")
@@ -586,6 +595,8 @@ func registerDevOpsRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		fnGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionFunctionDelete), handlers.Function.Delete)
 		fnGroup.POST("/:id/invoke", httputil.Permission(svcs.RBAC, domain.PermissionFunctionInvoke), handlers.Function.Invoke)
 		fnGroup.GET("/:id/logs", httputil.Permission(svcs.RBAC, domain.PermissionFunctionRead), handlers.Function.GetLogs)
+		fnGroup.GET("/:id/dlq", httputil.Permission(svcs.RBAC, domain.PermissionFunctionRead), handlers.Function.GetDLQ)
+		fnGroup.POST("/:id/dlq/:invocation_id/retry", httputil.Permission(svcs.RBAC, domain.PermissionFunctionInvoke), handlers.Function.RetryDLQ)
 	}
 
 	fnSchedGroup := r.Group("/function-schedules")

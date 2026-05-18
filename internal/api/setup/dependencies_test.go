@@ -50,7 +50,7 @@ func TestBuildStorageDialOpts_InsecureDefault(t *testing.T) {
 
 func TestBuildStorageDialOpts_TLSEnabled(t *testing.T) {
 	cfg := &platform.Config{
-		StorageTLSEnabled: true,
+		StorageTLSEnabled:  true,
 		StorageTLSCertFile: "testdata/tls/test-cert.pem",
 		StorageTLSKeyFile:  "testdata/tls/test-key.pem",
 	}
@@ -61,9 +61,9 @@ func TestBuildStorageDialOpts_TLSEnabled(t *testing.T) {
 
 func TestBuildStorageDialOpts_TLSEnabledWithCA(t *testing.T) {
 	cfg := &platform.Config{
-		StorageTLSEnabled:   true,
-		StorageTLSCertFile:  "testdata/tls/test-cert.pem",
-		StorageTLSKeyFile:   "testdata/tls/test-key.pem",
+		StorageTLSEnabled:    true,
+		StorageTLSCertFile:   "testdata/tls/test-cert.pem",
+		StorageTLSKeyFile:    "testdata/tls/test-key.pem",
 		StorageTLSCACertFile: "testdata/tls/ca-cert.pem",
 	}
 	dialOpts, err := buildStorageDialOpts(cfg)
@@ -73,9 +73,9 @@ func TestBuildStorageDialOpts_TLSEnabledWithCA(t *testing.T) {
 
 func TestBuildStorageDialOpts_TLSEnabledWithSkipVerify(t *testing.T) {
 	cfg := &platform.Config{
-		StorageTLSEnabled:   true,
-		StorageTLSCertFile:  "testdata/tls/test-cert.pem",
-		StorageTLSKeyFile:   "testdata/tls/test-key.pem",
+		StorageTLSEnabled:    true,
+		StorageTLSCertFile:   "testdata/tls/test-cert.pem",
+		StorageTLSKeyFile:    "testdata/tls/test-key.pem",
 		StorageTLSSkipVerify: true,
 	}
 	dialOpts, err := buildStorageDialOpts(cfg)

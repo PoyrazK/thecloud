@@ -82,7 +82,7 @@ func (s *SSHKeyService) CreateKey(ctx context.Context, name, publicKey string) (
 		Name:        name,
 		PublicKey:   strings.TrimSpace(publicKey),
 		Fingerprint: fingerprint,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	if err := s.repo.Create(ctx, key); err != nil {

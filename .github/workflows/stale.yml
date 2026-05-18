@@ -1,0 +1,20 @@
+name: Stale PR Management
+
+on:
+  schedule:
+    - cron: '30 9 * * *' # Weekly at 9:30am
+  workflow_dispatch:
+
+jobs:
+  stale-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-message: "This issue is stale. If still relevant, please comment to keep it open."
+          close-issue-message: "Closing stale issue."
+          stale-pr-message: "This PR is stale. If still needed, please remove the label or comment to keep it open."
+          close-pr-message: "Closing stale PR."
+          operations-per-run: 100

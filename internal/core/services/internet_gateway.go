@@ -76,7 +76,7 @@ func (s *InternetGatewayService) CreateIGW(ctx context.Context) (*domain.Interne
 		TenantID:  tenantID,
 		Status:    domain.IGWStatusDetached,
 		ARN:       arn,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := s.repo.Create(ctx, igw); err != nil {
@@ -152,7 +152,7 @@ func (s *InternetGatewayService) AttachIGW(ctx context.Context, igwID, vpcID uui
 			TargetType:      domain.RouteTargetIGW,
 			TargetID:        &igwID,
 			TargetName:      fmt.Sprintf("igw-%s", igwID.String()[:8]),
-			CreatedAt:       time.Now(),
+			CreatedAt:       time.Now().UTC(),
 		}
 		if err := s.rtRepo.AddRoute(ctx, mainRT.ID, route); err != nil {
 			s.logger.Warn("failed to add default route for IGW", "rt_id", mainRT.ID, "error", err)

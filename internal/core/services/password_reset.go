@@ -68,7 +68,7 @@ func (s *PasswordResetService) RequestReset(ctx context.Context, email string) e
 		TokenHash: hashStr,
 		ExpiresAt: time.Now().Add(tokenDuration),
 		Used:      false,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := s.repo.Create(ctx, resetToken); err != nil {

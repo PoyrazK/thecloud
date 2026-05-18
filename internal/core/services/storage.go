@@ -45,9 +45,9 @@ var validBucketNameRe = regexp.MustCompile(`^[a-z0-9.-]+$`)
 // silent truncation. It uses a 1-byte probe to distinguish "object exactly at
 // limit" (underlying EOF on next Read) from "object exceeds limit" (extra data).
 type boundedReader struct {
-	r          io.Reader
-	limit      int64
-	count      int64
+	r         io.Reader
+	limit     int64
+	count     int64
 	cleanupFn func() // cleanup partial object on oversize; may be nil
 }
 
@@ -207,7 +207,7 @@ func (s *StorageService) Upload(ctx context.Context, bucketName, key string, r i
 		SizeBytes:    0,
 		ContentType:  contentType,
 		UploadStatus: domain.UploadStatusPending,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC().UTC(),
 	}
 
 	// Generate ARN
@@ -513,7 +513,7 @@ func (s *StorageService) CreateBucket(ctx context.Context, name string, isPublic
 		UserID:    userID,
 		TenantID:  tenantID,
 		IsPublic:  isPublic,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC().UTC(),
 	}
 
 	if err := s.repo.CreateBucket(ctx, bucket); err != nil {
@@ -688,7 +688,7 @@ func (s *StorageService) CreateMultipartUpload(ctx context.Context, bucket, key 
 		UserID:    userID,
 		Bucket:    bucket,
 		Key:       key,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC().UTC(),
 	}
 
 	if err := s.repo.SaveMultipartUpload(ctx, upload); err != nil {
@@ -727,10 +727,24 @@ func (s *StorageService) UploadPart(ctx context.Context, uploadID uuid.UUID, par
 	hash := sha256.New()
 	teeReader := io.TeeReader(r, hash)
 
-	// 3. Write to store (use temporary location)
+	// 3. Write to store (use temporary location).
+	// boundedReader rejects parts larger than maxPartSize instead of silently
+	// truncating, and tears down the partial object so a misbehaving client
+	// cannot exhaust disk by uploading huge parts. (#305)
 	partKey := fmt.Sprintf(partPathFormat, upload.ID.String(), partNumber)
-	size, err := s.store.Write(ctx, upload.Bucket, partKey, io.LimitReader(teeReader, maxPartSize))
+	br := &boundedReader{
+		r:     teeReader,
+		limit: maxPartSize,
+		cleanupFn: func() {
+			_ = s.store.Delete(ctx, upload.Bucket, partKey)
+		},
+	}
+	size, err := s.store.Write(ctx, upload.Bucket, partKey, br)
 	if err != nil {
+		var appErr errors.Error
+		if errors.As(err, &appErr) && appErr.Type == errors.ObjectTooLarge {
+			return nil, err
+		}
 		return nil, errors.Wrap(errors.Internal, "failed to write part", err)
 	}
 
@@ -818,7 +832,7 @@ func (s *StorageService) CompleteMultipartUpload(ctx context.Context, uploadID u
 		IsLatest:     true,
 		SizeBytes:    size,
 		UploadStatus: domain.UploadStatusAvailable,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC().UTC(),
 	}
 
 	// Sniff content type and calculate checksum from the assembled file

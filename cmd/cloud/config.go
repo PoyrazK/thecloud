@@ -10,11 +10,11 @@ import (
 )
 
 type cliConfig struct {
-	APIKey   string `json:"api_key"`
-	APIURL   string `json:"api_url"`
-	Output   string `json:"output"`
-	Tenant   string `json:"tenant"`
-	Debug    bool   `json:"debug"`
+	APIKey string `json:"api_key"`
+	APIURL string `json:"api_url"`
+	Output string `json:"output"`
+	Tenant string `json:"tenant"`
+	Debug  bool   `json:"debug"`
 }
 
 func getConfigFilePath() string {

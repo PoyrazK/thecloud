@@ -34,8 +34,8 @@ type mockTransaction struct {
 	mock.Mock
 }
 
-func (m *mockTransaction) Commit(ctx context.Context) error    { return m.Called(ctx).Error(0) }
-func (m *mockTransaction) Rollback(ctx context.Context) error    { return m.Called(ctx).Error(0) }
+func (m *mockTransaction) Commit(ctx context.Context) error   { return m.Called(ctx).Error(0) }
+func (m *mockTransaction) Rollback(ctx context.Context) error { return m.Called(ctx).Error(0) }
 func (m *mockTransaction) Begin(ctx context.Context) (pgx.Tx, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -50,9 +50,15 @@ func (m *mockTransaction) BeginTx(ctx context.Context, opts pgx.TxOptions) (pgx.
 	}
 	return args.Get(0).(pgx.Tx), args.Error(1)
 }
-func (m *mockTransaction) CreateSavepoint(ctx context.Context, name string) error { return m.Called(ctx, name).Error(0) }
-func (m *mockTransaction) RollbackTo(ctx context.Context, savepoint string) error { return m.Called(ctx, savepoint).Error(0) }
-func (m *mockTransaction) ReleaseSavepoint(ctx context.Context, savepoint string) error { return m.Called(ctx, savepoint).Error(0) }
+func (m *mockTransaction) CreateSavepoint(ctx context.Context, name string) error {
+	return m.Called(ctx, name).Error(0)
+}
+func (m *mockTransaction) RollbackTo(ctx context.Context, savepoint string) error {
+	return m.Called(ctx, savepoint).Error(0)
+}
+func (m *mockTransaction) ReleaseSavepoint(ctx context.Context, savepoint string) error {
+	return m.Called(ctx, savepoint).Error(0)
+}
 func (m *mockTransaction) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
 	a := m.Called(ctx, sql, args)
 	if a.Get(0) == nil {
@@ -95,7 +101,7 @@ func (m *mockTransaction) CopyFromSlice(ctx context.Context, tableName pgx.Ident
 	return args.Get(0).(int64), args.Error(1)
 }
 func (m *mockTransaction) Close(ctx context.Context) error { return m.Called(ctx).Error(0) }
-func (m *mockTransaction) Conn() *pgx.Conn { return nil }
+func (m *mockTransaction) Conn() *pgx.Conn                 { return nil }
 
 func TestAuthService_Unit(t *testing.T) {
 	t.Run("Extended", testAuthServiceUnitExtended)

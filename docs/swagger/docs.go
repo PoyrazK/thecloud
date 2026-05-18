@@ -1040,6 +1040,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/caches/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Changes the memory allocation of a running Redis cache instance (requires restart)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "caches"
+                ],
+                "summary": "Resize cache memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cache ID or name",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeCacheRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/clusters": {
             "get": {
                 "security": [
@@ -1725,6 +1789,70 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/domain.Database"
+                        }
+                    }
+                }
+            }
+        },
+        "/databases/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Increases the allocated storage capacity of a database instance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "databases"
+                ],
+                "summary": "Resize database storage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeDatabaseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
                         }
                     }
                 }
@@ -2578,6 +2706,86 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/functions/{id}/dlq": {
+            "get": {
+                "description": "Gets all dead letter queue invocations for a function",
+                "summary": "Get DLQ invocations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Function ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Invocation"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/functions/{id}/dlq/{invocation_id}/retry": {
+            "post": {
+                "description": "Retries a failed invocation from the dead letter queue by resetting its status to PENDING",
+                "summary": "Retry DLQ invocation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Function ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Invocation ID",
+                        "name": "invocation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Invocation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/httputil.Response"
                         }
@@ -3914,6 +4122,75 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/simulate": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Evaluates what actions and resources would be allowed or denied by attached policies",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Simulate IAM policy decision",
+                "parameters": [
+                    {
+                        "description": "Simulation parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.SimulateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httputil.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httphandlers.SimulateResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
                         }
                     },
                     "401": {
@@ -8346,6 +8623,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/volumes/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Increases the capacity of an existing block storage volume",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "volumes"
+                ],
+                "summary": "Resize a volume",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Volume ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeVolumeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/vpc-peerings": {
             "get": {
                 "security": [
@@ -9981,6 +10322,47 @@ const docTemplate = `{
                 },
                 "vpc_id": {
                     "type": "string"
+                }
+            }
+        },
+        "domain.Invocation": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "description": "Execution time in milliseconds",
+                    "type": "integer"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "function_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "logs": {
+                    "description": "Captured stdout/stderr",
+                    "type": "string"
+                },
+                "max_retries": {
+                    "description": "Max retries before moving to DLQ",
+                    "type": "integer"
+                },
+                "retry_count": {
+                    "description": "Number of retry attempts",
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"PENDING\", \"RUNNING\", \"SUCCESS\", \"FAILED\", \"DLQ\"",
+                    "type": "string"
+                },
+                "status_code": {
+                    "description": "Exit code or HTTP status",
+                    "type": "integer"
                 }
             }
         },
@@ -12388,6 +12770,30 @@ const docTemplate = `{
                 }
             }
         },
+        "httphandlers.ResizeCacheRequest": {
+            "type": "object",
+            "required": [
+                "memory_mb"
+            ],
+            "properties": {
+                "memory_mb": {
+                    "type": "integer",
+                    "minimum": 64
+                }
+            }
+        },
+        "httphandlers.ResizeDatabaseRequest": {
+            "type": "object",
+            "required": [
+                "allocated_storage"
+            ],
+            "properties": {
+                "allocated_storage": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
         "httphandlers.ResizeInstanceRequest": {
             "type": "object",
             "required": [
@@ -12410,6 +12816,18 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "httphandlers.ResizeVolumeRequest": {
+            "type": "object",
+            "required": [
+                "new_size_gb"
+            ],
+            "properties": {
+                "new_size_gb": {
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -12508,6 +12926,86 @@ const docTemplate = `{
             "properties": {
                 "replicas": {
                     "type": "integer"
+                }
+            }
+        },
+        "httphandlers.SimulateRequest": {
+            "type": "object",
+            "required": [
+                "actions",
+                "resources"
+            ],
+            "properties": {
+                "actions": {
+                    "description": "Actions to simulate (e.g., [\"compute:instance:launch\"]). Max 100.",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "context": {
+                    "description": "Context overrides for condition evaluation.\nKeys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "resources": {
+                    "description": "Resources to test (e.g., [\"arn:thecloud:compute:us-east-1:*:instance/*\"]). Max 100.",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "service_account_id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "Principal identifies whose policies to simulate.\nExactly one of UserID or ServiceAccountID must be set.",
+                    "type": "string"
+                }
+            }
+        },
+        "httphandlers.SimulateResponse": {
+            "type": "object",
+            "properties": {
+                "decision": {
+                    "description": "\"allow\" or \"deny\"",
+                    "type": "string"
+                },
+                "evaluated": {
+                    "type": "integer"
+                },
+                "matched": {
+                    "$ref": "#/definitions/httphandlers.StatementMatch"
+                }
+            }
+        },
+        "httphandlers.StatementMatch": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "effect": {
+                    "type": "string"
+                },
+                "policy_id": {
+                    "type": "string"
+                },
+                "policy_name": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "statement_sid": {
+                    "type": "string"
                 }
             }
         },

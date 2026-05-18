@@ -3,8 +3,10 @@ package platform
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -39,29 +41,35 @@ type Config struct {
 	StorageTLSCACertFile string
 	// StorageTLSSkipVerify skips certificate verification (use only in dev)
 	StorageTLSSkipVerify bool
+	// GossipFailureTimeout is how long a node can go without a heartbeat before
+	// being flagged as suspect. Default 5s.
+	GossipFailureTimeout time.Duration
+	// GossipFailureTimeoutMultiplier multiplies GossipFailureTimeout to get the
+	// dead threshold (3x by default). E.g. 5s timeout * 3 = 15s before dead.
+	GossipFailureTimeoutMultiplier int
 	// WSAllowedOrigins is a comma-separated allowlist of Origin headers
 	// permitted to open a WebSocket connection. Empty means deny all
 	// cross-origin upgrades. See #249.
-	WSAllowedOrigins     string
+	WSAllowedOrigins string
 	// DashboardAllowedOrigins is a comma-separated allowlist of Origin headers
 	// permitted for SSE connections. Empty means deny all cross-origin SSE.
 	// See #347.
 	DashboardAllowedOrigins string
-	LvmVgName            string
-	ObjectStorageMode    string
-	ObjectStorageNodes   string
-	PowerDNSAPIURL       string
-	PowerDNSAPIKey       string
-	PowerDNSServerID     string
-	LibvirtURI           string
-	DockerDefaultNetwork string
-	FirecrackerBinary    string
-	FirecrackerKernel    string
-	FirecrackerRootfs    string
-	FirecrackerMockMode  bool
-	VaultAddress         string
-	VaultToken          string
-	VaultMountPath      string
+	LvmVgName               string
+	ObjectStorageMode       string
+	ObjectStorageNodes      string
+	PowerDNSAPIURL          string
+	PowerDNSAPIKey          string
+	PowerDNSServerID        string
+	LibvirtURI              string
+	DockerDefaultNetwork    string
+	FirecrackerBinary       string
+	FirecrackerKernel       string
+	FirecrackerRootfs       string
+	FirecrackerMockMode     bool
+	VaultAddress            string
+	VaultToken              string
+	VaultMountPath          string
 	// ServiceAccountTokenTTL is the lifetime in seconds of SA JWTs. Defaults to 3600.
 	ServiceAccountTokenTTL int
 }
@@ -71,46 +79,48 @@ func NewConfig() (*Config, error) {
 	_ = godotenv.Load() // Ignore error if .env doesn't exist
 
 	cfg := &Config{
-		Port:                 getEnv("PORT", "8080"),
-		DatabaseURL:          getEnv("DATABASE_URL", "postgres://cloud:cloud@localhost:5433/thecloud"),
-		DatabaseReadURL:      getEnv("DATABASE_READ_URL", ""), // Default to empty (use primary)
-		Environment:          getEnv("APP_ENV", "development"),
-		SecretsEncryptionKey: os.Getenv("SECRETS_ENCRYPTION_KEY"),
-		ComputeBackend:       getEnv("COMPUTE_BACKEND", "docker"),
-		NetworkBackend:       getEnv("NETWORK_BACKEND", "ovs"),
-		DefaultVPCCIDR:       getEnv("DEFAULT_VPC_CIDR", "10.0.0.0/16"),
-		NetworkPoolStart:     getEnv("NETWORK_POOL_START", "192.168.100.0"),
-		NetworkPoolEnd:       getEnv("NETWORK_POOL_END", "192.168.200.255"),
-		DBMaxConns:           getEnv("DB_MAX_CONNS", "20"),
-		DBMinConns:           getEnv("DB_MIN_CONNS", "2"),
-		RedisURL:             getEnv("REDIS_URL", "localhost:6379"),
-		RateLimitGlobal:      getEnv("RATE_LIMIT_GLOBAL", "100"),
-		RateLimitAuth:        getEnv("RATE_LIMIT_AUTH", "10"),
-		StorageBackend:       getEnv("STORAGE_BACKEND", "noop"),
-		StorageSecret:        os.Getenv("STORAGE_SECRET"),
-		StorageTLSEnabled:    getEnv("STORAGE_TLS_ENABLED", "false") == "true",
-		StorageTLSCertFile:   os.Getenv("STORAGE_TLS_CERT_FILE"),
-		StorageTLSKeyFile:    os.Getenv("STORAGE_TLS_KEY_FILE"),
-		StorageTLSCACertFile: os.Getenv("STORAGE_TLS_CA_CERT_FILE"),
-		StorageTLSSkipVerify: getEnv("STORAGE_TLS_SKIP_VERIFY", "false") == "true",
-		WSAllowedOrigins:     os.Getenv("WS_ALLOWED_ORIGINS"),
-		DashboardAllowedOrigins: os.Getenv("DASHBOARD_ALLOWED_ORIGINS"),
-		LvmVgName:            getEnv("LVM_VG_NAME", "thecloud-vg"),
-		ObjectStorageMode:    getEnv("OBJECT_STORAGE_MODE", "local"),
+		Port:                           getEnv("PORT", "8080"),
+		DatabaseURL:                    getEnv("DATABASE_URL", "postgres://cloud:cloud@localhost:5433/thecloud"),
+		DatabaseReadURL:                getEnv("DATABASE_READ_URL", ""), // Default to empty (use primary)
+		Environment:                    getEnv("APP_ENV", "development"),
+		SecretsEncryptionKey:           os.Getenv("SECRETS_ENCRYPTION_KEY"),
+		ComputeBackend:                 getEnv("COMPUTE_BACKEND", "docker"),
+		NetworkBackend:                 getEnv("NETWORK_BACKEND", "ovs"),
+		DefaultVPCCIDR:                 getEnv("DEFAULT_VPC_CIDR", "10.0.0.0/16"),
+		NetworkPoolStart:               getEnv("NETWORK_POOL_START", "192.168.100.0"),
+		NetworkPoolEnd:                 getEnv("NETWORK_POOL_END", "192.168.200.255"),
+		DBMaxConns:                     getEnv("DB_MAX_CONNS", "20"),
+		DBMinConns:                     getEnv("DB_MIN_CONNS", "2"),
+		RedisURL:                       getEnv("REDIS_URL", "localhost:6379"),
+		RateLimitGlobal:                getEnv("RATE_LIMIT_GLOBAL", "100"),
+		RateLimitAuth:                  getEnv("RATE_LIMIT_AUTH", "10"),
+		StorageBackend:                 getEnv("STORAGE_BACKEND", "noop"),
+		StorageSecret:                  os.Getenv("STORAGE_SECRET"),
+		StorageTLSEnabled:              getEnv("STORAGE_TLS_ENABLED", "false") == "true",
+		StorageTLSCertFile:             os.Getenv("STORAGE_TLS_CERT_FILE"),
+		StorageTLSKeyFile:              os.Getenv("STORAGE_TLS_KEY_FILE"),
+		StorageTLSCACertFile:           os.Getenv("STORAGE_TLS_CA_CERT_FILE"),
+		StorageTLSSkipVerify:           getEnv("STORAGE_TLS_SKIP_VERIFY", "false") == "true",
+		GossipFailureTimeout:           parseDuration("GOSSIP_FAILURE_TIMEOUT", 5*time.Second),
+		GossipFailureTimeoutMultiplier: parseInt("GOSSIP_FAILURE_TIMEOUT_MULTIPLIER", 3),
+		WSAllowedOrigins:               os.Getenv("WS_ALLOWED_ORIGINS"),
+		DashboardAllowedOrigins:        os.Getenv("DASHBOARD_ALLOWED_ORIGINS"),
+		LvmVgName:                      getEnv("LVM_VG_NAME", "thecloud-vg"),
+		ObjectStorageMode:              getEnv("OBJECT_STORAGE_MODE", "local"),
 
-		ObjectStorageNodes:   getEnv("OBJECT_STORAGE_NODES", ""),
-		PowerDNSAPIURL:       getEnv("POWERDNS_API_URL", "http://localhost:8081"),
-		PowerDNSAPIKey:       os.Getenv("POWERDNS_API_KEY"),
-		PowerDNSServerID:     getEnv("POWERDNS_SERVER_ID", "localhost"),
-		LibvirtURI:           getEnv("LIBVIRT_URI", ""),
-		DockerDefaultNetwork: getEnv("DOCKER_DEFAULT_NETWORK", "cloud-network"),
-		FirecrackerBinary:    getEnv("FIRECRACKER_BINARY", "/usr/local/bin/firecracker"),
-		FirecrackerKernel:    getEnv("FIRECRACKER_KERNEL", "/var/lib/thecloud/vmlinux"),
-		FirecrackerRootfs:    getEnv("FIRECRACKER_ROOTFS", "/var/lib/thecloud/rootfs.ext4"),
-		FirecrackerMockMode:  getEnv("FIRECRACKER_MOCK_MODE", "false") == "true",
-		VaultAddress:         getEnv("VAULT_ADDR", "http://localhost:8200"),
-		VaultToken:           getEnv("VAULT_TOKEN", ""),
-		VaultMountPath:       getEnv("VAULT_MOUNT_PATH", "secret/data/thecloud/rds"),
+		ObjectStorageNodes:     getEnv("OBJECT_STORAGE_NODES", ""),
+		PowerDNSAPIURL:         getEnv("POWERDNS_API_URL", "http://localhost:8081"),
+		PowerDNSAPIKey:         os.Getenv("POWERDNS_API_KEY"),
+		PowerDNSServerID:       getEnv("POWERDNS_SERVER_ID", "localhost"),
+		LibvirtURI:             getEnv("LIBVIRT_URI", ""),
+		DockerDefaultNetwork:   getEnv("DOCKER_DEFAULT_NETWORK", "cloud-network"),
+		FirecrackerBinary:      getEnv("FIRECRACKER_BINARY", "/usr/local/bin/firecracker"),
+		FirecrackerKernel:      getEnv("FIRECRACKER_KERNEL", "/var/lib/thecloud/vmlinux"),
+		FirecrackerRootfs:      getEnv("FIRECRACKER_ROOTFS", "/var/lib/thecloud/rootfs.ext4"),
+		FirecrackerMockMode:    getEnv("FIRECRACKER_MOCK_MODE", "false") == "true",
+		VaultAddress:           getEnv("VAULT_ADDR", "http://localhost:8200"),
+		VaultToken:             getEnv("VAULT_TOKEN", ""),
+		VaultMountPath:         getEnv("VAULT_MOUNT_PATH", "secret/data/thecloud/rds"),
 		ServiceAccountTokenTTL: getEnvInt("SERVICE_ACCOUNT_TOKEN_TTL", 3600),
 	}
 	if err := validateConfig(cfg); err != nil {
@@ -131,6 +141,26 @@ func getEnvInt(key string, fallback int) int {
 		if i, err := strconv.Atoi(value); err == nil {
 			return i
 		}
+	}
+	return fallback
+}
+
+func parseDuration(key string, fallback time.Duration) time.Duration {
+	if value, exists := os.LookupEnv(key); exists {
+		if d, err := time.ParseDuration(value); err == nil {
+			return d
+		}
+		slog.Warn("invalid duration value, using default", "key", key, "value", value, "fallback", fallback)
+	}
+	return fallback
+}
+
+func parseInt(key string, fallback int) int {
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+		slog.Warn("invalid integer value, using default", "key", key, "value", value, "fallback", fallback)
 	}
 	return fallback
 }

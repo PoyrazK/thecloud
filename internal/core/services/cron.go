@@ -62,7 +62,7 @@ func (s *CronService) CreateJob(ctx context.Context, name, schedule, targetURL, 
 		TargetPayload: targetPayload,
 		Status:        domain.CronStatusActive,
 		NextRunAt:     &nextRun,
-		CreatedAt:     time.Now(),
+		CreatedAt:     time.Now().UTC(),
 		UpdatedAt:     time.Now(),
 	}
 

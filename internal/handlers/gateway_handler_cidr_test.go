@@ -18,11 +18,11 @@ func TestCheckCIDR(t *testing.T) {
 	_, ipNet3, _ := net.ParseCIDR("172.16.0.0/12")
 
 	tests := []struct {
-		name            string
-		remoteAddr      string
-		blockedIPNets   []*net.IPNet
-		allowedIPNets   []*net.IPNet
-		expectedResult  bool
+		name           string
+		remoteAddr     string
+		blockedIPNets  []*net.IPNet
+		allowedIPNets  []*net.IPNet
+		expectedResult bool
 	}{
 		{
 			name:           "no restrictions should allow all",

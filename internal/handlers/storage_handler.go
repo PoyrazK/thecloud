@@ -50,11 +50,11 @@ const (
 // RFC 6266:
 //
 //   - `filename="..."`     ASCII-only fallback for legacy clients. All bytes
-//                          outside the safe printable range and the two
-//                          characters that are special inside a quoted-string
-//                          (`"` and `\`) are replaced with `_`.
-//   - `filename*=UTF-8''…` RFC 5987 percent-encoded form preserving the
-//                          original Unicode basename for modern clients.
+//     outside the safe printable range and the two
+//     characters that are special inside a quoted-string
+//     (`"` and `\`) are replaced with `_`.
+//   - `filename*=UTF-8”…` RFC 5987 percent-encoded form preserving the
+//     original Unicode basename for modern clients.
 //
 // `path.Base` is used to discard any path segments embedded in the key. If the
 // resulting name is empty we fall back to "download".

@@ -17,41 +17,44 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/httputil"
+	"github.com/poyrazk/thecloud/pkg/ratelimit"
+	"golang.org/x/time/rate"
 )
 
 // CreateRouteRequest define the payload for creating a route.
 type CreateRouteRequest struct {
-	Name                  string   `json:"name" binding:"required"`
-	PathPrefix            string   `json:"path_prefix" binding:"required"`
-	TargetURL             string   `json:"target_url" binding:"required"`
-	Methods               []string `json:"methods"`
-	StripPrefix           bool     `json:"strip_prefix"`
-	RateLimit             int      `json:"rate_limit" binding:"gte=0"`
-	DialTimeout           int64    `json:"dial_timeout" binding:"gte=0"`
-	ResponseHeaderTimeout int64    `json:"response_header_timeout" binding:"gte=0"`
-	IdleConnTimeout       int64    `json:"idle_conn_timeout" binding:"gte=0"`
-	TLSSkipVerify         bool     `json:"tls_skip_verify"`
-	RequireTLS            bool     `json:"require_tls"`
-	AllowedCIDRs           []string `json:"allowed_cidrs"`
-	BlockedCIDRs           []string `json:"blocked_cidrs"`
-	MaxBodySize           int64    `json:"max_body_size" binding:"gte=0"`
-	Priority              int      `json:"priority" binding:"gte=0"`
-	CircuitBreakerThreshold int     `json:"circuit_breaker_threshold" binding:"gte=0"`
-	CircuitBreakerTimeout   int64   `json:"circuit_breaker_timeout" binding:"gte=0"`
-	MaxRetries              int     `json:"max_retries" binding:"gte=0"`
-	RetryTimeout            int64   `json:"retry_timeout" binding:"gte=0"`
+	Name                    string   `json:"name" binding:"required"`
+	PathPrefix              string   `json:"path_prefix" binding:"required"`
+	TargetURL               string   `json:"target_url" binding:"required"`
+	Methods                 []string `json:"methods"`
+	StripPrefix             bool     `json:"strip_prefix"`
+	RateLimit               int      `json:"rate_limit" binding:"gte=0"`
+	DialTimeout             int64    `json:"dial_timeout" binding:"gte=0"`
+	ResponseHeaderTimeout   int64    `json:"response_header_timeout" binding:"gte=0"`
+	IdleConnTimeout         int64    `json:"idle_conn_timeout" binding:"gte=0"`
+	TLSSkipVerify           bool     `json:"tls_skip_verify"`
+	RequireTLS              bool     `json:"require_tls"`
+	AllowedCIDRs            []string `json:"allowed_cidrs"`
+	BlockedCIDRs            []string `json:"blocked_cidrs"`
+	MaxBodySize             int64    `json:"max_body_size" binding:"gte=0"`
+	Priority                int      `json:"priority" binding:"gte=0"`
+	CircuitBreakerThreshold int      `json:"circuit_breaker_threshold" binding:"gte=0"`
+	CircuitBreakerTimeout   int64    `json:"circuit_breaker_timeout" binding:"gte=0"`
+	MaxRetries              int      `json:"max_retries" binding:"gte=0"`
+	RetryTimeout            int64    `json:"retry_timeout" binding:"gte=0"`
 }
 
 // GatewayHandler handles API gateway HTTP endpoints.
 // Note: logger may be nil in test contexts; all logging calls check for nil before use.
 type GatewayHandler struct {
-	svc    ports.GatewayService
-	logger *slog.Logger
+	svc         ports.GatewayService
+	rateLimiter *ratelimit.IPRateLimiter
+	logger      *slog.Logger
 }
 
 // NewGatewayHandler constructs a GatewayHandler.
-func NewGatewayHandler(svc ports.GatewayService, logger *slog.Logger) *GatewayHandler {
-	return &GatewayHandler{svc: svc, logger: logger}
+func NewGatewayHandler(svc ports.GatewayService, rateLimiter *ratelimit.IPRateLimiter, logger *slog.Logger) *GatewayHandler {
+	return &GatewayHandler{svc: svc, rateLimiter: rateLimiter, logger: logger}
 }
 
 // CreateRoute establishes a new ingress mapping
@@ -84,25 +87,25 @@ func (h *GatewayHandler) CreateRoute(c *gin.Context) {
 	}
 
 	params := ports.CreateRouteParams{
-		Name:                   req.Name,
-		Pattern:                req.PathPrefix,
-		Target:                 req.TargetURL,
-		Methods:                req.Methods,
-		StripPrefix:            req.StripPrefix,
-		RateLimit:              req.RateLimit,
-		DialTimeout:            req.DialTimeout,
-		ResponseHeaderTimeout:  req.ResponseHeaderTimeout,
-		IdleConnTimeout:        req.IdleConnTimeout,
-		TLSSkipVerify:          req.TLSSkipVerify,
-		RequireTLS:            req.RequireTLS,
-		AllowedCIDRs:           req.AllowedCIDRs,
-		BlockedCIDRs:           req.BlockedCIDRs,
-		MaxBodySize:            req.MaxBodySize,
-		Priority:               req.Priority,
+		Name:                    req.Name,
+		Pattern:                 req.PathPrefix,
+		Target:                  req.TargetURL,
+		Methods:                 req.Methods,
+		StripPrefix:             req.StripPrefix,
+		RateLimit:               req.RateLimit,
+		DialTimeout:             req.DialTimeout,
+		ResponseHeaderTimeout:   req.ResponseHeaderTimeout,
+		IdleConnTimeout:         req.IdleConnTimeout,
+		TLSSkipVerify:           req.TLSSkipVerify,
+		RequireTLS:              req.RequireTLS,
+		AllowedCIDRs:            req.AllowedCIDRs,
+		BlockedCIDRs:            req.BlockedCIDRs,
+		MaxBodySize:             req.MaxBodySize,
+		Priority:                req.Priority,
 		CircuitBreakerThreshold: req.CircuitBreakerThreshold,
 		CircuitBreakerTimeout:   req.CircuitBreakerTimeout,
-		MaxRetries:            req.MaxRetries,
-		RetryTimeout:          req.RetryTimeout,
+		MaxRetries:              req.MaxRetries,
+		RetryTimeout:            req.RetryTimeout,
 	}
 
 	route, err := h.svc.CreateRoute(c.Request.Context(), params)
@@ -199,6 +202,30 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 
 	// Inject trace headers
 	h.injectTraceHeaders(c)
+
+	// Apply per-route rate limiting if configured
+	if route != nil && route.RateLimit > 0 && h.rateLimiter != nil {
+		key := c.GetHeader("X-API-Key")
+		if key == "" {
+			key = c.ClientIP()
+		} else if len(key) > 5 {
+			key = "apikey:" + key[:5]
+		}
+		burst := route.RateLimit * 2
+		limiter := h.rateLimiter.GetRouteLimiter(route.ID, key, rate.Limit(route.RateLimit), burst)
+		if !limiter.Allow() {
+			if h.logger != nil {
+				h.logger.Warn("per-route rate limit exceeded",
+					slog.String("key", key),
+					slog.String("path", c.Request.URL.Path),
+					slog.String("route_id", route.ID.String()))
+			}
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error": "rate limit exceeded",
+			})
+			return
+		}
+	}
 
 	proxy.ServeHTTP(c.Writer, c.Request)
 }

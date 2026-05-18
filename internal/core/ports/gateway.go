@@ -28,25 +28,25 @@ type GatewayRepository interface {
 
 // CreateRouteParams holds parameters for creating a new route.
 type CreateRouteParams struct {
-	Name                   string
-	Pattern                string
-	Target                 string
-	Methods                []string
-	StripPrefix            bool
-	RateLimit              int
-	DialTimeout            int64
-	ResponseHeaderTimeout  int64
-	IdleConnTimeout        int64
-	TLSSkipVerify          bool
-	RequireTLS            bool
-	AllowedCIDRs           []string
-	BlockedCIDRs           []string
-	MaxBodySize               int64
-	CircuitBreakerThreshold  int
-	CircuitBreakerTimeout    int64
-	MaxRetries               int
-	RetryTimeout             int64
-	Priority                 int
+	Name                    string
+	Pattern                 string
+	Target                  string
+	Methods                 []string
+	StripPrefix             bool
+	RateLimit               int
+	DialTimeout             int64
+	ResponseHeaderTimeout   int64
+	IdleConnTimeout         int64
+	TLSSkipVerify           bool
+	RequireTLS              bool
+	AllowedCIDRs            []string
+	BlockedCIDRs            []string
+	MaxBodySize             int64
+	CircuitBreakerThreshold int
+	CircuitBreakerTimeout   int64
+	MaxRetries              int
+	RetryTimeout            int64
+	Priority                int
 }
 
 // GatewayService provides business logic for managing the API gateway and ingress traffic.

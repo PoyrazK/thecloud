@@ -422,6 +422,14 @@ Delete a volume. (Alias: `delete`)
 cloud volume rm my-data
 ```
 
+### `volume resize <id/name> <sizeGB>`
+
+Resize a volume to a larger size.
+
+```bash
+cloud volume resize my-data 50
+```
+
 ---
 
 ## Snapshot Commands 🆕
@@ -968,6 +976,14 @@ Delete a database instance. (Alias: `delete`)
 cloud db rm db-uuid
 ```
 
+### `db resize <id> <sizeGB>`
+
+Resize the allocated storage for a database instance.
+
+```bash
+cloud db resize db-uuid 100
+```
+
 ---
 
 ## Cache Commands (Redis)
@@ -996,6 +1012,14 @@ Delete a cache instance. (Alias: `delete`)
 
 ```bash
 cloud cache rm redis-uuid
+```
+
+### `cache resize <id> <memoryMB>`
+
+Resize a cache instance's memory allocation (requires docker compute backend).
+
+```bash
+cloud cache resize redis-uuid 512
 ```
 
 ---

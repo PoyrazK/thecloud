@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -79,5 +80,122 @@ func TestIAMService_Unit(t *testing.T) {
 
 		err := svc.DeletePolicy(ctx, id)
 		require.NoError(t, err)
+	})
+
+	t.Run("SimulatePolicy_PairCapExceeded", func(t *testing.T) {
+		userID := uuid.New()
+		actions := make([]string, 11)
+		for i := range actions {
+			actions[i] = "compute:instance:launch"
+		}
+		resources := make([]string, 10)
+		for i := range resources {
+			resources[i] = "arn:thecloud:compute:us-east-1:*:instance/*"
+		}
+
+		result, err := svc.SimulatePolicy(ctx, ports.Principal{UserID: &userID}, actions, resources, nil)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "too many action-resource pairs")
+	})
+
+	t.Run("SimulatePolicy_NoPrincipal", func(t *testing.T) {
+		result, err := svc.SimulatePolicy(ctx, ports.Principal{}, []string{"compute:instance:launch"}, []string{"*"}, nil)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "no principal specified")
+	})
+
+	t.Run("SimulatePolicy_UserPrincipal", func(t *testing.T) {
+		userID := uuid.New()
+		policy := &domain.Policy{
+			ID:   uuid.New(),
+			Name: "TestPolicy",
+			Statements: []domain.Statement{
+				{Effect: domain.EffectAllow, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
+			},
+		}
+		mockRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{policy}, nil).Once()
+
+		result, err := svc.SimulatePolicy(ctx, ports.Principal{UserID: &userID}, []string{"compute:instance:launch"}, []string{"instance:123"}, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, domain.EffectAllow, result.Decision)
+		assert.Equal(t, 1, result.Evaluated)
+		assert.NotNil(t, result.Matched)
+		assert.Equal(t, "TestPolicy", result.Matched.PolicyName)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("SimulatePolicy_ServiceAccountPrincipal", func(t *testing.T) {
+		saID := uuid.New()
+		policy := &domain.Policy{
+			ID:   uuid.New(),
+			Name: "SAPolicy",
+			Statements: []domain.Statement{
+				{Effect: domain.EffectAllow, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
+			},
+		}
+		mockRepo.On("GetPoliciesForServiceAccount", mock.Anything, tenantID, saID).Return([]*domain.Policy{policy}, nil).Once()
+
+		result, err := svc.SimulatePolicy(ctx, ports.Principal{ServiceAccountID: &saID}, []string{"compute:instance:launch"}, []string{"instance:123"}, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, domain.EffectAllow, result.Decision)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("SimulatePolicy_DenyShortCircuits", func(t *testing.T) {
+		userID := uuid.New()
+		denyPolicy := &domain.Policy{
+			ID:   uuid.New(),
+			Name: "DenyPolicy",
+			Statements: []domain.Statement{
+				{Effect: domain.EffectDeny, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
+			},
+		}
+		allowPolicy := &domain.Policy{
+			ID:   uuid.New(),
+			Name: "AllowPolicy",
+			Statements: []domain.Statement{
+				{Effect: domain.EffectAllow, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
+			},
+		}
+		mockRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{denyPolicy, allowPolicy}, nil).Once()
+
+		result, err := svc.SimulatePolicy(ctx, ports.Principal{UserID: &userID}, []string{"compute:instance:launch"}, []string{"instance:123"}, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, domain.EffectDeny, result.Decision)
+		assert.Equal(t, "DenyPolicy", result.Matched.PolicyName)
+		assert.Equal(t, 1, result.Evaluated) // Deny short-circuits
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("SimulatePolicy_FirstAllowWins", func(t *testing.T) {
+		userID := uuid.New()
+		firstPolicy := &domain.Policy{
+			ID:   uuid.New(),
+			Name: "FirstAllow",
+			Statements: []domain.Statement{
+				{Effect: domain.EffectAllow, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
+			},
+		}
+		secondPolicy := &domain.Policy{
+			ID:   uuid.New(),
+			Name: "SecondAllow",
+			Statements: []domain.Statement{
+				{Effect: domain.EffectAllow, Action: []string{"compute:instance:*"}, Resource: []string{"*"}},
+			},
+		}
+		mockRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{firstPolicy, secondPolicy}, nil).Once()
+
+		result, err := svc.SimulatePolicy(ctx, ports.Principal{UserID: &userID}, []string{"compute:instance:launch"}, []string{"instance:123"}, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, domain.EffectAllow, result.Decision)
+		assert.Equal(t, "FirstAllow", result.Matched.PolicyName) // First allow wins (allowResult is set once and not overwritten)
+		assert.Equal(t, 1, result.Evaluated)
+		mockRepo.AssertExpectations(t)
 	})
 }

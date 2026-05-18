@@ -85,7 +85,7 @@ For users with IAM policies attached (via `POST /iam/users/:userId/policies/:pol
   "action": ["instance:*"],
   "resource": ["*"],
   "condition": {
-    "IpAddress": {"aws:SourceIp": ["192.168.1.0/24"]},
+    "IpAddress": {"thecloud:SourceIp": ["192.168.1.0/24"]},
     "StringEquals": {"thecloud:TenantId": "tenant-123"}
   }
 }
