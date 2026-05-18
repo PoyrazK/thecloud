@@ -42,9 +42,15 @@ func (s *AutoScalingService) CreateGroup(ctx context.Context, params ports.Creat
 		return nil, err
 	}
 
-	// Idempotency check
+	// Idempotency check. The existing record must match the current request,
+	// otherwise we'd silently return a different group than the caller asked
+	// for — which can happen if a caller reuses an idempotency key across
+	// distinct create requests.
 	if params.IdempotencyKey != "" {
 		if existing, err := s.repo.GetGroupByIdempotencyKey(ctx, params.IdempotencyKey); err == nil && existing != nil {
+			if err := scalingGroupMatchesCreate(existing, params); err != nil {
+				return nil, err
+			}
 			return existing, nil
 		}
 	}
@@ -237,4 +243,28 @@ func (s *AutoScalingService) DeletePolicy(ctx context.Context, id uuid.UUID) err
 	}
 
 	return s.repo.DeletePolicy(ctx, id)
+}
+
+// scalingGroupMatchesCreate verifies that the parameters of a new CreateGroup
+// request match the previously-stored group keyed by the same idempotency key.
+// Returns Conflict if they differ, so an honest caller never gets back a group
+// they wouldn't recognise and a buggy caller is told about their key reuse.
+func scalingGroupMatchesCreate(existing *domain.ScalingGroup, params ports.CreateScalingGroupParams) error {
+	switch {
+	case existing.Name != params.Name:
+		return errors.New(errors.Conflict, "idempotency_key already used with different name")
+	case existing.VpcID != params.VpcID:
+		return errors.New(errors.Conflict, "idempotency_key already used with different vpc_id")
+	case existing.LoadBalancerID != params.LoadBalancerID:
+		return errors.New(errors.Conflict, "idempotency_key already used with different load_balancer_id")
+	case existing.Image != params.Image:
+		return errors.New(errors.Conflict, "idempotency_key already used with different image")
+	case existing.MinInstances != params.MinInstances:
+		return errors.New(errors.Conflict, "idempotency_key already used with different min_instances")
+	case existing.MaxInstances != params.MaxInstances:
+		return errors.New(errors.Conflict, "idempotency_key already used with different max_instances")
+	case existing.DesiredCount != params.DesiredCount:
+		return errors.New(errors.Conflict, "idempotency_key already used with different desired_count")
+	}
+	return nil
 }
