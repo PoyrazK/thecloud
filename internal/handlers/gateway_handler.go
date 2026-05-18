@@ -204,9 +204,6 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 			key = "apikey:" + key[:5]
 		}
 		burst := route.RateLimit * 2
-		if burst < 1 {
-			burst = 1
-		}
 		limiter := h.rateLimiter.GetRouteLimiter(route.ID, key, rate.Limit(route.RateLimit), burst)
 		if !limiter.Allow() {
 			if h.logger != nil {
