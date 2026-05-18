@@ -532,6 +532,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		volumeGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVolumeDelete), handlers.Volume.Delete)
 		volumeGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Attach)
 		volumeGroup.POST("/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Detach)
+		volumeGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionVolumeUpdate), handlers.Volume.Resize)
 	}
 
 	dbGroup := r.Group("/databases")
@@ -551,6 +552,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		dbGroup.POST("/:id/rotate-credentials", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.RotateCredentials)
 		dbGroup.POST("/:id/stop", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Stop)
 		dbGroup.POST("/:id/start", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Start)
+		dbGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionDBUpdate), handlers.Database.Resize)
 	}
 
 	cacheGroup := r.Group("/caches")
@@ -563,6 +565,7 @@ func registerDataRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		cacheGroup.GET("/:id/connection", httputil.Permission(svcs.RBAC, domain.PermissionCacheRead), handlers.Cache.GetConnectionString)
 		cacheGroup.POST("/:id/flush", httputil.Permission(svcs.RBAC, domain.PermissionCacheUpdate), handlers.Cache.Flush)
 		cacheGroup.GET("/:id/stats", httputil.Permission(svcs.RBAC, domain.PermissionCacheRead), handlers.Cache.GetStats)
+		cacheGroup.POST("/:id/resize", httputil.Permission(svcs.RBAC, domain.PermissionCacheUpdate), handlers.Cache.Resize)
 	}
 
 	secretGroup := r.Group("/secrets")

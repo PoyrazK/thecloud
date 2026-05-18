@@ -178,3 +178,36 @@ func (h *VolumeHandler) Detach(c *gin.Context) {
 
 	httputil.Success(c, http.StatusOK, gin.H{"message": "volume detached"})
 }
+
+// ResizeVolumeRequest is the payload for resizing a volume.
+type ResizeVolumeRequest struct {
+	NewSizeGB int `json:"new_size_gb" binding:"required,min=1"`
+}
+
+// Resize resizes a volume to a larger capacity
+// @Summary Resize a volume
+// @Description Increases the capacity of an existing block storage volume
+// @Tags volumes
+// @Accept json
+// @Produce json
+// @Security APIKeyAuth
+// @Param id path string true "Volume ID"
+// @Param request body ResizeVolumeRequest true "Resize request"
+// @Success 200 {object} httputil.Response
+// @Failure 400 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Failure 500 {object} httputil.Response
+// @Router /volumes/{id}/resize [post]
+func (h *VolumeHandler) Resize(c *gin.Context) {
+	idStr := c.Param("id")
+	var req ResizeVolumeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid request body"))
+		return
+	}
+	if err := h.svc.ResizeVolume(c.Request.Context(), idStr, req.NewSizeGB); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, gin.H{"message": "volume resized", "new_size_gb": req.NewSizeGB})
+}

@@ -77,3 +77,8 @@ func (c *Client) GetDatabaseConnectionString(id string) (string, error) {
 func (c *Client) RotateDatabaseCredentials(id string) error {
 	return c.post(databasesPath+id+"/rotate-credentials", nil, nil)
 }
+
+func (c *Client) ResizeDatabase(id string, newSizeGB int) error {
+	body := map[string]int{"allocated_storage": newSizeGB}
+	return c.post(databasesPath+id+"/resize", body, nil)
+}

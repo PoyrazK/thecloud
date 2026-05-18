@@ -90,3 +90,16 @@ func (c *Client) AttachVolume(volumeID, instanceID, mountPath string) (string, e
 func (c *Client) DetachVolume(volumeID string) error {
 	return c.post(fmt.Sprintf("/volumes/%s/detach", volumeID), nil, nil)
 }
+
+// ResizeVolume increases the capacity of a volume.
+func (c *Client) ResizeVolume(idOrName string, newSizeGB int) error {
+	id, err := c.resolveID("volume", func() ([]interface{}, error) {
+		vols, err := c.ListVolumes()
+		return interfaceSlice(vols), err
+	}, func(v interface{}) string { return v.(Volume).ID.String() }, func(v interface{}) string { return v.(Volume).Name }, idOrName)
+	if err != nil {
+		return err
+	}
+	body := map[string]int{"new_size_gb": newSizeGB}
+	return c.post(fmt.Sprintf("/volumes/%s/resize", id), body, nil)
+}

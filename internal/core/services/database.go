@@ -789,6 +789,48 @@ func (s *DatabaseService) StartDatabase(ctx context.Context, id uuid.UUID) error
 	return nil
 }
 
+func (s *DatabaseService) ResizeDatabase(ctx context.Context, id uuid.UUID, newSizeGB int) error {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionDBUpdate, id.String()); err != nil {
+		return err
+	}
+
+	db, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if newSizeGB <= db.AllocatedStorage {
+		return errors.New(errors.InvalidInput, "new size must be larger than current allocated storage")
+	}
+
+	vol, err := s.getVolumeForDatabase(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	if err := s.volumeSvc.ResizeVolume(ctx, vol.ID.String(), newSizeGB); err != nil {
+		return err
+	}
+
+	db.AllocatedStorage = newSizeGB
+	db.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, db); err != nil {
+		return err
+	}
+
+	if err := s.auditSvc.Log(ctx, db.UserID, "database.resize", "database", db.ID.String(), map[string]interface{}{
+		"name":        db.Name,
+		"old_size_gb": vol.SizeGB,
+		"new_size_gb": newSizeGB,
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "database_id", db.ID, "error", err)
+	}
+
+	return nil
+}
+
 func (s *DatabaseService) waitForDatabaseReady(ctx context.Context, db *domain.Database) error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()

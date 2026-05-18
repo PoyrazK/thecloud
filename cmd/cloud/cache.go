@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
 	"time"
 
@@ -178,6 +179,22 @@ var flushCacheCmd = &cobra.Command{
 	},
 }
 
+var resizeCacheCmd = &cobra.Command{
+	Use:   "resize [id] [memoryMB]",
+	Short: "Resize cache memory allocation",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := createClient(opts)
+		cacheID := resolveCacheID(args[0], client)
+		memory, _ := strconv.Atoi(args[1])
+		if err := client.ResizeCache(cacheID, memory); err != nil {
+			fmt.Printf("Error resizing cache: %v\n", err)
+			return
+		}
+		fmt.Printf("[SUCCESS] Cache %s resized to %d MB.\n", cacheID, memory)
+	},
+}
+
 // resolveCacheID resolves a cache ID or name to a full UUID.
 func resolveCacheID(idOrName string, client *sdk.Client) string {
 	if _, err := uuid.Parse(idOrName); err == nil {
@@ -212,6 +229,7 @@ func init() {
 	cacheCmd.AddCommand(connectionCacheCmd)
 	cacheCmd.AddCommand(statsCacheCmd)
 	cacheCmd.AddCommand(flushCacheCmd)
+	cacheCmd.AddCommand(resizeCacheCmd)
 }
 
 func formatBytes(b int64) string {

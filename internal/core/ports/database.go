@@ -89,4 +89,6 @@ type DatabaseService interface {
 	StopDatabase(ctx context.Context, id uuid.UUID) error
 	// StartDatabase starts a stopped database instance.
 	StartDatabase(ctx context.Context, id uuid.UUID) error
+	// ResizeDatabase resizes the allocated storage for a database instance.
+	ResizeDatabase(ctx context.Context, id uuid.UUID, newSizeGB int) error
 }

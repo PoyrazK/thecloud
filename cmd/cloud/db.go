@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
@@ -189,6 +190,22 @@ var dbRotateCmd = &cobra.Command{
 	},
 }
 
+var dbResizeCmd = &cobra.Command{
+	Use:   "resize [id] [sizeGB]",
+	Short: "Resize database allocated storage",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		size, _ := strconv.Atoi(args[1])
+		client := createClient(opts)
+		if err := client.ResizeDatabase(id, size); err != nil {
+			fmt.Printf(errorFormat, err)
+			return
+		}
+		fmt.Printf("[SUCCESS] Database %s resized to %d GB.\n", id, size)
+	},
+}
+
 func init() {
 	dbCmd.AddCommand(dbListCmd)
 	dbCmd.AddCommand(dbCreateCmd)
@@ -196,6 +213,7 @@ func init() {
 	dbCmd.AddCommand(dbRmCmd)
 	dbCmd.AddCommand(dbConnCmd)
 	dbCmd.AddCommand(dbRotateCmd)
+	dbCmd.AddCommand(dbResizeCmd)
 
 	dbCreateCmd.Flags().StringP("name", "n", "", "Name of the database (required)")
 	dbCreateCmd.Flags().StringP("engine", "e", "postgres", "Database engine (postgres/mysql)")
