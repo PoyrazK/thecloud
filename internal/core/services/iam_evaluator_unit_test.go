@@ -35,9 +35,9 @@ func testIAMEvaluatorEvaluateAllow(t *testing.T) {
 		},
 	}
 
-	effect, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
+	result, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
 	require.NoError(t, err)
-	assert.Equal(t, domain.EffectAllow, effect)
+	assert.Equal(t, domain.EffectAllow, result.Effect)
 }
 
 func testIAMEvaluatorEvaluateDeny(t *testing.T) {
@@ -56,9 +56,9 @@ func testIAMEvaluatorEvaluateDeny(t *testing.T) {
 		},
 	}
 
-	effect, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
+	result, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
 	require.NoError(t, err)
-	assert.Equal(t, domain.EffectDeny, effect)
+	assert.Equal(t, domain.EffectDeny, result.Effect)
 }
 
 func testIAMEvaluatorEvaluateNoMatch(t *testing.T) {
@@ -77,9 +77,9 @@ func testIAMEvaluatorEvaluateNoMatch(t *testing.T) {
 		},
 	}
 
-	effect, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
+	result, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
 	require.NoError(t, err)
-	assert.Equal(t, domain.PolicyEffect(""), effect)
+	assert.Equal(t, domain.PolicyEffect(""), result.Effect)
 }
 
 func testIAMEvaluatorEvaluateExplicitDenyWins(t *testing.T) {
@@ -103,9 +103,9 @@ func testIAMEvaluatorEvaluateExplicitDenyWins(t *testing.T) {
 		},
 	}
 
-	effect, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
+	result, err := evaluator.Evaluate(ctx, policies, "instance:launch", "resource-1", nil)
 	require.NoError(t, err)
-	assert.Equal(t, domain.EffectDeny, effect)
+	assert.Equal(t, domain.EffectDeny, result.Effect)
 }
 
 func testIAMEvaluatorEvaluateWildcardAction(t *testing.T) {
@@ -134,9 +134,9 @@ func testIAMEvaluatorEvaluateWildcardAction(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		effect, err := evaluator.Evaluate(ctx, policies, tt.action, "resource-1", nil)
+		result, err := evaluator.Evaluate(ctx, policies, tt.action, "resource-1", nil)
 		require.NoError(t, err)
-		assert.Equal(t, tt.expected, effect, "action %s should match", tt.action)
+		assert.Equal(t, tt.expected, result.Effect, "action %s should match", tt.action)
 	}
 }
 
@@ -156,7 +156,7 @@ func testIAMEvaluatorEvaluateWildcardResource(t *testing.T) {
 		},
 	}
 
-	effect, err := evaluator.Evaluate(ctx, policies, "instance:launch", "any-resource", nil)
+	result, err := evaluator.Evaluate(ctx, policies, "instance:launch", "any-resource", nil)
 	require.NoError(t, err)
-	assert.Equal(t, domain.EffectAllow, effect)
+	assert.Equal(t, domain.EffectAllow, result.Effect)
 }

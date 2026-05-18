@@ -16,8 +16,8 @@ func NewIAMEvaluator() *iamEvaluator {
 	return &iamEvaluator{}
 }
 
-func (e *iamEvaluator) Evaluate(ctx context.Context, policies []*domain.Policy, action string, resource string, evalCtx map[string]interface{}) (domain.PolicyEffect, error) {
-	allowFound := false
+func (e *iamEvaluator) Evaluate(ctx context.Context, policies []*domain.Policy, action string, resource string, evalCtx map[string]interface{}) (*domain.EvalResult, error) {
+	allowResult := (*domain.EvalResult)(nil)
 
 	for _, policy := range policies {
 		for _, statement := range policy.Statements {
@@ -30,19 +30,31 @@ func (e *iamEvaluator) Evaluate(ctx context.Context, policies []*domain.Policy, 
 
 			if e.matches(statement, action, resource) {
 				if statement.Effect == domain.EffectDeny {
-					return domain.EffectDeny, nil
+					return &domain.EvalResult{
+						Effect:       domain.EffectDeny,
+						PolicyID:     policy.ID,
+						PolicyName:   policy.Name,
+						StatementSid: statement.Sid,
+						Reason:       "deny statement matched",
+					}, nil
 				}
-				if statement.Effect == domain.EffectAllow {
-					allowFound = true
+				if statement.Effect == domain.EffectAllow && allowResult == nil {
+					allowResult = &domain.EvalResult{
+						Effect:       domain.EffectAllow,
+						PolicyID:     policy.ID,
+						PolicyName:   policy.Name,
+						StatementSid: statement.Sid,
+						Reason:       "allow statement matched",
+					}
 				}
 			}
 		}
 	}
 
-	if allowFound {
-		return domain.EffectAllow, nil
+	if allowResult != nil {
+		return allowResult, nil
 	}
-	return "", nil // No match
+	return &domain.EvalResult{Effect: ""}, nil // No match
 }
 
 func (e *iamEvaluator) evaluateCondition(cond domain.Condition, evalCtx map[string]interface{}) bool {

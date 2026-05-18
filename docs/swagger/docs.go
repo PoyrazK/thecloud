@@ -4139,6 +4139,75 @@ const docTemplate = `{
                 }
             }
         },
+        "/iam/simulate": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Evaluates what actions and resources would be allowed or denied by attached policies",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Simulate IAM policy decision",
+                "parameters": [
+                    {
+                        "description": "Simulation parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.SimulateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httputil.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httphandlers.SimulateResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/iam/users/{userId}/policies": {
             "get": {
                 "security": [
@@ -12850,6 +12919,86 @@ const docTemplate = `{
             "properties": {
                 "replicas": {
                     "type": "integer"
+                }
+            }
+        },
+        "httphandlers.SimulateRequest": {
+            "type": "object",
+            "required": [
+                "actions",
+                "resources"
+            ],
+            "properties": {
+                "actions": {
+                    "description": "Actions to simulate (e.g., [\"compute:instance:launch\"]). Max 100.",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "context": {
+                    "description": "Context overrides for condition evaluation.\nKeys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "resources": {
+                    "description": "Resources to test (e.g., [\"arn:thecloud:compute:us-east-1:*:instance/*\"]). Max 100.",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "service_account_id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "Principal identifies whose policies to simulate.\nExactly one of UserID or ServiceAccountID must be set.",
+                    "type": "string"
+                }
+            }
+        },
+        "httphandlers.SimulateResponse": {
+            "type": "object",
+            "properties": {
+                "decision": {
+                    "description": "\"allow\" or \"deny\"",
+                    "type": "string"
+                },
+                "evaluated": {
+                    "type": "integer"
+                },
+                "matched": {
+                    "$ref": "#/definitions/httphandlers.StatementMatch"
+                }
+            }
+        },
+        "httphandlers.StatementMatch": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "effect": {
+                    "type": "string"
+                },
+                "policy_id": {
+                    "type": "string"
+                },
+                "policy_name": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "statement_sid": {
+                    "type": "string"
                 }
             }
         },

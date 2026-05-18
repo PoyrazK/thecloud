@@ -29,7 +29,7 @@ Conditions are stored in policy statements as a map:
   "action": ["instance:*"],
   "resource": ["*"],
   "condition": {
-    "IpAddress": {"aws:SourceIp": ["192.168.1.0/24"]},
+    "IpAddress": {"thecloud:SourceIp": ["192.168.1.0/24"]},
     "StringEquals": {"thecloud:TenantId": "tenant-123"}
   }
 }
@@ -39,14 +39,14 @@ Conditions are stored in policy statements as a map:
 
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `IpAddress` | Source IP is in CIDR range | `{"aws:SourceIp": ["192.168.1.0/24"]}` |
-| `NotIpAddress` | Source IP is NOT in CIDR | `{"NotIpAddress": {"aws:SourceIp": ["10.0.0.0/8"]}}` |
+| `IpAddress` | Source IP is in CIDR range | `{"thecloud:SourceIp": ["192.168.1.0/24"]}` |
+| `NotIpAddress` | Source IP is NOT in CIDR | `{"NotIpAddress": {"thecloud:SourceIp": ["10.0.0.0/8"]}}` |
 | `StringEquals` | Exact string match | `{"StringEquals": {"thecloud:TenantId": "tenant-123"}}` |
 | `StringNotEquals` | String not equal | `{"StringNotEquals": {"thecloud:TenantId": "other"}}` |
-| `StringLike` | Wildcard pattern match | `{"StringLike": {"aws:UserId": "user-*"}}` |
+| `StringLike` | Wildcard pattern match | `{"StringLike": {"thecloud:UserId": "user-*"}}` |
 | `StringNotLike` | Wildcard pattern not match | - |
-| `DateGreaterThan` | Time after threshold | `{"DateGreaterThan": {"aws:CurrentTime": "2024-01-01T00:00:00Z"}}` |
-| `DateLessThan` | Time before threshold | `{"DateLessThan": {"aws:CurrentTime": "2099-01-01T00:00:00Z"}}` |
+| `DateGreaterThan` | Time after threshold | `{"DateGreaterThan": {"thecloud:CurrentTime": "2024-01-01T00:00:00Z"}}` |
+| `DateLessThan` | Time before threshold | `{"DateLessThan": {"thecloud:CurrentTime": "2099-01-01T00:00:00Z"}}` |
 | `DateEquals` | Time equals threshold | - |
 | `Bool` | Boolean match | `{"Bool": {"thecloud:IsAdmin": true}}` |
 | `Null` | Key exists check | `{"Null": {"thecloud:SomeKey": "true"}}` (key must NOT exist) |
@@ -54,9 +54,9 @@ Conditions are stored in policy statements as a map:
 ### Evaluation Context
 
 The `evalCtx` map is built in `RBACService.buildEvalCtx()` with:
-- `aws:SourceIp` - Client IP from request
-- `aws:UserId` - User UUID
-- `aws:CurrentTime` - Current UTC time
+- `thecloud:SourceIp` - Client IP from request
+- `thecloud:UserId` - User UUID
+- `thecloud:CurrentTime` - Current UTC time
 - `thecloud:TenantId` - Active tenant UUID
 
 ### Evaluation Logic

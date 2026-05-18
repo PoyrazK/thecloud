@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -165,6 +166,12 @@ func (m *IAMService) DetachPolicyFromServiceAccount(ctx context.Context, saID uu
 func (m *IAMService) GetPoliciesForServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.Policy, error) {
 	args := m.Called(ctx, saID)
 	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) SimulatePolicy(ctx context.Context, principal ports.Principal, actions []string, resources []string, evalCtx map[string]interface{}) (*ports.SimulateResult, error) {
+	args := m.Called(ctx, principal, actions, resources, evalCtx)
+	r0, _ := args.Get(0).(*ports.SimulateResult)
 	return r0, args.Error(1)
 }
 
