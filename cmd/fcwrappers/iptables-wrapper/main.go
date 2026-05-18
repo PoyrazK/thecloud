@@ -11,9 +11,9 @@ import (
 )
 
 type iptablesRequest struct {
-	HostPort     int    `json:"host_port"`
-	TargetIP     string `json:"target_ip"`
-	TargetPort   int    `json:"target_port"`
+	HostPort   int    `json:"host_port"`
+	TargetIP   string `json:"target_ip"`
+	TargetPort int    `json:"target_port"`
 }
 
 func main() {
