@@ -48,6 +48,21 @@ var (
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "path"})
 
+	// Gateway metrics
+	GatewayUpstreamLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "thecloud_gateway_upstream_latency_seconds",
+		Help:    "Duration of upstream (proxied) HTTP requests in seconds",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"route_id", "method", "path"})
+	GatewayRetryTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "thecloud_gateway_retry_total",
+		Help: "Total number of gateway retry attempts",
+	}, []string{"route_id", "status"})
+	GatewayCircuitBreakerState = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "thecloud_gateway_circuit_breaker_state",
+		Help: "State of gateway circuit breaker (0=closed, 1=open, 2=half-open)",
+	}, []string{"route_id"})
+
 	// Compute metrics
 	InstancesTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "thecloud_instances_total",
