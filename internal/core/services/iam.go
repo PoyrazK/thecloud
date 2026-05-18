@@ -245,12 +245,6 @@ func (s *iamService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UU
 		return err
 	}
 
-	// Get current policy to preserve tenant_id
-	current, err := s.repo.GetPolicyByID(ctx, tenantID, policyID)
-	if err != nil {
-		return err
-	}
-
 	// Get max version to determine new version number
 	versions, err := s.repo.ListPolicyVersions(ctx, tenantID, policyID)
 	if err != nil {
@@ -271,23 +265,9 @@ func (s *iamService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UU
 		Statements:    pv.Statements,
 	}
 
-	// Insert the rollback as a new version
-	if err := s.repo.InsertPolicyVersion(ctx, tenantID, newVersion); err != nil {
-		return err
-	}
-
-	// Sync the current policy row to match the rollback target (no new version)
-	current.Statements = pv.Statements
-	current.Name = pv.Name
-	current.Description = pv.Description
-	if err := s.repo.SyncPolicyCurrentState(ctx, tenantID, &domain.PolicyVersion{
-		ID:            newVersion.ID,
-		PolicyID:      policyID,
-		VersionNumber: newVersion.VersionNumber,
-		Name:          pv.Name,
-		Description:   pv.Description,
-		Statements:    pv.Statements,
-	}); err != nil {
+	// SyncPolicyCurrentState handles both inserting the version row
+	// and updating the policies table for fast lookups.
+	if err := s.repo.SyncPolicyCurrentState(ctx, tenantID, newVersion); err != nil {
 		return err
 	}
 
