@@ -540,7 +540,7 @@ func (s *CacheService) ResizeCache(ctx context.Context, idOrName string, newMemo
 	}
 
 	if err := s.auditSvc.Log(ctx, cache.UserID, "cache.resize", "cache", cache.ID.String(), map[string]interface{}{
-		"name":         cache.Name,
+		"name":          cache.Name,
 		"old_memory_mb": cache.MemoryMB,
 		"new_memory_mb": newMemoryMB,
 	}); err != nil {

@@ -182,15 +182,15 @@ func testCacheServiceUnitExtended(t *testing.T) {
 	t.Run("ResizeCache_Success", func(t *testing.T) {
 		cacheID := uuid.New()
 		cache := &domain.Cache{
-			ID:       cacheID,
-			TenantID: tenantID,
-			UserID:   userID,
-			Name:     "my-cache",
-			Engine:   "redis",
-			Version:  "7.0",
-			MemoryMB: 128,
+			ID:          cacheID,
+			TenantID:    tenantID,
+			UserID:      userID,
+			Name:        "my-cache",
+			Engine:      "redis",
+			Version:     "7.0",
+			MemoryMB:    128,
 			ContainerID: "old-cid",
-			Status:   domain.CacheStatusRunning,
+			Status:      domain.CacheStatusRunning,
 		}
 		repo.On("GetByID", mock.Anything, cacheID, mock.Anything).Return(cache, nil).Once()
 		compute.On("StopInstance", mock.Anything, "old-cid").Return(nil).Once()
