@@ -402,11 +402,11 @@ func TestGossipProtocolWantPullConfigurable(t *testing.T) {
 	cfg := &GossipConfig{
 		FailureTimeout:    100 * time.Millisecond,
 		SuspectMultiplier: 2,
-		WantPull:         false,
+		WantPull:          false,
 	}
 	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, cfg)
 
-	assert.Equal(t, false, g.wantPull)
+	assert.False(t, g.wantPull)
 }
 
 func TestGossipProtocolWantPullDefaultsTrue(t *testing.T) {
