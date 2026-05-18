@@ -475,8 +475,8 @@ func (a *FirecrackerAdapter) setupPortForwarding(id string, ip string, ports []s
 		// Set up iptables NAT rule using wrapper to avoid G204 gosec warning
 		iptReq := iptablesRequest{
 			HostPort:   hPort,
-			TargetIP:    ip,
-			TargetPort:  cPort,
+			TargetIP:   ip,
+			TargetPort: cPort,
 		}
 		if err := execWrapper(ctx, "iptables-wrapper", iptReq); err != nil {
 			a.logger.Warn("failed to set up iptables rule", "host_port", hPort, "container_port", cPort, "error", err)
