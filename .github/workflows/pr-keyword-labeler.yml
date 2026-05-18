@@ -1,7 +1,7 @@
 name: "PR Keyword Labeler"
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize]
 
 jobs:
@@ -71,12 +71,13 @@ jobs:
             }
 
             // Size detection based on files changed
-            const prFiles = await github.rest.pulls.listFiles({
+            const prFiles = await github.paginate(github.rest.pulls.listFiles, {
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: pr.number
+              pull_number: pr.number,
+              per_page: 100
             });
-            const fileCount = prFiles.data.length;
+            const fileCount = prFiles.length;
             if (fileCount <= 3) {
               labels.push('size/xs');
             } else if (fileCount <= 10) {
@@ -91,7 +92,7 @@ jobs:
 
             // Apply labels
             if (labels.length > 0) {
-              github.rest.issues.addLabels({
+              await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pr.number,

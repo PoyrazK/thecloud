@@ -18,78 +18,80 @@ jobs:
             const title = issue.title.toLowerCase();
             const body = (issue.body || '').toLowerCase();
 
+            const contains = (...keywords) =>
+              keywords.some((k) => title.includes(k) || body.includes(k));
+
             const labels = [];
 
             // Bug
-            if (title.includes('bug') || title.includes('broken') || title.includes('not working')) {
+            if (contains('bug', 'broken', 'not working')) {
               labels.push('bug');
             }
 
             // Enhancement
-            if (title.includes('feature') || title.includes('request') || title.includes('enhancement') || title.includes('wish')) {
+            if (contains('feature', 'request', 'enhancement', 'wish')) {
               labels.push('enhancement');
             }
 
             // Documentation
-            if (title.includes('docs') || body.includes('documentation')) {
+            if (contains('docs', 'documentation')) {
               labels.push('documentation');
             }
 
             // Security
-            if (title.includes('security') || body.includes('cve-') || body.includes('vulnerability')) {
+            if (contains('security', 'cve-', 'vulnerability')) {
               labels.push('security');
             }
 
             // Performance
-            if (title.includes('slow') || title.includes('performance') || title.includes('optimize')) {
+            if (contains('slow', 'performance', 'optimize')) {
               labels.push('performance');
             }
 
             // Database
-            if (title.includes('migration') || title.includes('schema') || title.includes('database')) {
+            if (contains('migration', 'schema', 'database')) {
               labels.push('database');
             }
 
             // Area detection based on keywords in title
-            if (title.includes('cli') || title.includes('command') || title.includes('terminal')) {
+            if (contains('cli', 'command', 'terminal')) {
               labels.push('area/cli');
             }
 
-            if (title.includes('api') || title.includes('endpoint') || title.includes('rest')) {
+            if (contains('api', 'endpoint', 'rest')) {
               labels.push('area/api');
             }
 
-            if (title.includes('web') || title.includes('frontend') || title.includes('ui') || title.includes('dashboard')) {
+            if (contains('web', 'frontend', 'ui', 'dashboard')) {
               labels.push('area/web');
             }
 
-            if (title.includes('storage') || title.includes('disk') || title.includes('volume')) {
+            if (contains('storage', 'disk', 'volume')) {
               labels.push('area/storage');
             }
 
-            if (title.includes('kubernetes') || title.includes('k8s') || title.includes('deploy')) {
+            if (contains('kubernetes', 'k8s', 'deploy')) {
               labels.push('area/k8s');
             }
 
-            if (title.includes('handler') || title.includes('controller')) {
+            if (contains('handler', 'controller')) {
               labels.push('area/handlers');
             }
 
-            if (title.includes('service')) {
+            if (contains('service')) {
               labels.push('area/services');
             }
 
-            if (title.includes('repository') || title.includes('db') || title.includes('sql')) {
+            if (contains('repository', 'db', 'sql')) {
               labels.push('area/repositories');
             }
 
             // Apply labels
             if (labels.length > 0) {
-              github.rest.issues.addLabels({
+              await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issue.number,
                 labels: labels
               });
             }
-
