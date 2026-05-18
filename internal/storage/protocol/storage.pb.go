@@ -107,6 +107,7 @@ type GossipMessage struct {
 	SenderAddr    string                  `protobuf:"bytes,2,opt,name=sender_addr,json=senderAddr,proto3" json:"sender_addr,omitempty"`
 	Members       map[string]*MemberState `protobuf:"bytes,3,rep,name=members,proto3" json:"members,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Key is node_id
 	Timestamp     int64                   `protobuf:"varint,4,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	WantState     bool                    `protobuf:"varint,5,opt,name=want_state,json=wantState,proto3" json:"want_state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -167,6 +168,13 @@ func (x *GossipMessage) GetTimestamp() int64 {
 		return x.Timestamp
 	}
 	return 0
+}
+
+func (x *GossipMessage) GetWantState() bool {
+	if x != nil {
+		return x.WantState
+	}
+	return false
 }
 
 type MemberState struct {
@@ -240,6 +248,7 @@ func (x *MemberState) GetHeartbeat() uint64 {
 type GossipResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Members       map[string]*MemberState `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -279,6 +288,13 @@ func (x *GossipResponse) GetSuccess() bool {
 		return x.Success
 	}
 	return false
+}
+
+func (x *GossipResponse) GetMembers() map[string]*MemberState {
+	if x != nil {
+		return x.Members
+	}
+	return nil
 }
 
 type StoreRequest struct {

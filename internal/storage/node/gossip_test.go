@@ -397,6 +397,25 @@ func TestGossipProtocolNegativeMultiplierTreatedAsDefault(t *testing.T) {
 	assert.Equal(t, 6*time.Second, g.deadTimeout)
 }
 
+func TestGossipProtocolWantPullConfigurable(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cfg := &GossipConfig{
+		FailureTimeout:    100 * time.Millisecond,
+		SuspectMultiplier: 2,
+		WantPull:         false,
+	}
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, cfg)
+
+	assert.Equal(t, false, g.wantPull)
+}
+
+func TestGossipProtocolWantPullDefaultsTrue(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
+
+	assert.True(t, g.wantPull, "WantPull should default to true")
+}
+
 func TestGossipProtocolAddPeerIdempotent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
@@ -421,4 +440,42 @@ func TestGossipProtocolStopAndStart(t *testing.T) {
 
 	// Stop is idempotent — calling again must not panic
 	g.Stop()
+}
+
+func TestGossipProtocolOnGossipWantState(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
+
+	// Simulate a pull response from a peer about a third node
+	msg := &pb.GossipMessage{
+		SenderId:   "node2",
+		SenderAddr: testNode2Addr,
+		Timestamp:  time.Now().Unix(),
+		Members: map[string]*pb.MemberState{
+			"node2": {
+				Addr:      testNode2Addr,
+				Status:    "alive",
+				Heartbeat: 10,
+			},
+			"node3": {
+				Addr:      testNode3Addr,
+				Status:    "alive",
+				Heartbeat: 5,
+			},
+		},
+	}
+
+	g.OnGossip(msg)
+
+	g.mu.RLock()
+	node2, exists2 := g.members["node2"]
+	node3, exists3 := g.members["node3"]
+	g.mu.RUnlock()
+
+	assert.True(t, exists2, "node2 should be discovered")
+	assert.Equal(t, testNode2Addr, node2.Address)
+	assert.Equal(t, uint64(10), node2.Heartbeat)
+	assert.True(t, exists3, "node3 should be discovered via pull gossip")
+	assert.Equal(t, testNode3Addr, node3.Address)
+	assert.Equal(t, uint64(5), node3.Heartbeat)
 }

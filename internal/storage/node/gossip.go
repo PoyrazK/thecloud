@@ -41,6 +41,7 @@ type peerClient struct {
 type GossipConfig struct {
 	FailureTimeout    time.Duration // default 5s
 	SuspectMultiplier int           // multiplies timeout to get dead threshold, default 3
+	WantPull          bool          // request peer's state on each gossip tick; default true
 }
 
 // GossipProtocol manages membership and health gossip between nodes.
@@ -56,6 +57,7 @@ type GossipProtocol struct {
 	peers          map[string]*peerClient
 	failureTimeout time.Duration
 	deadTimeout    time.Duration
+	wantPull       bool // whether to request peer's state on each gossip tick
 }
 
 // NewGossipProtocol constructs a GossipProtocol for a node.
@@ -65,6 +67,7 @@ type GossipProtocol struct {
 func NewGossipProtocol(nodeID, address string, dialOpts []grpc.DialOption, logger *slog.Logger, cfg *GossipConfig) *GossipProtocol {
 	failureTimeout := 5 * time.Second
 	suspectMultiplier := 3
+	wantPull := true
 	if cfg != nil {
 		if cfg.FailureTimeout > 0 {
 			failureTimeout = cfg.FailureTimeout
@@ -72,6 +75,7 @@ func NewGossipProtocol(nodeID, address string, dialOpts []grpc.DialOption, logge
 		if cfg.SuspectMultiplier > 0 {
 			suspectMultiplier = cfg.SuspectMultiplier
 		}
+		wantPull = cfg.WantPull
 	}
 	g := &GossipProtocol{
 		nodeID:         nodeID,
@@ -83,6 +87,7 @@ func NewGossipProtocol(nodeID, address string, dialOpts []grpc.DialOption, logge
 		dialOpts:       dialOpts,
 		failureTimeout: failureTimeout,
 		deadTimeout:    failureTimeout * time.Duration(suspectMultiplier),
+		wantPull:       wantPull,
 	}
 	if g.dialOpts == nil {
 		g.dialOpts = []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
@@ -298,11 +303,23 @@ func (g *GossipProtocol) sendGossip(targetID string, msg *pb.GossipMessage) {
 		peerToUse = newPeer
 	}
 
+	msg.WantState = g.wantPull
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	if _, err := peerToUse.client.Gossip(ctx, msg); err != nil {
+	resp, err := peerToUse.client.Gossip(ctx, msg)
+	if err != nil {
 		g.logger.Warn("gossip failed", "target", targetID, "error", err)
+		return
+	}
+	if resp != nil && resp.Success && len(resp.Members) > 0 {
+		g.OnGossip(&pb.GossipMessage{
+			SenderId:   targetID,
+			SenderAddr: member.Address,
+			Timestamp:  time.Now().Unix(),
+			Members:    resp.Members,
+		})
 	}
 }
 
