@@ -155,6 +155,8 @@ func (s *CacheService) CreateCache(ctx context.Context, name, version string, me
 
 // parseAllocatedPort extracts the host port from allocated port mapping strings.
 // Expected format is "hostPort:containerPort" (e.g. "8080:6379").
+//
+//nolint:unparam // targetPort is always defaultRedisPort but kept as param for future extensibility
 func (s *CacheService) parseAllocatedPort(allocatedPorts []string, targetPort string) (int, error) {
 	for _, p := range allocatedPorts {
 		parts := strings.Split(p, ":")
@@ -497,18 +499,30 @@ func (s *CacheService) ResizeCache(ctx context.Context, idOrName string, newMemo
 	}
 
 	// Stop and delete old container
+	var oldContainerID string
 	if cache.ContainerID != "" {
+		oldContainerID = cache.ContainerID
 		if err := s.compute.StopInstance(ctx, cache.ContainerID); err != nil {
-			s.logger.Warn("failed to stop cache container for resize", "container_id", cache.ContainerID, "error", err)
+			s.logger.Error("failed to stop cache container for resize", "container_id", cache.ContainerID, "error", err)
 		}
 		if err := s.compute.DeleteInstance(ctx, cache.ContainerID); err != nil {
-			s.logger.Warn("failed to delete cache container for resize", "container_id", cache.ContainerID, "error", err)
+			s.logger.Error("failed to delete cache container for resize", "container_id", cache.ContainerID, "error", err)
 		}
 	}
 
 	// Relaunch with new memory limit
 	containerID, allocatedPorts, err := s.launchCacheContainer(ctx, cache, networkID)
 	if err != nil {
+		// Rollback: attempt to restart old container
+		if oldContainerID != "" {
+			s.logger.Warn("resize failed, rolling back container", "old_container_id", oldContainerID)
+			if restartErr := s.compute.StopInstance(ctx, oldContainerID); restartErr != nil {
+				s.logger.Error("failed to stop old container during rollback", "container_id", oldContainerID, "error", restartErr)
+			}
+			if startErr := s.compute.StartInstance(ctx, oldContainerID); startErr != nil {
+				s.logger.Error("failed to restart old container during rollback", "container_id", oldContainerID, "error", startErr)
+			}
+		}
 		return errors.Wrap(errors.Internal, "failed to relaunch cache with new memory", err)
 	}
 
@@ -522,7 +536,7 @@ func (s *CacheService) ResizeCache(ctx context.Context, idOrName string, newMemo
 	cache.MemoryMB = newMemoryMB
 	cache.UpdatedAt = time.Now()
 	if err := s.repo.Update(ctx, cache); err != nil {
-		return err
+		return fmt.Errorf("failed to update cache record in database: %w", err)
 	}
 
 	if err := s.auditSvc.Log(ctx, cache.UserID, "cache.resize", "cache", cache.ID.String(), map[string]interface{}{

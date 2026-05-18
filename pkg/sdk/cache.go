@@ -2,6 +2,7 @@
 package sdk
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -112,5 +113,6 @@ func (c *Client) ResizeCache(idOrName string, newMemoryMB int) error {
 		}
 	}
 	body := map[string]int{"memory_mb": newMemoryMB}
-	return c.post(cachesPath+id+"/resize", body, nil)
+	path := fmt.Sprintf("%s%s/resize", cachesPath, id)
+	return c.post(path, body, nil)
 }

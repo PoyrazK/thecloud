@@ -1040,6 +1040,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/caches/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Changes the memory allocation of a running Redis cache instance (requires restart)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "caches"
+                ],
+                "summary": "Resize cache memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cache ID or name",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeCacheRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/clusters": {
             "get": {
                 "security": [
@@ -1725,6 +1789,70 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/domain.Database"
+                        }
+                    }
+                }
+            }
+        },
+        "/databases/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Increases the allocated storage capacity of a database instance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "databases"
+                ],
+                "summary": "Resize database storage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeDatabaseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
                         }
                     }
                 }
@@ -7793,6 +7921,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/volumes/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Increases the capacity of an existing block storage volume",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "volumes"
+                ],
+                "summary": "Resize a volume",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Volume ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeVolumeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/vpc-peerings": {
             "get": {
                 "security": [
@@ -11618,6 +11810,30 @@ const docTemplate = `{
                 }
             }
         },
+        "httphandlers.ResizeCacheRequest": {
+            "type": "object",
+            "required": [
+                "memory_mb"
+            ],
+            "properties": {
+                "memory_mb": {
+                    "type": "integer",
+                    "minimum": 64
+                }
+            }
+        },
+        "httphandlers.ResizeDatabaseRequest": {
+            "type": "object",
+            "required": [
+                "allocated_storage"
+            ],
+            "properties": {
+                "allocated_storage": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
         "httphandlers.ResizeInstanceRequest": {
             "type": "object",
             "required": [
@@ -11640,6 +11856,18 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "httphandlers.ResizeVolumeRequest": {
+            "type": "object",
+            "required": [
+                "new_size_gb"
+            ],
+            "properties": {
+                "new_size_gb": {
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },

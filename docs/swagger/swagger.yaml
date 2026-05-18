@@ -2405,6 +2405,22 @@ definitions:
     - new_password
     - token
     type: object
+  httphandlers.ResizeCacheRequest:
+    properties:
+      memory_mb:
+        minimum: 64
+        type: integer
+    required:
+    - memory_mb
+    type: object
+  httphandlers.ResizeDatabaseRequest:
+    properties:
+      allocated_storage:
+        minimum: 1
+        type: integer
+    required:
+    - allocated_storage
+    type: object
   httphandlers.ResizeInstanceRequest:
     properties:
       instance_type:
@@ -2420,6 +2436,14 @@ definitions:
         type: string
       status:
         type: string
+    type: object
+  httphandlers.ResizeVolumeRequest:
+    properties:
+      new_size_gb:
+        minimum: 1
+        type: integer
+    required:
+    - new_size_gb
     type: object
   httphandlers.RestoreBackupRequest:
     properties:
@@ -3240,6 +3264,48 @@ paths:
       summary: List usage records
       tags:
       - billing
+  /caches/{id}/resize:
+    post:
+      consumes:
+      - application/json
+      description: Changes the memory allocation of a running Redis cache instance
+        (requires restart)
+      parameters:
+      - description: Cache ID or name
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resize request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.ResizeCacheRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Resize cache memory
+      tags:
+      - caches
   /clusters:
     get:
       description: Returns all clusters belonging to the user
@@ -3648,6 +3714,47 @@ paths:
       summary: Scale a deployment
       tags:
       - containers
+  /databases/{id}/resize:
+    post:
+      consumes:
+      - application/json
+      description: Increases the allocated storage capacity of a database instance
+      parameters:
+      - description: Database ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resize request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.ResizeDatabaseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Resize database storage
+      tags:
+      - databases
   /databases/{id}/rotate-credentials:
     post:
       description: Regenerates the database password, updates it in the database and
@@ -7512,6 +7619,47 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Detach volume
+      tags:
+      - volumes
+  /volumes/{id}/resize:
+    post:
+      consumes:
+      - application/json
+      description: Increases the capacity of an existing block storage volume
+      parameters:
+      - description: Volume ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resize request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httphandlers.ResizeVolumeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Resize a volume
       tags:
       - volumes
   /vpc-peerings:

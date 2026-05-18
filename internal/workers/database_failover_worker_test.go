@@ -133,6 +133,9 @@ func (m *mockDatabaseService) StartDatabase(ctx context.Context, id uuid.UUID) e
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
+func (m *mockDatabaseService) ResizeDatabase(ctx context.Context, id uuid.UUID, newSizeGB int) error {
+	return m.Called(ctx, id, newSizeGB).Error(0)
+}
 
 type mockComputeBackend struct {
 	mock.Mock

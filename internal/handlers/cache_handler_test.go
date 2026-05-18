@@ -223,6 +223,24 @@ func TestCacheHandlerGetStats(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestCacheHandlerResize(t *testing.T) {
+	t.Parallel()
+	svc, handler, r := setupCacheHandlerTest(t)
+	defer svc.AssertExpectations(t)
+
+	r.POST(cachesPath+"/:id/resize", handler.Resize)
+
+	id := uuid.New().String()
+	svc.On("ResizeCache", mock.Anything, id, 256).Return(nil)
+
+	body, _ := json.Marshal(map[string]interface{}{"memory_mb": 256})
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", cachesPath+"/"+id+"/resize", bytes.NewBuffer(body))
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestCacheHandlerErrors(t *testing.T) {
 	t.Parallel()
 	svc, handler, r := setupCacheHandlerTest(t)
@@ -233,6 +251,7 @@ func TestCacheHandlerErrors(t *testing.T) {
 	r.GET(cachesPath+"/:id/connection", handler.GetConnectionString)
 	r.POST(cachesPath+"/:id/flush", handler.Flush)
 	r.GET(cachesPath+"/:id/stats", handler.GetStats)
+	r.POST(cachesPath+"/:id/resize", handler.Resize)
 
 	id := "test-id"
 
@@ -296,6 +315,15 @@ func TestCacheHandlerErrors(t *testing.T) {
 		svc.On("GetCacheStats", mock.Anything, id).Return(nil, assert.AnError)
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", cachesPath+"/"+id+"/stats", nil)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("Resize", func(t *testing.T) {
+		svc.On("ResizeCache", mock.Anything, id, mock.Anything).Return(assert.AnError)
+		body, _ := json.Marshal(map[string]interface{}{"memory_mb": 256})
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("POST", cachesPath+"/"+id+"/resize", bytes.NewBuffer(body))
 		r.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
