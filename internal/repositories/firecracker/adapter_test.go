@@ -105,9 +105,10 @@ func TestFirecrackerAdapter_UnimplementedMethods(t *testing.T) {
 	})
 
 	t.Run("GetInstanceIP", func(t *testing.T) {
-		ip, err := adapter.GetInstanceIP(ctx, "id")
-		require.NoError(t, err)
-		assert.Equal(t, "0.0.0.0", ip)
+		// When instance is not found (mock mode with no machines registered), it returns an error
+		_, err := adapter.GetInstanceIP(ctx, "id")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("GetConsoleURL", func(t *testing.T) {

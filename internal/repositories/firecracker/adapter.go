@@ -402,8 +402,10 @@ func (a *FirecrackerAdapter) GetInstancePort(ctx context.Context, id string, int
 	return 0, fmt.Errorf("no host port mapping found for instance %s port %s", id, internalPort)
 }
 
-// setupPortForwarding configures iptables NAT rules for port mapping
-func (a *FirecrackerAdapter) setupPortForwarding(id string, ip string, ports []string) {
+// setupPortForwarding configures iptables NAT rules for port mapping.
+// NOTE: This function is not yet integrated; Firecracker port forwarding requires
+// guest-side network configuration that is not yet implemented.
+func (a *FirecrackerAdapter) setupPortForwarding(id string, ip string, ports []string) { //nolint:unused
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -453,6 +455,18 @@ func (a *FirecrackerAdapter) setupPortForwarding(id string, ip string, ports []s
 		}
 
 		cPort, _ := strconv.Atoi(containerPort)
+
+		// Validate ports before using in exec command
+		if !isValidPort(hPort) || !isValidPort(cPort) {
+			a.logger.Warn("invalid port value", "host_port", hPort, "container_port", cPort)
+			continue
+		}
+
+		// Validate IP format (basic check for injection)
+		if net.ParseIP(ip) == nil {
+			a.logger.Warn("invalid IP address", "ip", ip)
+			continue
+		}
 
 		a.mu.Lock()
 		a.portMappings[id][containerPort] = hPort
@@ -748,6 +762,16 @@ func (a *FirecrackerAdapter) getSnapshotPath(id, name string) string {
 func (a *FirecrackerAdapter) createDiskSnapshot(ctx context.Context, diskPath, snapshotPath string) error {
 	tmpQcow2 := snapshotPath + ".qcow2"
 
+	if err := validateSnapshotPath(diskPath); err != nil {
+		return fmt.Errorf("invalid disk path: %w", err)
+	}
+	if err := validateSnapshotPath(snapshotPath); err != nil {
+		return fmt.Errorf("invalid snapshot path: %w", err)
+	}
+	if err := validateSnapshotPath(tmpQcow2); err != nil {
+		return fmt.Errorf("invalid temp path: %w", err)
+	}
+
 	cmd := exec.CommandContext(ctx, "qemu-img", "convert", "-O", "qcow2", diskPath, tmpQcow2)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("qemu-img convert failed: %w (output: %s)", err, string(output))
@@ -766,6 +790,13 @@ func (a *FirecrackerAdapter) createDiskSnapshot(ctx context.Context, diskPath, s
 }
 
 func (a *FirecrackerAdapter) restoreDiskSnapshot(ctx context.Context, snapshotPath, diskPath string) error {
+	if err := validateSnapshotPath(snapshotPath); err != nil {
+		return fmt.Errorf("invalid snapshot path: %w", err)
+	}
+	if err := validateSnapshotPath(diskPath); err != nil {
+		return fmt.Errorf("invalid disk path: %w", err)
+	}
+
 	tmpDir, err := os.MkdirTemp("", "firecracker-restore-")
 	if err != nil {
 		return err
@@ -802,3 +833,20 @@ func (a *FirecrackerAdapter) restoreDiskSnapshot(ctx context.Context, snapshotPa
 // ResetCircuitBreaker is a no-op for the raw Firecracker adapter.
 // The circuit breaker lives in ResilientCompute wrapping this backend.
 func (a *FirecrackerAdapter) ResetCircuitBreaker() {}
+
+// isValidPort checks if a port number is valid (0-65535)
+func isValidPort(port int) bool {
+	return port >= 0 && port <= 65535
+}
+
+// validateSnapshotPath checks that a path is safe to use in exec commands
+// Returns an error if the path contains potential path traversal or other injection
+func validateSnapshotPath(path string) error {
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("path traversal attempt detected: %s", path)
+	}
+	if strings.Contains(path, "\x00") {
+		return fmt.Errorf("null byte in path: %s", path)
+	}
+	return nil
+}
