@@ -367,7 +367,7 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
       - name: Wait for Redis
         run: |
-          timeout 60s bash -c 'until redis-cli -h 127.0.0.1 -p 6379 ping 2>/dev/null; do
+          timeout 60s bash -c 'until nc -z 127.0.0.1 6379; do
             echo "Waiting for redis..."
             sleep 2
           done'
