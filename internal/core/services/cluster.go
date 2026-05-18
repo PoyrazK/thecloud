@@ -114,7 +114,7 @@ func (s *ClusterService) CreateCluster(ctx context.Context, params ports.CreateC
 		ServiceCIDR:            params.ServiceCIDR,
 		SSHPrivateKeyEncrypted: encryptedKey,
 		BackupRetentionDays:    defaultBackupRetentionDays,
-		CreatedAt:              time.Now(),
+		CreatedAt:              time.Now().UTC(),
 		UpdatedAt:              time.Now(),
 	}
 
@@ -134,7 +134,7 @@ func (s *ClusterService) CreateCluster(ctx context.Context, params ports.CreateC
 		MinSize:      1,
 		MaxSize:      10,
 		CurrentSize:  params.Workers,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now(),
 	}
 	cluster.NodeGroups = []domain.NodeGroup{defaultNG}
@@ -557,7 +557,7 @@ func (s *ClusterService) AddNodeGroup(ctx context.Context, clusterID uuid.UUID, 
 		MinSize:      params.MinSize,
 		MaxSize:      params.MaxSize,
 		CurrentSize:  params.DesiredSize,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 		UpdatedAt:    time.Now(),
 	}
 

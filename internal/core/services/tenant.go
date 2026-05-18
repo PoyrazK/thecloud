@@ -71,7 +71,7 @@ func (s *TenantService) CreateTenant(ctx context.Context, name, slug string, own
 		OwnerID:   ownerID,
 		Plan:      "free",
 		Status:    "active",
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 

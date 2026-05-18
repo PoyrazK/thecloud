@@ -289,7 +289,7 @@ func (w *PipelineWorker) executeStageStep(ctx context.Context, build *domain.Bui
 	}
 
 	if logs != "" {
-		if err := w.repo.AppendBuildLog(ctx, &domain.BuildLog{ID: uuid.New(), BuildID: build.ID, StepID: step.ID, Content: logs, CreatedAt: time.Now()}); err != nil {
+		if err := w.repo.AppendBuildLog(ctx, &domain.BuildLog{ID: uuid.New(), BuildID: build.ID, StepID: step.ID, Content: logs, CreatedAt: time.Now().UTC()}); err != nil {
 			w.logger.Warn("failed to append build log", "build_id", build.ID, "step_id", step.ID, "error", err)
 		}
 	}

@@ -1295,7 +1295,7 @@ func (s *DatabaseService) initialDatabaseRecord(userID uuid.UUID, name string, e
 		VpcID:     vpcID,
 		Username:  username,
 		Password:  password,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 }

@@ -137,7 +137,7 @@ func (s *FunctionService) CreateFunction(ctx context.Context, name, runtime, han
 		MemoryMB:  128,
 		CPUs:      0.5,
 		Status:    "ACTIVE",
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 

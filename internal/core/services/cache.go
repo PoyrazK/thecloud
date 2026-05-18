@@ -102,7 +102,7 @@ func (s *CacheService) CreateCache(ctx context.Context, name, version string, me
 		VpcID:     vpcID,
 		Password:  password,
 		MemoryMB:  memoryMB,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 

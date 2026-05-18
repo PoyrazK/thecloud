@@ -76,7 +76,7 @@ func (s *SecurityGroupService) CreateGroup(ctx context.Context, vpcID uuid.UUID,
 		Name:        name,
 		Description: description,
 		ARN:         arn,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 		Rules:       []domain.SecurityRule{},
 	}
 
@@ -87,7 +87,7 @@ func (s *SecurityGroupService) CreateGroup(ctx context.Context, vpcID uuid.UUID,
 		Protocol:  "arp",
 		Direction: domain.RuleIngress,
 		Priority:  1000,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	})
 	sg.Rules = append(sg.Rules, domain.SecurityRule{
 		ID:        uuid.New(),
@@ -95,7 +95,7 @@ func (s *SecurityGroupService) CreateGroup(ctx context.Context, vpcID uuid.UUID,
 		Protocol:  "arp",
 		Direction: domain.RuleEgress,
 		Priority:  1000,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	})
 
 	if err := s.repo.Create(ctx, sg); err != nil {
@@ -204,7 +204,7 @@ func (s *SecurityGroupService) AddRule(ctx context.Context, idOrName string, rul
 
 	rule.ID = uuid.New()
 	rule.GroupID = groupID
-	rule.CreatedAt = time.Now()
+	rule.CreatedAt = time.Now().UTC()
 
 	if err := s.repo.AddRule(ctx, &rule); err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to add security rule", err)

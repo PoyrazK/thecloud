@@ -82,7 +82,7 @@ func (s *LBService) Create(ctx context.Context, name string, vpcID uuid.UUID, po
 		Algorithm:      algo,
 		Status:         domain.LBStatusCreating,
 		Version:        1,
-		CreatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
 	}
 
 	if err := s.lbRepo.Create(ctx, lb); err != nil {
