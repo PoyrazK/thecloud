@@ -21,7 +21,7 @@ const (
 
 func TestGossipProtocolAddPeer(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	g.AddPeer("node2", testNode2Addr)
 
@@ -33,7 +33,7 @@ func TestGossipProtocolAddPeer(t *testing.T) {
 
 func TestGossipProtocolOnGossip(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	// Update coming from node2 about node3
 	msg := &pb.GossipMessage{
@@ -76,7 +76,7 @@ func TestGossipProtocolOnGossip(t *testing.T) {
 
 func TestGossipProtocolOnGossipIgnoresOlderHeartbeat(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	g.members["node2"] = &MemberState{
 		Address:   testNode2Addr,
@@ -104,7 +104,7 @@ func TestGossipProtocolOnGossipIgnoresOlderHeartbeat(t *testing.T) {
 
 func TestGossipProtocolDetectFailures(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	// Add a node that was seen long ago
 	g.members["node2"] = &MemberState{
@@ -142,7 +142,7 @@ func newFakeGRPCConn(t *testing.T) *grpc.ClientConn {
 
 func TestGossipProtocolDetectFailuresClosesPeerConnOnDead(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	conn := newFakeGRPCConn(t)
 	g.members["node2"] = &MemberState{
@@ -163,7 +163,7 @@ func TestGossipProtocolDetectFailuresClosesPeerConnOnDead(t *testing.T) {
 
 func TestGossipProtocolDetectFailuresPurgesDeadMembers(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	g.members["node2"] = &MemberState{
 		Address:  testNode2Addr,
@@ -182,7 +182,7 @@ func TestGossipProtocolDetectFailuresPurgesDeadMembers(t *testing.T) {
 
 func TestGossipProtocolStopClosesAllPeers(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	conn1 := newFakeGRPCConn(t)
 	conn2 := newFakeGRPCConn(t)
@@ -199,7 +199,7 @@ func TestGossipProtocolStopClosesAllPeers(t *testing.T) {
 
 func TestGossipProtocolStopIsIdempotent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	g.Stop()
 	// Second call must not panic on close-of-closed-channel.
@@ -208,7 +208,7 @@ func TestGossipProtocolStopIsIdempotent(t *testing.T) {
 
 func TestGossipProtocolOnGossipIgnoresDeadResurrection(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	// Locally we already consider node2 dead.
 	g.members["node2"] = &MemberState{
@@ -235,7 +235,7 @@ func TestGossipProtocolOnGossipIgnoresDeadResurrection(t *testing.T) {
 
 func TestGossipProtocolOnGossipDoesNotDiscoverDeadNode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	msg := &pb.GossipMessage{
 		Members: map[string]*pb.MemberState{
@@ -252,7 +252,7 @@ func TestGossipProtocolOnGossipDoesNotDiscoverDeadNode(t *testing.T) {
 
 func TestGossipProtocolHeartbeatOverflowResets(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	g.mu.Lock()
 	g.members["node1"].Heartbeat = math.MaxUint64
@@ -269,7 +269,7 @@ func TestGossipProtocolHeartbeatOverflowResets(t *testing.T) {
 
 func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	now := time.Now()
 	g.mu.Lock()
@@ -316,7 +316,7 @@ func TestGossipProtocolOnGossipWraparoundTiebreaker(t *testing.T) {
 
 func TestGossipProtocolDetectFailuresCleansOrphanedPeer(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	g := NewGossipProtocol("node1", testNode1Addr, nil, logger)
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
 
 	// Seed an orphaned peer — in peers but not in members
 	// (simulates a peer that was added via AddPeer but whose member entry
@@ -331,4 +331,94 @@ func TestGossipProtocolDetectFailuresCleansOrphanedPeer(t *testing.T) {
 	g.mu.RUnlock()
 	assert.False(t, peerStillThere, "orphaned peer should be removed by detectFailures")
 	assert.Equal(t, "SHUTDOWN", conn.GetState().String(), "connection should be closed")
+}
+
+func TestGossipProtocolConfigurableTimeouts(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cfg := &GossipConfig{
+		FailureTimeout:    100 * time.Millisecond,
+		SuspectMultiplier: 2,
+	}
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, cfg)
+
+	assert.Equal(t, 100*time.Millisecond, g.failureTimeout)
+	assert.Equal(t, 200*time.Millisecond, g.deadTimeout)
+
+	// Add a node that went silent just under the failure threshold
+	g.members["node2"] = &MemberState{
+		Address:  testNode2Addr,
+		Status:   "alive",
+		LastSeen: time.Now().Add(-50 * time.Millisecond), // under 100ms, no change
+	}
+	g.detectFailures()
+
+	g.mu.RLock()
+	assert.Equal(t, "alive", g.members["node2"].Status)
+	g.mu.RUnlock()
+
+	// Cross the failure threshold — should become suspect
+	g.members["node2"].LastSeen = time.Now().Add(-150 * time.Millisecond) // over 100ms
+	g.detectFailures()
+
+	g.mu.RLock()
+	assert.Equal(t, "suspect", g.members["node2"].Status)
+	g.mu.RUnlock()
+
+	// Cross the dead threshold (200ms) — should become dead
+	g.members["node2"].LastSeen = time.Now().Add(-250 * time.Millisecond)
+	g.detectFailures()
+
+	g.mu.RLock()
+	assert.Equal(t, "dead", g.members["node2"].Status)
+	g.mu.RUnlock()
+}
+
+func TestGossipProtocolZeroTimeoutDefaults(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cfg := &GossipConfig{
+		FailureTimeout:    0,
+		SuspectMultiplier: 0,
+	}
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, cfg)
+
+	assert.Equal(t, 5*time.Second, g.failureTimeout)
+	assert.Equal(t, 15*time.Second, g.deadTimeout)
+}
+
+func TestGossipProtocolNegativeMultiplierTreatedAsDefault(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cfg := &GossipConfig{
+		FailureTimeout:    2 * time.Second,
+		SuspectMultiplier: -1,
+	}
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, cfg)
+
+	assert.Equal(t, 2*time.Second, g.failureTimeout)
+	assert.Equal(t, 6*time.Second, g.deadTimeout)
+}
+
+func TestGossipProtocolAddPeerIdempotent(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
+
+	// Add same peer twice
+	g.AddPeer("node2", testNode2Addr)
+	g.AddPeer("node2", testNode2Addr)
+
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	assert.Len(t, g.members, 2, "node2 should appear only once")
+	assert.Equal(t, testNode2Addr, g.members["node2"].Address)
+}
+
+func TestGossipProtocolStopAndStart(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, nil)
+
+	g.Start(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	g.Stop()
+
+	// Stop is idempotent — calling again must not panic
+	g.Stop()
 }
