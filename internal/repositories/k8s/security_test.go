@@ -10,8 +10,8 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEnsureClusterSecurityGroup_AlreadyExists(t *testing.T) {
@@ -73,7 +73,7 @@ func TestEnsureClusterSecurityGroup_AddRuleFailsSilently(t *testing.T) {
 	mockedSG.On("GetGroup", mock.Anything, "sg-k8s-"+cluster.Name, cluster.VpcID).Return(nil, errors.New("not found"))
 	mockedSG.On("CreateGroup", mock.Anything, cluster.VpcID, "sg-k8s-"+cluster.Name, mock.Anything).
 		Return(newSG, nil)
-	mockedSG.On("AddRule", mock.Anything, newSG.ID, mock.Anything).Return(nil, errors.New("failed to add rule")).Maybe()
+	mockedSG.On("AddRule", mock.Anything, newSG.ID.String(), mock.Anything).Return(nil, errors.New("failed to add rule")).Maybe()
 
 	prov := newTestProvisionerForSecurity(withSGService(mockedSG))
 
