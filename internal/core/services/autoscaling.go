@@ -183,6 +183,10 @@ func (s *AutoScalingService) SetDesiredCapacity(ctx context.Context, groupID uui
 		return err
 	}
 
+	if group.Status == domain.ScalingGroupStatusDeleting {
+		return errors.New(errors.InvalidInput, "cannot set desired capacity: group is being deleted")
+	}
+
 	if desired < group.MinInstances || desired > group.MaxInstances {
 		return errors.New(errors.InvalidInput, fmt.Sprintf("desired must be between %d and %d", group.MinInstances, group.MaxInstances))
 	}

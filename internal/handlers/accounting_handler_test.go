@@ -64,7 +64,6 @@ func TestAccountingHandlerGetSummary(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/billing/summary", nil)
 
-		// Create a valid UUID for the user
 		userID := uuid.New()
 		c.Set("userID", userID.String())
 
@@ -78,6 +77,42 @@ func TestAccountingHandlerGetSummary(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
 		assert.InDelta(t, 10.5, resp.Data.TotalAmount, 0.01)
+	})
+
+	t.Run("invalid_start_time", func(t *testing.T) {
+		svc := new(mockAccountingService)
+		handler := NewAccountingHandler(svc)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/billing/summary?start=not-a-time", nil)
+
+		userID := uuid.New()
+		c.Set("userID", userID.String())
+
+		handler.GetSummary(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid start time")
+		assert.Contains(t, w.Body.String(), "expected RFC3339")
+	})
+
+	t.Run("invalid_end_time", func(t *testing.T) {
+		svc := new(mockAccountingService)
+		handler := NewAccountingHandler(svc)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/billing/summary?end=2026-13-01T00:00:00Z", nil)
+
+		userID := uuid.New()
+		c.Set("userID", userID.String())
+
+		handler.GetSummary(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid end time")
+		assert.Contains(t, w.Body.String(), "expected RFC3339")
 	})
 }
 
@@ -105,5 +140,41 @@ func TestAccountingHandlerListUsage(t *testing.T) {
 		handler.ListUsage(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("invalid_start_time", func(t *testing.T) {
+		svc := new(mockAccountingService)
+		handler := NewAccountingHandler(svc)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/billing/usage?start=invalid", nil)
+
+		userID := uuid.New()
+		c.Set("userID", userID.String())
+
+		handler.ListUsage(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid start time")
+		assert.Contains(t, w.Body.String(), "expected RFC3339")
+	})
+
+	t.Run("invalid_end_time", func(t *testing.T) {
+		svc := new(mockAccountingService)
+		handler := NewAccountingHandler(svc)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/billing/usage?end=2026-13-01T00:00:00Z", nil)
+
+		userID := uuid.New()
+		c.Set("userID", userID.String())
+
+		handler.ListUsage(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid end time")
+		assert.Contains(t, w.Body.String(), "expected RFC3339")
 	})
 }
