@@ -835,7 +835,7 @@ func (a *FirecrackerAdapter) restoreDiskSnapshot(ctx context.Context, snapshotPa
 func (a *FirecrackerAdapter) ResetCircuitBreaker() {}
 
 // isValidPort checks if a port number is valid (0-65535)
-func isValidPort(port int) bool {
+func isValidPort(port int) bool { //nolint:unused
 	return port >= 0 && port <= 65535
 }
 
