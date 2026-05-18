@@ -136,16 +136,16 @@ func (s *VpcService) CreateVPC(ctx context.Context, name, cidrBlock, idempotency
 
 	// 4. Persist to DB
 	vpc := &domain.VPC{
-		ID:            vpcID,
-		UserID:        userID,
-		TenantID:      tenantID,
-		Name:          name,
-		CIDRBlock:     cidrBlock,
-		NetworkID:     bridgeName,
-		VXLANID:       vxlanID,
-		Status:        "active",
-		ARN:           arn,
-		CreatedAt:     time.Now().UTC(),
+		ID:             vpcID,
+		UserID:         userID,
+		TenantID:       tenantID,
+		Name:           name,
+		CIDRBlock:      cidrBlock,
+		NetworkID:      bridgeName,
+		VXLANID:        vxlanID,
+		Status:         "active",
+		ARN:            arn,
+		CreatedAt:      time.Now().UTC(),
 		IdempotencyKey: idempotencyKey,
 	}
 
