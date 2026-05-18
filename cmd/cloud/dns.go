@@ -56,9 +56,19 @@ var dnsListZonesCmd = &cobra.Command{
 var dnsCreateZoneCmd = &cobra.Command{
 	Use:   "create-zone [name]",
 	Short: "Create a new DNS zone",
-	Args:  cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 && !cmd.Flags().Changed("name") {
+			return fmt.Errorf("requires at least 1 arg or --name flag")
+		}
+		return nil
+	},
 	Run: func(cmd *cobra.Command, args []string) {
-		name := args[0]
+		var name string
+		if len(args) > 0 {
+			name = args[0]
+		} else {
+			name, _ = cmd.Flags().GetString("name")
+		}
 		desc, _ := cmd.Flags().GetString("description")
 		vpcIDOrName, _ := cmd.Flags().GetString("vpc-id")
 
@@ -199,6 +209,7 @@ var dnsDeleteRecordCmd = &cobra.Command{
 }
 
 func init() {
+	dnsCreateZoneCmd.Flags().StringP("name", "n", "", "Zone name (required if not positional)")
 	dnsCreateZoneCmd.Flags().String("description", "", "Description of the zone")
 	dnsCreateZoneCmd.Flags().String("vpc-id", "", "VPC ID for private DNS (required)")
 	_ = dnsCreateZoneCmd.MarkFlagRequired("vpc-id")
