@@ -4,13 +4,17 @@ package firecracker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
@@ -107,6 +111,13 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 		MachineCfg: models.MachineConfiguration{
 			VcpuCount:  firecracker.Int64(vcpus),
 			MemSizeMib: firecracker.Int64(mem),
+		},
+		VsockDevices: []models.VsockDevice{
+			{
+				ID:   firecracker.String("vsock0"),
+				Path: firecracker.String(filepath.Join(a.cfg.SocketDir, id+".vsock")),
+				CID:  firecracker.Int32(3),
+			},
 		},
 	}
 
@@ -316,12 +327,62 @@ func (a *FirecrackerAdapter) StartPoolInstance(ctx context.Context, opts ports.R
 	})
 }
 
-// ExecInInstance executes a command in a warm (already running) microVM.
+// ExecInInstance executes a command in a warm (already running) microVM via vsock.
+// It connects to the guest agent listening on the vsock Unix socket path.
+//
+// Note: Firecracker vsock appears as a Unix socket on the host. The guest agent
+// must be listening on the path specified in VsockDevices[].Path inside the VM.
+// A simple approach is to run a proxy inside the VM that bridges UDS <-> vsock.
 func (a *FirecrackerAdapter) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
-	// Firecracker doesn't support exec into running VMs directly.
-	// The VM would need to expose a shell/agent via serial or other mechanism.
-	// For now, return not implemented - this would require a guest agent.
-	return "", fmt.Errorf("exec not implemented for firecracker: requires guest agent")
+	vsockPath := filepath.Join(a.cfg.SocketDir, id+".vsock")
+
+	// Use net.Dial to connect to the vsock socket
+	// Firecracker exposes vsock as a Unix socket file on the host
+	conn, err := net.DialTimeout("unix", vsockPath, 5*time.Second)
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to vsock socket %s: %w", vsockPath, err)
+	}
+	defer conn.Close()
+
+	// Build command message
+	cmdLine := strings.Join(cmd, " ") + "\n"
+
+	// Send command
+	if _, err := conn.Write([]byte(cmdLine)); err != nil {
+		return "", fmt.Errorf("failed to write command: %w", err)
+	}
+
+	// Set read deadline
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+	// Read response
+	var output strings.Builder
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if n > 0 {
+			output.Write(buf[:n])
+		}
+		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				break
+			}
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if errors.Is(err, net.ErrClosed) {
+				break
+			}
+			return output.String(), fmt.Errorf("read error: %w", err)
+		}
+		// Simple heuristic: if we got a newline, assume command completed
+		// In practice, we'd need a proper protocol with length prefix
+		if strings.Contains(output.String(), "\n") && output.Len() > 10 {
+			break
+		}
+	}
+
+	return output.String(), nil
 }
 
 // GetInstanceReady checks if a microVM is fully initialized and ready to accept work.
