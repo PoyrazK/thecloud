@@ -428,6 +428,16 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
+      - name: Check binary size
+        run: |
+          BINARY_SIZE=$(docker image inspect thecloud-api:latest --format='{{.Size}}')
+          MAX_SIZE=$((150 * 1024 * 1024)) # 150MB in bytes
+          if [ "$BINARY_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "Binary too large: $BINARY_SIZE bytes (max: $MAX_SIZE)"
+            exit 1
+          fi
+          echo "Binary size: $BINARY_SIZE bytes"
+
   deploy-staging:
     needs: build
     runs-on: ubuntu-latest
