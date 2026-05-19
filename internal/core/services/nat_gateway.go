@@ -166,19 +166,32 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 	// This allows private subnet instances to reach the internet via this NAT gateway
 	if s.rtRepo != nil {
 		if mainRT, err := s.rtRepo.GetMainByVPC(ctx, vpc.ID); err == nil {
-			defaultRoute := &domain.Route{
-				ID:              uuid.New(),
-				RouteTableID:    mainRT.ID,
-				DestinationCIDR: "0.0.0.0/0",
-				TargetType:      domain.RouteTargetNAT,
-				TargetID:        &natID,
-				TargetName:      natVethName(natID),
-				CreatedAt:       time.Now().UTC(),
+			// Check if a default route already exists to avoid duplicates
+			existingRoutes, _ := s.rtRepo.ListRoutes(ctx, mainRT.ID)
+			skipAdd := false
+			for _, r := range existingRoutes {
+				if r.RouteTableID == mainRT.ID && r.DestinationCIDR == "0.0.0.0/0" {
+					skipAdd = true
+					break
+				}
 			}
-			if err := s.rtRepo.AddRoute(ctx, mainRT.ID, defaultRoute); err != nil {
-				s.logger.Warn("failed to auto-add default route for NAT gateway", "nat_id", natID, "error", err)
+			if skipAdd {
+				s.logger.Info("default route already exists for VPC, skipping auto-add", "nat_id", natID, "rt_id", mainRT.ID)
 			} else {
-				s.logger.Info("auto-added default route for NAT gateway", "nat_id", natID, "rt_id", mainRT.ID)
+				defaultRoute := &domain.Route{
+					ID:              uuid.New(),
+					RouteTableID:    mainRT.ID,
+					DestinationCIDR: "0.0.0.0/0",
+					TargetType:      domain.RouteTargetNAT,
+					TargetID:        &natID,
+					TargetName:      natVethName(natID),
+					CreatedAt:       time.Now().UTC(),
+				}
+				if err := s.rtRepo.AddRoute(ctx, mainRT.ID, defaultRoute); err != nil {
+					s.logger.Warn("failed to auto-add default route for NAT gateway", "nat_id", natID, "error", err)
+				} else {
+					s.logger.Info("auto-added default route for NAT gateway", "nat_id", natID, "rt_id", mainRT.ID)
+				}
 			}
 		} else {
 			s.logger.Warn("failed to get main route table for NAT gateway route", "nat_id", natID, "error", err)
