@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/poyrazk/thecloud/internal/core/domain"
@@ -254,15 +253,79 @@ func (e *iamEvaluator) matches(statement domain.Statement, action string, resour
 }
 
 func (e *iamEvaluator) matchPattern(pattern, target string) bool {
+	return matchGlob(pattern, target)
+}
+
+// matchGlob implements glob-style pattern matching where:
+// - * matches any sequence of characters (including empty)
+// - ? matches any single character
+// - * can appear at any position in the pattern
+// - \ is the escape character: \*, \?, \: match literal *, ?, :
+//
+// Note: Uses recursion with max depth bounded by min(len(pattern), len(target)).
+// For typical IAM patterns (<100 chars), stack depth is not a concern.
+// If patterns could be maliciously long, consider iterative implementation.
+func matchGlob(pattern, target string) bool {
+	if pattern == "" {
+		// Empty pattern matches only empty target
+		return target == ""
+	}
 	if pattern == "*" {
 		return true
 	}
 
-	// Simple wildcard matching: "instance:*" matches "instance:launch"
-	if strings.HasSuffix(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(target, prefix)
+	// Use recursive matching to handle wildcards at any position
+	return matchGlobRecursive(pattern, target)
+}
+
+func matchGlobRecursive(pattern, target string) bool {
+	// Both empty = match
+	if pattern == "" && target == "" {
+		return true
+	}
+	// Pattern empty, target not = no match
+	if pattern == "" {
+		return false
+	}
+	// Target empty - only * patterns can match empty target
+	if target == "" {
+		// Only trailing *s can match empty string
+		if pattern == "*" {
+			return true
+		}
+		if pattern[0] == '*' {
+			return matchGlobRecursive(pattern[1:], target)
+		}
+		return false
 	}
 
-	return pattern == target
+	// Handle * at any position
+	if pattern[0] == '*' {
+		// Try matching with * consuming zero characters
+		if matchGlobRecursive(pattern[1:], target) {
+			return true
+		}
+		// Try matching with * consuming one character
+		return matchGlobRecursive(pattern, target[1:])
+	}
+
+	// Handle ? matching any single character
+	if pattern[0] == '?' {
+		return matchGlobRecursive(pattern[1:], target[1:])
+	}
+
+	// Handle escaped characters (starting with \)
+	if len(pattern) >= 2 && pattern[0] == '\\' {
+		if pattern[1] == target[0] {
+			return matchGlobRecursive(pattern[2:], target[1:])
+		}
+		return false
+	}
+
+	// Handle single character literal match
+	if pattern[0] == target[0] {
+		return matchGlobRecursive(pattern[1:], target[1:])
+	}
+
+	return false
 }
