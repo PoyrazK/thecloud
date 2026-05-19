@@ -746,6 +746,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	}
 
 	var lastResp *http.Response
+	var lastErr error
 	maxAttempts := rt.maxRetries + 1 // first attempt + retries
 	start := time.Now()
 
@@ -784,6 +785,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		if !rt.isRetryableError(err) {
 			return nil, err
 		}
+		lastErr = err
 		lastResp = resp
 
 		// For idempotent methods with a replayable body, clone the request before retry.
@@ -808,6 +810,10 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	if lastResp != nil && lastResp.Body != nil {
 		_, _ = io.Copy(io.Discard, lastResp.Body)
 		lastResp.Body.Close()
+	}
+	// If we have a last error, return it; otherwise return the last response
+	if lastErr != nil {
+		return nil, lastErr
 	}
 	return lastResp, nil //nolint:bodyclose
 }
