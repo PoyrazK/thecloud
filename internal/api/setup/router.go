@@ -75,9 +75,10 @@ type Handlers struct {
 	VPCPeering    *httphandlers.VPCPeeringHandler
 	RouteTable    *httphandlers.RouteTableHandler
 	InternetGateway *httphandlers.InternetGatewayHandler
-	NATGateway    *httphandlers.NATGatewayHandler
-	Ws            *ws.Handler
-	Admin         *httphandlers.AdminHandler
+	NATGateway      *httphandlers.NATGatewayHandler
+	Ws              *ws.Handler
+	Admin           *httphandlers.AdminHandler
+	IdP             *httphandlers.IdentityProviderHandler
 }
 
 // InitHandlers constructs HTTP handlers and websocket hub.
@@ -129,6 +130,7 @@ func InitHandlers(svcs *Services, cfg *platform.Config, logger *slog.Logger) *Ha
 		InternetGateway: httphandlers.NewInternetGatewayHandler(svcs.InternetGateway),
 		NATGateway:    httphandlers.NewNATGatewayHandler(svcs.NATGateway),
 		Ws:            ws.NewHandler(svcs.WsHub, svcs.Identity, logger, cfg.WSAllowedOrigins),
+		IdP:           httphandlers.NewIdentityProviderHandler(svcs.IdP, svcs.Tenant),
 	}
 }
 
@@ -263,6 +265,26 @@ func registerAuthRoutes(r *gin.Engine, handlers *Handlers, svcs *Services, cfg *
 	}
 
 	r.GET("/auth/me", httputil.Auth(svcs.Identity, svcs.Tenant), handlers.Auth.Me)
+
+	// SSO Routes (public - no auth required)
+	ssoGroup := r.Group("/auth/sso")
+	{
+		ssoGroup.GET("/oidc/:idp_id", handlers.IdP.InitiateOIDCLogin)
+		ssoGroup.GET("/oidc/:idp_id/callback", handlers.IdP.OIDCCallback)
+		ssoGroup.GET("/saml/:idp_id", handlers.IdP.InitiateSAMLLogin)
+		ssoGroup.POST("/saml/:idp_id/acs", handlers.IdP.SAMLACS)
+	}
+
+	// Admin IdP Management (requires auth + admin permissions)
+	idpGroup := r.Group("/admin/identity-providers")
+	idpGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.Permission(svcs.RBAC, domain.PermissionFullAccess))
+	{
+		idpGroup.POST("", handlers.IdP.Create)
+		idpGroup.GET("", handlers.IdP.List)
+		idpGroup.GET("/:id", handlers.IdP.Get)
+		idpGroup.PUT("/:id", handlers.IdP.Update)
+		idpGroup.DELETE("/:id", handlers.IdP.Delete)
+	}
 }
 
 func registerComputeRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
