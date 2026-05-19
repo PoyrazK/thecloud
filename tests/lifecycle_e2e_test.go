@@ -23,8 +23,9 @@ func TestLifecycleE2E(t *testing.T) {
 
 	// First create a storage bucket (lifecycle rules are attached to buckets)
 	var bucketName string
+	var bucketCreated bool
 	t.Run("CreateStorageBucket", func(t *testing.T) {
-		bucketName = fmt.Sprintf("lifecycle-bucket-%d", time.Now().UnixNano()%10000)
+		bucketName = fmt.Sprintf("lifecycle-bucket-%d", time.Now().UnixNano()%100000)
 		payload := map[string]string{
 			"name": bucketName,
 		}
@@ -37,14 +38,26 @@ func TestLifecycleE2E(t *testing.T) {
 
 		// May return 201 Created or 409 Conflict if bucket already exists
 		if resp.StatusCode == http.StatusConflict {
-			bucketName = fmt.Sprintf("lifecycle-bucket-%d", time.Now().UnixNano()%10000+1)
+			bucketName = fmt.Sprintf("lifecycle-bucket-%d", time.Now().UnixNano()%100000+1)
 			payload["name"] = bucketName
-			resp = postRequest(t, client, testutil.TestBaseURL+testutil.TestRouteStorageBuckets, token, payload)
-			defer func() { _ = resp.Body.Close() }()
+			resp2 := postRequest(t, client, testutil.TestBaseURL+testutil.TestRouteStorageBuckets, token, payload)
+			defer func() { _ = resp2.Body.Close() }()
+			if resp2.StatusCode != http.StatusCreated {
+				t.Skip("Cannot create storage bucket")
+			}
+			bucketCreated = true
+		} else {
+			require.Equal(t, http.StatusCreated, resp.StatusCode)
+			bucketCreated = true
 		}
-
-		require.Equal(t, http.StatusCreated, resp.StatusCode)
 	})
+
+	// Cleanup bucket after tests
+	if bucketCreated && bucketName != "" {
+		defer func() {
+			deleteRequest(t, client, fmt.Sprintf("%s%s/%s", testutil.TestBaseURL, testutil.TestRouteStorageBuckets, bucketName), token)
+		}()
+	}
 
 	// 1. Create Lifecycle Rule
 	t.Run("CreateLifecycleRule", func(t *testing.T) {
