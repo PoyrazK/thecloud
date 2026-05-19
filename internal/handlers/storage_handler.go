@@ -191,6 +191,11 @@ func (h *StorageHandler) Download(c *gin.Context) {
 	c.Header("Content-Type", obj.ContentType)
 	c.Header("Content-Length", fmt.Sprintf("%d", obj.SizeBytes))
 
+	// Check context cancellation before streaming
+	if c.Request.Context().Err() != nil {
+		return
+	}
+
 	// Stream file to client
 	_, _ = io.Copy(c.Writer, reader)
 }
@@ -548,6 +553,12 @@ func (h *StorageHandler) ServePresignedDownload(c *gin.Context) {
 	c.Header("Content-Disposition", contentDispositionAttachment(key))
 	c.Header("Content-Type", obj.ContentType)
 	c.Header("Content-Length", fmt.Sprintf("%d", obj.SizeBytes))
+
+	// Check context cancellation before streaming
+	if c.Request.Context().Err() != nil {
+		return
+	}
+
 	_, _ = io.Copy(c.Writer, reader)
 }
 
