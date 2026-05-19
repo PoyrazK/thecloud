@@ -203,6 +203,80 @@ func (h *GatewayHandler) DeleteRoute(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, gin.H{"message": "Route deleted"})
 }
 
+// handleJWT validates JWT if configured and injects claims into upstream request.
+// Returns true if request should be aborted (auth failed).
+func (h *GatewayHandler) handleJWT(c *gin.Context, route *domain.GatewayRoute) bool {
+	if route == nil || route.JWTJwksURL == "" {
+		return false
+	}
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+		return true
+	}
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+		return true
+	}
+	claims, err := h.svc.ValidateJWT(c.Request.Context(), route, tokenString)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return true
+	}
+	for k, v := range claims {
+		c.Request.Header.Set("X-JWT-Claim-"+k, v)
+	}
+	return false
+}
+
+// handleBodySizeLimit applies request body size limit for the route.
+// For non-chunked bodies, rejects oversized requests early.
+// For chunked bodies, wraps body with limitedReader.
+// Returns true if request should be aborted (body too large).
+func (h *GatewayHandler) handleBodySizeLimit(c *gin.Context, route *domain.GatewayRoute) bool {
+	if route == nil || route.MaxBodySize <= 0 {
+		return false
+	}
+	if c.Request.ContentLength > route.MaxBodySize {
+		httputil.Error(c, errors.New(errors.ObjectTooLarge, "request body too large"))
+		return true
+	}
+	if c.Request.ContentLength < 0 {
+		c.Request.Body = &limitedReader{
+			ReadCloser: c.Request.Body,
+			limit:      route.MaxBodySize,
+		}
+	}
+	return false
+}
+
+// handleRateLimit applies per-route rate limiting. Returns true if request was rate-limited.
+func (h *GatewayHandler) handleRateLimit(c *gin.Context, route *domain.GatewayRoute) bool {
+	if route == nil || route.RateLimit <= 0 || h.rateLimiter == nil {
+		return false
+	}
+	key := c.GetHeader("X-API-Key")
+	if key == "" {
+		key = c.ClientIP()
+	} else if len(key) > 5 {
+		key = "apikey:" + key[:5]
+	}
+	burst := route.RateLimit * 2
+	limiter := h.rateLimiter.GetRouteLimiter(route.ID, key, rate.Limit(route.RateLimit), burst)
+	if !limiter.Allow() {
+		if h.logger != nil {
+			h.logger.Warn("per-route rate limit exceeded",
+				slog.String("key", key),
+				slog.String("path", c.Request.URL.Path),
+				slog.String("route_id", route.ID.String()))
+		}
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+		return true
+	}
+	return false
+}
+
 func (h *GatewayHandler) Proxy(c *gin.Context) {
 	path := c.Param("proxy") // Expecting routes like /gw/*proxy
 	if !strings.HasPrefix(path, "/") {
@@ -221,40 +295,14 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 	}
 
 	// JWT validation if configured
-	if route != nil && route.JWTJwksURL != "" {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
-			return
-		}
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
-			return
-		}
-		claims, err := h.svc.ValidateJWT(c.Request.Context(), route, tokenString)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
-		}
-		for k, v := range claims {
-			c.Request.Header.Set("X-JWT-Claim-"+k, v)
-		}
+	if h.handleJWT(c, route) {
+		return
 	}
 
-	// Apply request size limit - reject oversized requests before proxying
-	if route != nil && route.MaxBodySize > 0 {
-		if c.Request.ContentLength > route.MaxBodySize {
-			httputil.Error(c, errors.New(errors.ObjectTooLarge, "request body too large"))
-			return
-		}
-		// For chunked bodies, pre-read and enforce limit
-		if c.Request.ContentLength < 0 {
-			c.Request.Body = &limitedReader{
-				ReadCloser: c.Request.Body,
-				limit:      route.MaxBodySize,
-			}
-		}
+	// Apply request size limit
+	h.handleBodySizeLimit(c, route)
+	if c.Writer.Written() {
+		return
 	}
 
 	// Inject parameters into request context for downstream services if needed
@@ -267,28 +315,9 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 	// Inject trace headers
 	h.injectTraceHeaders(c)
 
-	// Apply per-route rate limiting if configured
-	if route != nil && route.RateLimit > 0 && h.rateLimiter != nil {
-		key := c.GetHeader("X-API-Key")
-		if key == "" {
-			key = c.ClientIP()
-		} else if len(key) > 5 {
-			key = "apikey:" + key[:5]
-		}
-		burst := route.RateLimit * 2
-		limiter := h.rateLimiter.GetRouteLimiter(route.ID, key, rate.Limit(route.RateLimit), burst)
-		if !limiter.Allow() {
-			if h.logger != nil {
-				h.logger.Warn("per-route rate limit exceeded",
-					slog.String("key", key),
-					slog.String("path", c.Request.URL.Path),
-					slog.String("route_id", route.ID.String()))
-			}
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "rate limit exceeded",
-			})
-			return
-		}
+	// Apply per-route rate limiting
+	if h.handleRateLimit(c, route) {
+		return
 	}
 
 	// Record upstream latency metric
