@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
@@ -37,11 +38,13 @@ var (
 
 // Config holds Firecracker specific configuration.
 type Config struct {
-	BinaryPath string
-	KernelPath string
-	RootfsPath string
-	SocketDir  string
-	MockMode   bool // If true, don't start real Firecracker process
+	BinaryPath     string
+	KernelPath     string
+	RootfsPath     string
+	SocketDir      string
+	MockMode       bool   // If true, don't start real Firecracker process
+	QemuImgWrapper string // Path to qemu-img wrapper binary (default: "qemu-img-wrapper" uses PATH)
+	TarWrapper     string // Path to tar wrapper binary (default: "tar-wrapper" uses PATH)
 }
 
 // Machine defines the firecracker.Machine methods used by the adapter.
@@ -71,6 +74,12 @@ type FirecrackerAdapter struct {
 func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter, error) {
 	if cfg.SocketDir == "" {
 		cfg.SocketDir = defaultSocketDir
+	}
+	if cfg.QemuImgWrapper == "" {
+		cfg.QemuImgWrapper = "qemu-img-wrapper"
+	}
+	if cfg.TarWrapper == "" {
+		cfg.TarWrapper = "tar-wrapper"
 	}
 	if err := os.MkdirAll(cfg.SocketDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create socket directory %s: %w", cfg.SocketDir, err)
@@ -371,7 +380,7 @@ func (a *FirecrackerAdapter) readProcessStats(pid int) (*processStats, error) {
 		if len(fields) >= 4 {
 			utime, _ := strconv.ParseUint(fields[0], 10, 64)
 			stime, _ := strconv.ParseUint(fields[1], 10, 64)
-			cpuTime = (utime + stime) * 1e9 / 100 // 100 Hz typical clock tick rate
+			cpuTime = (utime + stime) * 1e9 / uint64(getJiffiesPerSecond())
 		}
 	}
 
@@ -382,9 +391,14 @@ func (a *FirecrackerAdapter) readProcessStats(pid int) (*processStats, error) {
 }
 
 // getJiffiesPerSecond returns the system clock tick rate (jiffies per second).
-// Returns 100 which is the Linux default on most architectures.
+// Uses sysconf to read the actual kernel CONFIG_HZ value at runtime.
 func getJiffiesPerSecond() int64 {
-	return 100
+	// _SC_CLK_TCK returns the number of clock ticks per second
+	tck, err := syscall.Sysconf(syscall.SC_CLK_TCK)
+	if err != nil {
+		return 100 // fallback to Linux default
+	}
+	return tck
 }
 
 func (a *FirecrackerAdapter) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {
@@ -521,8 +535,10 @@ func (a *FirecrackerAdapter) CreateNetwork(ctx context.Context, name string) (st
 	// Bring up the interface
 	cmd = exec.Command("ip", "link", "set", tapName, "up")
 	if output, err := cmd.CombinedOutput(); err != nil {
-		// Cleanup on failure
-		exec.Command("ip", "tuntap", "delete", "dev", tapName, "mode", "tap")
+		// Cleanup on failure - ignore error since we're already failing
+		if cleanupCmd := exec.Command("ip", "tuntap", "delete", "dev", tapName, "mode", "tap"); cleanupCmd.Run() != nil {
+			a.logger.Warn("failed to cleanup TAP device after bring-up failure", "device", tapName)
+		}
 		return "", fmt.Errorf("failed to bring up TAP device: %w (output: %s)", err, string(output))
 	}
 
@@ -697,7 +713,7 @@ func (a *FirecrackerAdapter) createDiskSnapshot(ctx context.Context, diskPath, s
 		TargetPath: tmpQcow2,
 		Format:     "qcow2",
 	}
-	if err := execWrapper(ctx, "qemu-img-wrapper", qemuReq); err != nil {
+	if err := execWrapper(ctx, a.cfg.QemuImgWrapper, qemuReq); err != nil {
 		return fmt.Errorf("qemu-img convert failed: %w", err)
 	}
 
@@ -708,7 +724,7 @@ func (a *FirecrackerAdapter) createDiskSnapshot(ctx context.Context, diskPath, s
 		TargetDir:   filepath.Dir(tmpQcow2),
 		FileName:    filepath.Base(tmpQcow2),
 	}
-	if err := execWrapper(ctx, "tar-wrapper", tarReq); err != nil {
+	if err := execWrapper(ctx, a.cfg.TarWrapper, tarReq); err != nil {
 		return fmt.Errorf("tar archive failed: %w", err)
 	}
 
@@ -743,7 +759,7 @@ func (a *FirecrackerAdapter) restoreDiskSnapshot(ctx context.Context, snapshotPa
 		ArchivePath: snapshotPath,
 		TargetDir:   tmpDir,
 	}
-	if err := execWrapper(ctx, "tar-wrapper", tarReq); err != nil {
+	if err := execWrapper(ctx, a.cfg.TarWrapper, tarReq); err != nil {
 		return fmt.Errorf("untar failed: %w", err)
 	}
 
@@ -764,7 +780,7 @@ func (a *FirecrackerAdapter) restoreDiskSnapshot(ctx context.Context, snapshotPa
 		TargetPath: diskPath,
 		Format:     "qcow2",
 	}
-	if err := execWrapper(ctx, "qemu-img-wrapper", qemuReq); err != nil {
+	if err := execWrapper(ctx, a.cfg.QemuImgWrapper, qemuReq); err != nil {
 		return fmt.Errorf("qemu-img restore failed: %w", err)
 	}
 
@@ -807,11 +823,6 @@ func execWrapper(ctx context.Context, wrapperPath string, req any) error {
 		return fmt.Errorf("wrapper %s failed: %w", wrapperPath, err)
 	}
 	return nil
-}
-
-// isValidPort checks if a port number is valid (0-65535)
-func isValidPort(port int) bool { //nolint:unused
-	return port >= 0 && port <= 65535
 }
 
 // validateSnapshotPath checks that a path is safe to use in exec commands

@@ -373,6 +373,8 @@ func TestGenerateMAC(t *testing.T) {
 }
 
 func TestGetJiffiesPerSecond(t *testing.T) {
-	// Should return 100 (Linux default)
-	assert.Equal(t, int64(100), getJiffiesPerSecond())
+	// Should return a positive value (100, 250, 1000, etc. depending on kernel CONFIG_HZ)
+	tck := getJiffiesPerSecond()
+	assert.Greater(t, tck, int64(0))
+	assert.Contains(t, []int64{100, 250, 300, 1000}, tck)
 }

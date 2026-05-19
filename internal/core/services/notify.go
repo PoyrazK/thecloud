@@ -69,8 +69,8 @@ func (s *NotifyService) CreateTopic(ctx context.Context, name string) (*domain.T
 		UserID:    userID,
 		Name:      name,
 		ARN:       fmt.Sprintf("arn:thecloud:notify:local:%s:topic/%s", userID, name),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
 	if err := s.repo.CreateTopic(ctx, topic); err != nil {
@@ -146,8 +146,8 @@ func (s *NotifyService) Subscribe(ctx context.Context, topicID uuid.UUID, protoc
 		TopicID:   topic.ID,
 		Protocol:  protocol,
 		Endpoint:  endpoint,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
 	if err := s.repo.CreateSubscription(ctx, sub); err != nil {
