@@ -16,6 +16,7 @@ const (
 	RouteTargetIGW     RouteTargetType = "igw"
 	RouteTargetNAT     RouteTargetType = "nat"
 	RouteTargetPeering RouteTargetType = "peering"
+	RouteTargetTransit RouteTargetType = "transit"
 )
 
 // RouteTable represents a collection of routes associated with a VPC.
@@ -72,7 +73,7 @@ func (r *Route) Validate() error {
 
 func isValidRouteTargetType(t RouteTargetType) bool {
 	switch t {
-	case RouteTargetLocal, RouteTargetIGW, RouteTargetNAT, RouteTargetPeering:
+	case RouteTargetLocal, RouteTargetIGW, RouteTargetNAT, RouteTargetPeering, RouteTargetTransit:
 		return true
 	}
 	return false
