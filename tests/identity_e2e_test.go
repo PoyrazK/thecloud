@@ -51,7 +51,7 @@ func TestIdentityE2E(t *testing.T) {
 		assert.NotEmpty(t, apiKeyID)
 		assert.Equal(t, keyName, res.Data.Name)
 		assert.NotEmpty(t, res.Data.Key)
-		assert.Contains(t, res.Data.Key, "tk_") // API key prefix
+		assert.Contains(t, res.Data.Key, "thecloud_") // API key prefix
 	})
 
 	if apiKeyID == "" {
@@ -90,7 +90,7 @@ func TestIdentityE2E(t *testing.T) {
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
 		assert.NotEmpty(t, res.Data.Key)
-		assert.Contains(t, res.Data.Key, "tk_")
+		assert.Contains(t, res.Data.Key, "thecloud_")
 	})
 
 	// 4. Revoke (Delete) API Key
