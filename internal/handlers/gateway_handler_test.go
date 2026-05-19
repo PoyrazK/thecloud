@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -85,10 +87,19 @@ func (m *mockGatewayService) RefreshRoutes(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *mockGatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayRoute, tokenString string) (map[string]string, error) {
+	args := m.Called(ctx, route, tokenString)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(map[string]string)
+	return r0, args.Error(1)
+}
+
 func setupGatewayHandlerTest(_ *testing.T) (*mockGatewayService, *GatewayHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockGatewayService)
-	handler := NewGatewayHandler(svc, nil)
+	handler := NewGatewayHandler(svc, nil, nil)
 	r := gin.New()
 	return svc, handler, r
 }
@@ -325,7 +336,7 @@ func TestGatewayHandlerProxyBodySizeLimit(t *testing.T) {
 func TestGatewayHandlerProxyParamWithoutSlash(t *testing.T) {
 	t.Parallel()
 	mockSvc := new(mockGatewayService)
-	handler := NewGatewayHandler(mockSvc, nil)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
 	gin.SetMode(gin.TestMode)
 
 	// Manually create context to pass parameter without slash
@@ -350,6 +361,168 @@ func TestGatewayHandlerProxyParamWithoutSlash(t *testing.T) {
 	mockSvc.AssertExpectations(t)
 }
 
+func TestGatewayHandlerInjectCORSHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	tests := []struct {
+		name               string
+		origin             string
+		allowedOrigins     []string
+		allowedMethods     []string
+		allowedHeaders     []string
+		exposeHeaders      []string
+		maxAge             int
+		expectCORS         bool
+		expectMethods      bool
+		expectAllowMethods string
+	}{
+		{
+			name:           "wildcard origin - allowed",
+			origin:         "http://example.com",
+			allowedOrigins: []string{"*"},
+			expectCORS:     true,
+		},
+		{
+			name:           "exact origin match",
+			origin:         "http://example.com",
+			allowedOrigins: []string{"http://example.com", "http://test.com"},
+			expectCORS:     true,
+		},
+		{
+			name:           "origin not in allowlist",
+			origin:         "http://evil.com",
+			allowedOrigins: []string{"http://example.com"},
+			expectCORS:     false,
+		},
+		{
+			name:              "with methods and headers",
+			origin:            "http://example.com",
+			allowedOrigins:    []string{"http://example.com"},
+			allowedMethods:     []string{"GET", "POST"},
+			allowedHeaders:     []string{"Authorization", "Content-Type"},
+			exposeHeaders:      []string{"X-Custom-Header"},
+			maxAge:             3600,
+			expectCORS:         true,
+			expectMethods:      true,
+			expectAllowMethods: "GET, POST",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			route := &domain.GatewayRoute{
+				ID:              uuid.New(),
+				Name:            "cors-test",
+				Compression:     "",
+				AllowedOrigins:  tc.allowedOrigins,
+				AllowedMethods:  tc.allowedMethods,
+				AllowedHeaders:  tc.allowedHeaders,
+				ExposeHeaders:   tc.exposeHeaders,
+				MaxAge:          tc.maxAge,
+				AllowedIPNets:   []*net.IPNet{},
+			}
+			svc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+			req, err := http.NewRequest("GET", gwAPITestPath, nil)
+			require.NoError(t, err)
+			req.Header.Set("Origin", tc.origin)
+			req.RemoteAddr = "10.0.0.1:12345"
+			w := &closeNotifierRecorder{httptest.NewRecorder()}
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			if tc.expectCORS {
+				assert.NotEmpty(t, w.Header().Get("Access-Control-Allow-Origin"))
+				if tc.expectMethods {
+					assert.Equal(t, tc.expectAllowMethods, w.Header().Get("Access-Control-Allow-Methods"))
+					assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+					assert.Equal(t, "X-Custom-Header", w.Header().Get("Access-Control-Expose-Headers"))
+					assert.Equal(t, "3600", w.Header().Get("Access-Control-Max-Age"))
+				}
+			} else {
+				assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+			}
+			svc.AssertExpectations(t)
+		})
+	}
+}
+
+func TestGatewayHandlerProxyCompression(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("proxied response"))
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	tests := []struct {
+		name           string
+		compression    string
+		acceptEncoding string
+		expectEncoding string
+	}{
+		{
+			name:           "gzip compression enabled",
+			compression:    "gzip",
+			acceptEncoding: "gzip",
+			expectEncoding: "gzip",
+		},
+		{
+			name:           "no compression - route disabled",
+			compression:    "",
+			acceptEncoding: "gzip",
+			expectEncoding: "",
+		},
+		{
+			name:           "client does not accept gzip",
+			compression:    "gzip",
+			acceptEncoding: "",
+			expectEncoding: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			route := &domain.GatewayRoute{
+				ID:            uuid.New(),
+				Name:          "compression-test",
+				Compression:   tc.compression,
+				AllowedIPNets: []*net.IPNet{},
+			}
+			svc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+			req, err := http.NewRequest("GET", gwAPITestPath, nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept-Encoding", tc.acceptEncoding)
+			req.RemoteAddr = "10.0.0.1:12345"
+			w := &closeNotifierRecorder{httptest.NewRecorder()}
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, tc.expectEncoding, w.Header().Get("Content-Encoding"))
+			svc.AssertExpectations(t)
+		})
+	}
+}
+
 func TestGatewayHandlerDeleteError(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidID", func(t *testing.T) {
@@ -372,4 +545,75 @@ func TestGatewayHandlerDeleteError(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		svc.AssertExpectations(t)
 	})
+}
+
+func TestGatewayHandlerCreateRouteDryRun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		body          map[string]interface{}
+		wantValid     bool
+		wantErrCount  int
+		errContains   []string
+	}{
+		{
+			name: "valid CIDR - passes",
+			body: map[string]interface{}{
+				"name":        "dry-run-test",
+				"path_prefix": "/api/v1",
+				"target_url":  "http://example.com",
+				"allowed_cidrs": []string{"10.0.0.0/8"},
+			},
+			wantValid: true,
+		},
+		{
+			name: "invalid CIDR - fails",
+			body: map[string]interface{}{
+				"name":        "dry-run-test",
+				"path_prefix": "/api/v1",
+				"target_url":  "http://example.com",
+				"allowed_cidrs": []string{"not-a-cidr"},
+			},
+			wantValid:    false,
+			errContains:  []string{"invalid allowed CIDR"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, handler, r := setupGatewayHandlerTest(t)
+			r.POST(routesPath, handler.CreateRoute)
+
+			body, err := json.Marshal(tc.body)
+			require.NoError(t, err)
+			req, err := http.NewRequest("POST", routesPath+"?dry_run=true", bytes.NewBuffer(body))
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			var resp map[string]interface{}
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			require.NoError(t, err)
+			data, ok := resp["data"].(map[string]interface{})
+			require.True(t, ok, "response data should be a map")
+			assert.Equal(t, true, data["dry_run"])
+			assert.Equal(t, tc.wantValid, data["valid"])
+			if !tc.wantValid && len(tc.errContains) > 0 {
+				errs, ok := data["errors"].([]interface{})
+				require.True(t, ok)
+				for _, exp := range tc.errContains {
+					found := false
+					for _, e := range errs {
+						if strings.Contains(e.(string), exp) {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found, "expected error containing %q", exp)
+				}
+			}
+		})
+	}
 }
