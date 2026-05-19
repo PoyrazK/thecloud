@@ -472,14 +472,14 @@ func testNotifyServiceUnitPublishErrors(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 			return received
-		}, 2*time.Second, 10*time.Millisecond, "webhook server never received request")
+		}, 5*time.Second, 10*time.Millisecond, "webhook server never received request")
 
 		require.Eventually(t, func() bool {
 			logMu.Lock()
 			defer logMu.Unlock()
 			return strings.Contains(logBuf.String(), "webhook delivery failed") &&
-				strings.Contains(logBuf.String(), "status=500")
-		}, 2*time.Second, 10*time.Millisecond, "expected webhook delivery failure log with status=500")
+				strings.Contains(logBuf.String(), "webhook status 500")
+		}, 8*time.Second, 50*time.Millisecond, "expected webhook delivery failure log with status 500")
 	})
 
 	t.Run("Publish_QueueInvalidUUID", func(t *testing.T) {
@@ -515,4 +515,233 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.w.Write(p)
+}
+
+func TestNotifyServiceWebhookRetry(t *testing.T) {
+	userID := uuid.New()
+	ctx := appcontext.WithUserID(context.Background(), userID)
+
+	t.Run("retry_on_transport_error_then_succeed", func(t *testing.T) {
+		var attemptCount int
+		var attemptMu sync.Mutex
+		attemptDone := make(chan struct{})
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attemptMu.Lock()
+			attemptCount++
+			currentAttempt := attemptCount
+			attemptMu.Unlock()
+
+			if currentAttempt < 3 {
+				t.Logf("attempt %d: failing with 500", currentAttempt)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			t.Logf("attempt %d: succeeding", currentAttempt)
+			w.WriteHeader(http.StatusOK)
+			close(attemptDone)
+		}))
+		defer server.Close()
+
+		var logBuf bytes.Buffer
+		var logMu sync.Mutex
+		capturingLogger := slog.New(slog.NewTextHandler(&lockedWriter{w: &logBuf, mu: &logMu}, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+		mockRepo := new(MockNotifyRepo)
+		mockQueueSvc := new(MockQueueService)
+		mockEventSvc := new(MockEventService)
+		mockAuditSvc := new(MockAuditService)
+		rbacSvc := new(MockRBACService)
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+		svc := services.NewNotifyService(services.NotifyServiceParams{
+			Repo:     mockRepo,
+			RBACSvc:  rbacSvc,
+			QueueSvc: mockQueueSvc,
+			EventSvc: mockEventSvc,
+			AuditSvc: mockAuditSvc,
+			Logger:   capturingLogger,
+		})
+
+		topicID := uuid.New()
+		topic := &domain.Topic{ID: topicID, UserID: userID}
+		sub := &domain.Subscription{
+			ID:       uuid.New(),
+			UserID:   userID,
+			TopicID:  topicID,
+			Protocol: domain.ProtocolWebhook,
+			Endpoint: server.URL,
+		}
+		done := make(chan struct{})
+		mockRepo.On("GetTopicByID", mock.Anything, topicID, userID).Return(topic, nil).Once()
+		mockRepo.On("SaveMessage", mock.Anything, mock.Anything).Return(nil).Once()
+		mockRepo.On("ListSubscriptions", mock.Anything, topicID).Return([]*domain.Subscription{sub}, nil).Once()
+		mockEventSvc.On("RecordEvent", mock.Anything, "TOPIC_PUBLISHED", mock.Anything, "TOPIC", mock.Anything).Return(nil).Once()
+		mockAuditSvc.On("Log", mock.Anything, userID, "notify.publish", "topic", topicID.String(), mock.Anything).Return(nil).Run(func(mock.Arguments) { close(done) }).Once()
+
+		err := svc.Publish(ctx, topicID, "hello")
+		require.NoError(t, err)
+
+		<-done
+
+		// Wait for webhook goroutines to complete (they run after publish returns)
+		select {
+		case <-attemptDone:
+		case <-time.After(15 * time.Second):
+			t.Fatal("timeout waiting for webhook attempts")
+		}
+
+		attemptMu.Lock()
+		count := attemptCount
+		attemptMu.Unlock()
+
+		assert.Equal(t, 3, count, "should have made 3 attempts")
+
+		logMu.Lock()
+		logStr := logBuf.String()
+		logMu.Unlock()
+
+		assert.Contains(t, logStr, "webhook delivery failed, retrying", "should log retry")
+		assert.Contains(t, logStr, "attempt=1", "should log attempt 1")
+		assert.Contains(t, logStr, "attempt=2", "should log attempt 2")
+	})
+
+	t.Run("no_retry_on_client_error", func(t *testing.T) {
+		var attemptCount int
+		var attemptMu sync.Mutex
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attemptMu.Lock()
+			attemptCount++
+			attemptMu.Unlock()
+			w.WriteHeader(http.StatusBadRequest)
+		}))
+		defer server.Close()
+
+		var logBuf bytes.Buffer
+		var logMu sync.Mutex
+		capturingLogger := slog.New(slog.NewTextHandler(&lockedWriter{w: &logBuf, mu: &logMu}, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+		mockRepo := new(MockNotifyRepo)
+		mockQueueSvc := new(MockQueueService)
+		mockEventSvc := new(MockEventService)
+		mockAuditSvc := new(MockAuditService)
+		rbacSvc := new(MockRBACService)
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+		svc := services.NewNotifyService(services.NotifyServiceParams{
+			Repo:     mockRepo,
+			RBACSvc:  rbacSvc,
+			QueueSvc: mockQueueSvc,
+			EventSvc: mockEventSvc,
+			AuditSvc: mockAuditSvc,
+			Logger:   capturingLogger,
+		})
+
+		topicID := uuid.New()
+		topic := &domain.Topic{ID: topicID, UserID: userID}
+		sub := &domain.Subscription{
+			ID:       uuid.New(),
+			UserID:   userID,
+			TopicID:  topicID,
+			Protocol: domain.ProtocolWebhook,
+			Endpoint: server.URL,
+		}
+		done := make(chan struct{})
+		mockRepo.On("GetTopicByID", mock.Anything, topicID, userID).Return(topic, nil).Once()
+		mockRepo.On("SaveMessage", mock.Anything, mock.Anything).Return(nil).Once()
+		mockRepo.On("ListSubscriptions", mock.Anything, topicID).Return([]*domain.Subscription{sub}, nil).Once()
+		mockEventSvc.On("RecordEvent", mock.Anything, "TOPIC_PUBLISHED", mock.Anything, "TOPIC", mock.Anything).Return(nil).Once()
+		mockAuditSvc.On("Log", mock.Anything, userID, "notify.publish", "topic", topicID.String(), mock.Anything).Return(nil).Run(func(mock.Arguments) { close(done) }).Once()
+
+		err := svc.Publish(ctx, topicID, "hello")
+		require.NoError(t, err)
+
+		<-done
+
+		// Allow webhook goroutine to complete (it has no delay since no retry)
+		time.Sleep(500 * time.Millisecond)
+
+		attemptMu.Lock()
+		count := attemptCount
+		attemptMu.Unlock()
+
+		assert.Equal(t, 1, count, "should have made exactly 1 attempt (no retry on client error)")
+
+		logMu.Lock()
+		logStr := logBuf.String()
+		logMu.Unlock()
+
+		assert.Contains(t, logStr, "webhook delivery failed non-retriable", "should not retry client errors")
+		assert.NotContains(t, logStr, "retrying", "should not contain retry log")
+	})
+
+	t.Run("exhaust_retries_then_log_error", func(t *testing.T) {
+		var attemptCount int
+		var attemptMu sync.Mutex
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attemptMu.Lock()
+			attemptCount++
+			attemptMu.Unlock()
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
+
+		var logBuf bytes.Buffer
+		var logMu sync.Mutex
+		capturingLogger := slog.New(slog.NewTextHandler(&lockedWriter{w: &logBuf, mu: &logMu}, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+		mockRepo := new(MockNotifyRepo)
+		mockQueueSvc := new(MockQueueService)
+		mockEventSvc := new(MockEventService)
+		mockAuditSvc := new(MockAuditService)
+		rbacSvc := new(MockRBACService)
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+		svc := services.NewNotifyService(services.NotifyServiceParams{
+			Repo:     mockRepo,
+			RBACSvc:  rbacSvc,
+			QueueSvc: mockQueueSvc,
+			EventSvc: mockEventSvc,
+			AuditSvc: mockAuditSvc,
+			Logger:   capturingLogger,
+		})
+
+		topicID := uuid.New()
+		topic := &domain.Topic{ID: topicID, UserID: userID}
+		sub := &domain.Subscription{
+			ID:       uuid.New(),
+			UserID:   userID,
+			TopicID:  topicID,
+			Protocol: domain.ProtocolWebhook,
+			Endpoint: server.URL,
+		}
+		done := make(chan struct{})
+		mockRepo.On("GetTopicByID", mock.Anything, topicID, userID).Return(topic, nil).Once()
+		mockRepo.On("SaveMessage", mock.Anything, mock.Anything).Return(nil).Once()
+		mockRepo.On("ListSubscriptions", mock.Anything, topicID).Return([]*domain.Subscription{sub}, nil).Once()
+		mockEventSvc.On("RecordEvent", mock.Anything, "TOPIC_PUBLISHED", mock.Anything, "TOPIC", mock.Anything).Return(nil).Once()
+		mockAuditSvc.On("Log", mock.Anything, userID, "notify.publish", "topic", topicID.String(), mock.Anything).Return(nil).Run(func(mock.Arguments) { close(done) }).Once()
+
+		err := svc.Publish(ctx, topicID, "hello")
+		require.NoError(t, err)
+
+		<-done
+
+		// Allow retries to complete: 1s + 2s + 4s backoffs + delivery = ~8s
+		time.Sleep(10 * time.Second)
+
+		attemptMu.Lock()
+		count := attemptCount
+		attemptMu.Unlock()
+
+		assert.Equal(t, 3, count, "should have exhausted all 3 attempts")
+
+		logMu.Lock()
+		logStr := logBuf.String()
+		logMu.Unlock()
+
+		assert.Contains(t, logStr, "webhook delivery failed after all attempts", "should log exhaustion")
+	})
 }
