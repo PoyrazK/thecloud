@@ -756,6 +756,71 @@ func TestGatewayHandlerProxyCompression(t *testing.T) {
 	}
 }
 
+func TestGatewayHandlerInjectTraceHeadersWithInbound(t *testing.T) {
+	t.Parallel()
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+
+	route := &domain.GatewayRoute{ID: uuid.New(), AllowedIPNets: []*net.IPNet{}}
+	svc.On("GetProxy", "GET", "/api").Return(
+		httputil.NewSingleHostReverseProxy(targetURL), route, map[string]string{}, true).Once()
+
+	req, _ := http.NewRequest("GET", gwAPITestPath, nil)
+	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	req.Header.Set("tracestate", "congo=t61rcWkgMzE")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	// Inbound traceparent should be preserved (not replaced with generated)
+	assert.Equal(t, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", w.Header().Get("traceparent"))
+	assert.Equal(t, "congo=t61rcWkgMzE", w.Header().Get("tracestate"))
+	svc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyCompressionGzipFlushed(t *testing.T) {
+	t.Parallel()
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	var gzipFlushed bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		// Read body to confirm gzip was flushed
+		body := make([]byte, 100)
+		n, _ := wreq.Body.Read(body)
+		gzipFlushed = n > 0
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+
+	route := &domain.GatewayRoute{ID: uuid.New(), Compression: "gzip", AllowedIPNets: []*net.IPNet{}}
+	svc.On("GetProxy", "GET", "/api").Return(
+		httputil.NewSingleHostReverseProxy(targetURL), route, map[string]string{}, true).Once()
+
+	req, _ := http.NewRequest("GET", gwAPITestPath, strings.NewReader("hello world this is some test data"))
+	req.Header.Set("Accept-Encoding", "gzip")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+	assert.True(t, gzipFlushed, "gzip data should be flushed to upstream")
+	svc.AssertExpectations(t)
+}
+
 func TestGatewayHandlerDeleteError(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidID", func(t *testing.T) {

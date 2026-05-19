@@ -91,7 +91,7 @@ func TestGatewayServiceGetProxy(t *testing.T) {
 
 	_, _ = svc.CreateRoute(ctx, ports.CreateRouteParams{Name: "api", Pattern: "/api", Target: "http://localhost:8080"})
 
-	proxy, paramsMap, ok := svc.GetProxy("GET", "/api/users")
+	proxy, _, paramsMap, ok := svc.GetProxy("GET", "/api/users")
 	assert.True(t, ok)
 	assert.NotNil(t, proxy)
 	assert.Nil(t, paramsMap)
@@ -102,7 +102,7 @@ func TestGatewayServiceGetProxyPattern(t *testing.T) {
 
 	_, _ = svc.CreateRoute(ctx, ports.CreateRouteParams{Name: "users", Pattern: "/users/{id}", Target: "http://localhost:8080"})
 
-	proxy, paramsMap, ok := svc.GetProxy("GET", "/users/123")
+	proxy, _, paramsMap, ok := svc.GetProxy("GET", "/users/123")
 	assert.True(t, ok)
 	assert.NotNil(t, proxy)
 	assert.Equal(t, "123", paramsMap["id"])
