@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	tgwColumns            = "id, name, owner_tenant_id, status, arn, created_at, updated_at"
-	tgwAttachmentColumns  = "id, transit_gateway_id, vpc_id, tenant_id, status, attachment_type, created_at"
-	tgwRTColumns          = "id, transit_gateway_id, name, default_route_table, propagation_enabled, created_at"
-	tgwRouteColumns       = "id, transit_gateway_rt_id, destination_cidr, target_type, target_id, target_name, created_at"
-	tgwRTAssocColumns     = "route_table_id, attachment_id, propagation_enabled"
-	errTGNotFound         = "transit gateway not found"
-	errAttNotFound        = "transit gateway attachment not found"
-	errRTNotFound         = "transit gateway route table not found"
+	tgwColumns           = "id, name, owner_tenant_id, status, arn, created_at, updated_at"
+	tgwAttachmentColumns = "id, transit_gateway_id, vpc_id, tenant_id, status, attachment_type, created_at"
+	tgwRTColumns         = "id, transit_gateway_id, name, default_route_table, propagation_enabled, created_at"
+	tgwRouteColumns      = "id, transit_gateway_rt_id, destination_cidr, target_type, target_id, target_name, created_at"
+	tgwRTAssocColumns    = "route_table_id, attachment_id, propagation_enabled"
+	errTGNotFound        = "transit gateway not found"
+	errAttNotFound       = "transit gateway attachment not found"
+	errRTNotFound        = "transit gateway route table not found"
 )
 
 // TransitGatewayRepository provides a PostgreSQL implementation for Transit Gateway management.

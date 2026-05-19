@@ -481,20 +481,19 @@ func registerNetworkRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		natGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.NATGateway.Delete)
 	}
 
-
-		// Transit Gateways
-		tgwGroup := r.Group("/transit-gateways")
-		tgwGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
-		{
-			tgwGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcCreate), handlers.TransitGateway.Create)
-			tgwGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.TransitGateway.List)
-			tgwGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.TransitGateway.Get)
-			tgwGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.TransitGateway.Delete)
-			tgwGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.AttachVPC)
-			tgwGroup.POST("/attachments/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.TransitGateway.DetachVPC)
-			tgwGroup.POST("/route-tables/:id/associate", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.AssociateRouteTable)
-			tgwGroup.POST("/route-tables/:id/propagation", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.EnableRoutePropagation)
-		}
+	// Transit Gateways
+	tgwGroup := r.Group("/transit-gateways")
+	tgwGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
+	{
+		tgwGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionVpcCreate), handlers.TransitGateway.Create)
+		tgwGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.TransitGateway.List)
+		tgwGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.TransitGateway.Get)
+		tgwGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.TransitGateway.Delete)
+		tgwGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.AttachVPC)
+		tgwGroup.POST("/attachments/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.TransitGateway.DetachVPC)
+		tgwGroup.POST("/route-tables/:id/associate", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.AssociateRouteTable)
+		tgwGroup.POST("/route-tables/:id/propagation", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.EnableRoutePropagation)
+	}
 }
 
 func registerGlobalLBRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {

@@ -81,7 +81,7 @@ type Repositories struct {
 	RouteTable       ports.RouteTableRepository
 	IGW              ports.IGWRepository
 	NATGateway       ports.NATGatewayRepository
-	TransitGateway  ports.TransitGatewayRepository
+	TransitGateway   ports.TransitGatewayRepository
 }
 
 // InitRepositories constructs repositories using the provided database clients.

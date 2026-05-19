@@ -30,13 +30,13 @@ type TransitGateway struct {
 
 // TransitGatewayAttachment represents a VPC attached to a Transit Gateway.
 type TransitGatewayAttachment struct {
-	ID              uuid.UUID
+	ID               uuid.UUID
 	TransitGatewayID uuid.UUID
-	VPCID           uuid.UUID
-	TenantID        uuid.UUID
-	Status          string // "pending" | "attached" | "detaching"
-	AttachmentType string // "vpc"
-	CreatedAt       time.Time
+	VPCID            uuid.UUID
+	TenantID         uuid.UUID
+	Status           string // "pending" | "attached" | "detaching"
+	AttachmentType   string // "vpc"
+	CreatedAt        time.Time
 }
 
 // TransitGatewayRouteTable represents a route table within a Transit Gateway.

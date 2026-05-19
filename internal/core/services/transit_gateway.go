@@ -19,14 +19,14 @@ const transitGatewayTracer = "transit-gateway-service"
 
 // TransitGatewayService manages the lifecycle of Transit Gateways.
 type TransitGatewayService struct {
-	repo     ports.TransitGatewayRepository
-	vpcRepo  ports.VpcRepository
+	repo       ports.TransitGatewayRepository
+	vpcRepo    ports.VpcRepository
 	subnetRepo ports.SubnetRepository
-	rtRepo   ports.RouteTableRepository
-	network  ports.NetworkBackend
-	rbacSvc  ports.RBACService
-	auditSvc ports.AuditService
-	logger   *slog.Logger
+	rtRepo     ports.RouteTableRepository
+	network    ports.NetworkBackend
+	rbacSvc    ports.RBACService
+	auditSvc   ports.AuditService
+	logger     *slog.Logger
 }
 
 // TransitGatewayServiceParams holds dependencies for TransitGatewayService.
@@ -48,14 +48,14 @@ func NewTransitGatewayService(params TransitGatewayServiceParams) *TransitGatewa
 		logger = slog.Default()
 	}
 	return &TransitGatewayService{
-		repo:     params.Repo,
-		vpcRepo:  params.VpcRepo,
+		repo:       params.Repo,
+		vpcRepo:    params.VpcRepo,
 		subnetRepo: params.SubnetRepo,
-		rtRepo:   params.RTRepo,
-		network:  params.Network,
-		rbacSvc:  params.RBACSvc,
-		auditSvc: params.AuditSvc,
-		logger:   logger,
+		rtRepo:     params.RTRepo,
+		network:    params.Network,
+		rbacSvc:    params.RBACSvc,
+		auditSvc:   params.AuditSvc,
+		logger:     logger,
 	}
 }
 
@@ -224,12 +224,12 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 
 	attID := uuid.New()
 	att := &domain.TransitGatewayAttachment{
-		ID:              attID,
+		ID:               attID,
 		TransitGatewayID: tgID,
-		VPCID:           vpcID,
-		TenantID:        tenantID,
-		Status:          "attached",
-		AttachmentType: "vpc",
+		VPCID:            vpcID,
+		TenantID:         tenantID,
+		Status:           "attached",
+		AttachmentType:   "vpc",
 	}
 
 	if err := s.repo.AddAttachment(ctx, att); err != nil {
