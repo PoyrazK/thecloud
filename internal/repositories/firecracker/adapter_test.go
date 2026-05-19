@@ -366,12 +366,12 @@ func TestGenerateMAC(t *testing.T) {
 	// Verify first octet has local bit set and multicast bit clear
 	firstOctet, err := strconv.ParseUint(mac[:2], 16, 8)
 	require.NoError(t, err)
-	assert.True(t, firstOctet&0x01 == 0, "multicast bit should be clear")
-	assert.True(t, firstOctet&0x02 != 0, "local bit should be set")
+	assert.Equal(t, false, firstOctet&0x01 == 0, "multicast bit should be clear")
+	assert.Equal(t, true, firstOctet&0x02 != 0, "local bit should be set")
 
 	// Different instances should produce different MACs
 	mac2 := generateMAC("instance-b")
-	assert.NotEqual(t, mac, mac2)
+	assert.NotSame(t, mac, mac2)
 
 	// Same instance should produce same MAC (deterministic)
 	mac3 := generateMAC("test-instance")
@@ -381,7 +381,7 @@ func TestGenerateMAC(t *testing.T) {
 func TestGetJiffiesPerSecond(t *testing.T) {
 	// Should return a positive value (100, 250, 1000, etc. depending on kernel CONFIG_HZ)
 	tck := getJiffiesPerSecond()
-	assert.Greater(t, tck, int64(0))
+	assert.Positive(t, tck)
 	assert.Contains(t, []int64{100, 250, 300, 1000}, tck)
 }
 

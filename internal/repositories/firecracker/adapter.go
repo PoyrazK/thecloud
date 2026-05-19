@@ -48,10 +48,6 @@ type Machine interface {
 	Wait(ctx context.Context) error
 }
 
-// fcMachine wraps *firecracker.Machine to expose additional APIs via embedded *Client.
-type fcMachine struct {
-	*firecracker.Machine
-}
 
 // FirecrackerAdapter implements ports.ComputeBackend using Firecracker.
 type FirecrackerAdapter struct {
@@ -161,8 +157,9 @@ func getJiffiesPerSecond() int64 {
 				var total int64
 				for i := 1; i <= 7; i++ {
 					var v int64
-					fmt.Sscanf(fields[i], "%d", &v)
-					total += v
+					if _, err := fmt.Sscanf(fields[i], "%d", &v); err == nil {
+						total += v
+					}
 				}
 				return total
 			}
