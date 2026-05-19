@@ -206,7 +206,13 @@ func (s *RouteTableService) AddRoute(ctx context.Context, rtID uuid.UUID, destin
 	flow := ports.FlowRule{
 		Priority: 300,
 		Match:    fmt.Sprintf("ip,nw_dst=%s", destinationCIDR),
-		Actions:  "NORMAL",
+	}
+	// For NAT routes, forward to the NAT gateway's veth interface
+	if targetType == domain.RouteTargetNAT && targetID != nil {
+		natVethName := fmt.Sprintf("nat-%s", targetID.String()[:8])
+		flow.Actions = fmt.Sprintf("output:%s", natVethName)
+	} else {
+		flow.Actions = "NORMAL"
 	}
 	if err := s.network.AddFlowRule(ctx, vpc.NetworkID, flow); err != nil {
 		s.logger.Error("failed to add OVS flow for route", "route_id", route.ID, "error", err)

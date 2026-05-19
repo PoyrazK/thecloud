@@ -25,6 +25,7 @@ type NATGatewayService struct {
 	eipRepo    ports.ElasticIPRepository
 	subnetRepo ports.SubnetRepository
 	vpcRepo    ports.VpcRepository
+	rtRepo     ports.RouteTableRepository
 	rbacSvc    ports.RBACService
 	network    ports.NetworkBackend
 	auditSvc   ports.AuditService
@@ -37,6 +38,7 @@ type NATGatewayServiceParams struct {
 	EIPRepo    ports.ElasticIPRepository
 	SubnetRepo ports.SubnetRepository
 	VpcRepo    ports.VpcRepository
+	RTRepo     ports.RouteTableRepository
 	RBACSvc    ports.RBACService
 	Network    ports.NetworkBackend
 	AuditSvc   ports.AuditService
@@ -54,6 +56,7 @@ func NewNATGatewayService(params NATGatewayServiceParams) *NATGatewayService {
 		eipRepo:    params.EIPRepo,
 		subnetRepo: params.SubnetRepo,
 		vpcRepo:    params.VpcRepo,
+		rtRepo:     params.RTRepo,
 		rbacSvc:    params.RBACSvc,
 		network:    params.Network,
 		auditSvc:   params.AuditSvc,
@@ -152,6 +155,28 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 	nat.Status = domain.NATGatewayStatusActive
 	if err := s.repo.Update(ctx, nat); err != nil {
 		s.logger.Warn("failed to update NAT gateway status to active", "error", err)
+	}
+
+	// Auto-add catch-all route to main route table for outbound traffic
+	if s.rtRepo != nil {
+		if mainRT, err := s.rtRepo.GetMainByVPC(ctx, vpc.ID); err == nil {
+			defaultRoute := &domain.Route{
+				ID:              uuid.New(),
+				RouteTableID:    mainRT.ID,
+				DestinationCIDR: "0.0.0.0/0",
+				TargetType:      domain.RouteTargetNAT,
+				TargetID:        &natID,
+				TargetName:      fmt.Sprintf("nat-%s", natID.String()[:8]),
+				CreatedAt:       time.Now().UTC(),
+			}
+			if err := s.rtRepo.AddRoute(ctx, mainRT.ID, defaultRoute); err != nil {
+				s.logger.Warn("failed to auto-add default route for NAT gateway", "nat_id", natID, "error", err)
+			} else {
+				s.logger.Info("auto-added default route for NAT gateway", "nat_id", natID, "rt_id", mainRT.ID)
+			}
+		} else {
+			s.logger.Warn("failed to get main route table for NAT gateway route", "nat_id", natID, "error", err)
+		}
 	}
 
 	if err := s.auditSvc.Log(ctx, userID, "nat_gateway.create", "nat_gateway", natID.String(), map[string]interface{}{
