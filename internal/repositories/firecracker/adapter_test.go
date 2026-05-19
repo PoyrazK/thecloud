@@ -366,8 +366,8 @@ func TestGenerateMAC(t *testing.T) {
 	// Verify first octet has local bit set and multicast bit clear
 	firstOctet, err := strconv.ParseUint(mac[:2], 16, 8)
 	require.NoError(t, err)
-	assert.False(t, firstOctet&0x01 == 0, "multicast bit should be clear")
-	assert.True(t, firstOctet&0x02 != 0, "local bit should be set")
+	assert.Equal(t, uint64(0), firstOctet&0x01, "multicast bit should be clear")
+	assert.NotEqual(t, uint64(0), firstOctet&0x02, "local bit should be set")
 
 	// Different instances should produce different MACs
 	mac2 := generateMAC("instance-b")
