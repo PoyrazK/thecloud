@@ -542,6 +542,9 @@ func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.
 				},
 			})
 			if err != nil {
+				// The stream is half-open: it was created on the server side but the
+				// metadata frame failed. Drain it with CloseAndRecv before cancelling
+				// so the server-side goroutine exits cleanly instead of waiting on context cancellation.
 				_, _ = st.CloseAndRecv()
 				cancel()
 				continue
