@@ -1,5 +1,5 @@
-// Firecracker guest agent listens on vsock and executes commands.
-// This binary is meant to be embedded in the Firecracker guest rootfs.
+//go:build linux && amd64
+
 package main
 
 import (
@@ -11,16 +11,108 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // VSOCK listener configuration.
-// In Firecracker, the guest CID is configured in the vsock device.
-// The host connects to the Unix socket path specified in the vsock device config.
+// Firecracker guest agent listens on vsock (CID 3) and executes commands.
+// This binary is meant to be embedded in the Firecracker guest rootfs.
 const (
-	// ListenAddr is the address the agent listens on.
-	// For vsock, we listen on CID 3 (host-initiated connections).
-	ListenAddr = "/var/run/firecracker-agent.sock"
+	// Guest CID - must match the CID configured in Firecracker adapter
+	ListenCID = 3
+	// Vsock port for agent connections
+	ListenPort = 3
 )
+
+// vsockListener creates an AF_VSOCK socket listener.
+func vsockListen(cid, port int) (net.Listener, error) {
+	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM, 0)
+	if err != nil {
+		return nil, fmt.Errorf("socket create failed: %w", err)
+	}
+
+	// Bind to the specific CID and port
+	addr := &unix.SockaddrVM{
+		CID:  uint32(cid),
+		Port: uint32(port),
+	}
+	if err := unix.Bind(fd, addr); err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("bind failed: %w", err)
+	}
+
+	if err := unix.Listen(fd, 1); err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("listen failed: %w", err)
+	}
+
+	return &vsockListener{fd: fd}, nil
+}
+
+type vsockListener struct {
+	fd int
+}
+
+func (l *vsockListener) Accept() (net.Conn, error) {
+	connfd, _, err := unix.Accept(l.fd)
+	if err != nil {
+		return nil, err
+	}
+	return &vsockConn{fd: connfd, localAddr: &vsockAddr{}, remoteAddr: &vsockAddr{}}, nil
+}
+
+func (l *vsockListener) Close() error {
+	return unix.Close(l.fd)
+}
+
+func (l *vsockListener) Addr() net.Addr {
+	return &vsockAddr{}
+}
+
+type vsockConn struct {
+	fd         int
+	localAddr  net.Addr
+	remoteAddr net.Addr
+}
+
+func (c *vsockConn) Read(b []byte) (n int, err error) {
+	return unix.Read(c.fd, b)
+}
+
+func (c *vsockConn) Write(b []byte) (n int, err error) {
+	return unix.Write(c.fd, b)
+}
+
+func (c *vsockConn) Close() error {
+	return unix.Close(c.fd)
+}
+
+func (c *vsockConn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *vsockConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *vsockConn) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *vsockConn) LocalAddr() net.Addr  { return c.localAddr }
+func (c *vsockConn) RemoteAddr() net.Addr { return c.remoteAddr }
+
+type vsockAddr struct{}
+
+func (a *vsockAddr) String() string {
+	return fmt.Sprintf("vsock:%d:%d", ListenCID, ListenPort)
+}
+
+func (a *vsockAddr) Network() string {
+	return "vsock"
+}
 
 var (
 	mu     sync.Mutex
@@ -31,18 +123,15 @@ func main() {
 	log.SetFlags(0)
 	log.SetOutput(os.Stderr)
 
-	// Create a Unix domain socket for the agent
-	if err := os.RemoveAll(ListenAddr); err != nil {
-		log.Fatalf("failed to remove existing socket: %v", err)
-	}
+	log.Printf("firecracker-agent starting, listening on vsock CID %d port %d", ListenCID, ListenPort)
 
-	lis, err := net.Listen("unix", ListenAddr)
+	lis, err := vsockListen(ListenCID, ListenPort)
 	if err != nil {
-		log.Fatalf("failed to listen on %s: %v", ListenAddr, err)
+		log.Fatalf("failed to listen on vsock: %v", err)
 	}
 	defer lis.Close()
 
-	log.Printf("firecracker-agent listening on %s", ListenAddr)
+	log.Printf("firecracker-agent listening on vsock CID %d port %d", ListenCID, ListenPort)
 
 	for {
 		conn, err := lis.Accept()

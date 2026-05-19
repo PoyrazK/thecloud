@@ -112,11 +112,11 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 			VcpuCount:  firecracker.Int64(vcpus),
 			MemSizeMib: firecracker.Int64(mem),
 		},
-		VsockDevices: []models.VsockDevice{
+		VsockDevices: []firecracker.VsockDevice{
 			{
-				ID:   firecracker.String("vsock0"),
-				Path: firecracker.String(filepath.Join(a.cfg.SocketDir, id+".vsock")),
-				CID:  firecracker.Int32(3),
+				ID:   "vsock0",
+				Path: filepath.Join(a.cfg.SocketDir, id+".vsock"),
+				CID:  3,
 			},
 		},
 	}
@@ -328,16 +328,14 @@ func (a *FirecrackerAdapter) StartPoolInstance(ctx context.Context, opts ports.R
 }
 
 // ExecInInstance executes a command in a warm (already running) microVM via vsock.
-// It connects to the guest agent listening on the vsock Unix socket path.
-//
-// Note: Firecracker vsock appears as a Unix socket on the host. The guest agent
-// must be listening on the path specified in VsockDevices[].Path inside the VM.
-// A simple approach is to run a proxy inside the VM that bridges UDS <-> vsock.
+// It connects to the guest agent listening on the vsock CID 3 inside the VM.
+// The host side uses a Unix socket (created by Firecracker at vsockPath) which proxies to the guest vsock.
+// The guest agent listens on vsock CID 3 port 3 inside the VM.
 func (a *FirecrackerAdapter) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
 	vsockPath := filepath.Join(a.cfg.SocketDir, id+".vsock")
 
-	// Use net.Dial to connect to the vsock socket
-	// Firecracker exposes vsock as a Unix socket file on the host
+	// Firecracker exposes vsock as a Unix socket on the host
+	// The firecracker-go-sdk creates this socket at the configured VsockDevices[].Path
 	conn, err := net.DialTimeout("unix", vsockPath, 5*time.Second)
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to vsock socket %s: %w", vsockPath, err)
@@ -391,7 +389,7 @@ func (a *FirecrackerAdapter) GetInstanceReady(ctx context.Context, id string) (b
 		return true, nil
 	}
 	a.mu.RLock()
-	m, ok := a.machines[id]
+	_, ok := a.machines[id]
 	a.mu.RUnlock()
 	if !ok {
 		return false, nil
