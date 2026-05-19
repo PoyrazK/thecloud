@@ -36,14 +36,12 @@ func (vc VectorClock) maxCounter() uint64 {
 	return max
 }
 
-// prune removes entries that are older than windowSize from the max.
-func (vc VectorClock) prune(windowSize uint64) {
-	if windowSize == 0 {
-		return
-	}
+// prune removes entries older than the default window from the max counter.
+func (vc VectorClock) prune() {
+	const windowSize = defaultVCWindow
 	maxVal := vc.maxCounter()
 	if maxVal <= windowSize {
-		return // Nothing to prune when maxVal <= windowSize
+		return
 	}
 	threshold := maxVal - windowSize
 	for nodeID, c := range vc {

@@ -95,7 +95,7 @@ func TestCompare_TiebreakerSum(t *testing.T) {
 	assert.Equal(t, uint64(1), vcB.Sum())
 
 	// Lexicographic tiebreaker: "node2" > "node1"
-	assert.True(t, "node2" > "node1")
+	assert.Greater(t, "node2", "node1")
 }
 
 func TestVectorClock_Sum(t *testing.T) {
@@ -139,7 +139,7 @@ func TestVectorClock_Prune(t *testing.T) {
 
 	// Window = 10. maxVal = 15. threshold = 15 - 10 = 5.
 	// node3=3 < 5 → pruned. node1=15 ≥ 5 → kept. node2=8 ≥ 5 → kept.
-	vc.prune(10)
+	vc.prune()
 
 	_, hasNode1 := vc["node1"]
 	_, hasNode2 := vc["node2"]
@@ -154,9 +154,9 @@ func TestVectorClock_Prune_NoOpWhenMaxLessThanWindow(t *testing.T) {
 	vc := VectorClock{"node1": 5, "node2": 3}
 
 	// maxVal=5, window=10. 5 <= 10 → no pruning
-	vc.prune(10)
+	vc.prune()
 
-	assert.Equal(t, 2, len(vc))
+	assert.Len(t, vc, 2)
 }
 
 func TestVectorClock_SortedNodeIDs(t *testing.T) {

@@ -85,7 +85,7 @@ func (s *LocalStore) WriteStream(bucket, key string, r io.Reader, vc VectorClock
 		vc = NewVectorClock()
 	}
 	vc.Increment(s.nodeID)
-	vc.prune(defaultVCWindow)
+	vc.prune()
 
 	vcBytes, err := vc.Serialize()
 	if err != nil {
@@ -136,6 +136,7 @@ func (s *LocalStore) ReadStream(bucket, key string) (io.ReadCloser, VectorClock,
 			vc[s.nodeID] = binary.LittleEndian.Uint64(metaBytes)
 		} else if info, statErr := os.Stat(path); statErr == nil {
 			// No meta file — fall back to mtime as counter
+			//nolint:gosec // G115: timestamp within uint64 range for the foreseeable future
 			vc[s.nodeID] = uint64(info.ModTime().UnixNano())
 		}
 	}
@@ -183,6 +184,7 @@ func (s *LocalStore) Read(bucket, key string) ([]byte, VectorClock, error) {
 		if len(metaBytes) == 8 {
 			vc[s.nodeID] = binary.LittleEndian.Uint64(metaBytes)
 		} else {
+			//nolint:gosec // G115: timestamp within uint64 range for the foreseeable future
 			vc[s.nodeID] = uint64(info.ModTime().UnixNano())
 		}
 	}
@@ -306,7 +308,7 @@ func (s *LocalStore) Assemble(bucket, key string, parts []string) (int64, error)
 	metaPath := destPath + ".meta"
 	vc := NewVectorClock()
 	vc.Increment(s.nodeID)
-	vc.prune(defaultVCWindow)
+	vc.prune()
 	vcBytes, _ := vc.Serialize()
 	metaData := append([]byte{0x01}, vcBytes...)
 	_ = os.WriteFile(metaPath, metaData, 0600)

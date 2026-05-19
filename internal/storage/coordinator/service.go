@@ -480,13 +480,11 @@ func (c *Coordinator) processReadResults(results chan readResult) (readResult, [
 			}
 		} else if latest.vectorClock == nil && res.vectorClock == nil {
 			// Fallback to timestamp comparison (legacy path)
-			// Use highest timestamp as the winner, same as candidates for repair
-			if res.timestamp > latest.timestamp {
+			switch {
+			case res.timestamp > latest.timestamp:
 				latest = res
 				candidates = []readResult{res}
-			} else if res.timestamp == latest.timestamp {
-				candidates = append(candidates, res)
-			} else {
+			default:
 				candidates = append(candidates, res)
 			}
 		}
