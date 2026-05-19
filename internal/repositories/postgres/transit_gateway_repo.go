@@ -39,7 +39,7 @@ func (r *TransitGatewayRepository) Create(ctx context.Context, tg *domain.Transi
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to begin transaction", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	query := `
 		INSERT INTO transit_gateways (id, name, owner_tenant_id, status, arn, created_at, updated_at)
