@@ -32,7 +32,7 @@ type FunctionPool struct {
 	logger     *slog.Logger
 }
 
-// PoolManagerImpl manages per-function warm pools.
+// PoolManager manages per-function warm pools.
 type PoolManager struct {
 	pools     map[uuid.UUID]*FunctionPool
 	mu        sync.RWMutex
@@ -53,7 +53,7 @@ func NewPoolManager(backend ports.ComputeBackend, logger *slog.Logger) *PoolMana
 // Acquire returns a warm instance for the given function.
 // It implements backpressure: if no instances are available and we're below
 // MaxSize, it spawns a new one. If at MaxSize and all busy, it waits.
-func (m *PoolManagerImpl) Acquire(ctx context.Context, functionID uuid.UUID) (*ports.PoolInstance, func(error), error) {
+func (m *PoolManager) Acquire(ctx context.Context, functionID uuid.UUID) (*ports.PoolInstance, func(error), error) {
 	m.acquireWg.Add(1)
 	pool := m.getOrCreatePool(functionID)
 	inst, release, err := pool.Acquire(ctx)
@@ -71,7 +71,7 @@ func (m *PoolManagerImpl) Acquire(ctx context.Context, functionID uuid.UUID) (*p
 }
 
 // GetPoolStats returns current pool utilization for a function.
-func (m *PoolManagerImpl) GetPoolStats(ctx context.Context, functionID uuid.UUID) (ports.PoolStats, error) {
+func (m *PoolManager) GetPoolStats(ctx context.Context, functionID uuid.UUID) (ports.PoolStats, error) {
 	m.mu.RLock()
 	pool, ok := m.pools[functionID]
 	m.mu.RUnlock()
@@ -82,7 +82,7 @@ func (m *PoolManagerImpl) GetPoolStats(ctx context.Context, functionID uuid.UUID
 }
 
 // Stop gracefully shuts down the pool manager, waiting for in-flight acquisitions.
-func (m *PoolManagerImpl) Stop(ctx context.Context) {
+func (m *PoolManager) Stop(ctx context.Context) {
 	// First, prevent new registrations
 	m.mu.Lock()
 	poolMap := m.pools
@@ -110,7 +110,7 @@ func (m *PoolManagerImpl) Stop(ctx context.Context) {
 }
 
 // InvalidateFunction removes all warm instances for a function.
-func (m *PoolManagerImpl) InvalidateFunction(ctx context.Context, functionID uuid.UUID) error {
+func (m *PoolManager) InvalidateFunction(ctx context.Context, functionID uuid.UUID) error {
 	m.mu.Lock()
 	pool, ok := m.pools[functionID]
 	if ok {
@@ -126,7 +126,7 @@ func (m *PoolManagerImpl) InvalidateFunction(ctx context.Context, functionID uui
 
 // RegisterFunction registers a function with the pool manager,
 // associating its pool config and task options.
-func (m *PoolManagerImpl) RegisterFunction(functionID uuid.UUID, config ports.PoolConfig, taskOpts ports.RunTaskOptions) {
+func (m *PoolManager) RegisterFunction(functionID uuid.UUID, config ports.PoolConfig, taskOpts ports.RunTaskOptions) {
 	// Validate pool config
 	if config.MinSize < 0 {
 		m.logger.Warn("invalid pool config: MinSize cannot be negative", "function_id", functionID, "min_size", config.MinSize)
@@ -164,18 +164,18 @@ func (m *PoolManagerImpl) RegisterFunction(functionID uuid.UUID, config ports.Po
 }
 
 // UnregisterFunction removes a function from the pool manager.
-func (m *PoolManagerImpl) UnregisterFunction(ctx context.Context, functionID uuid.UUID) error {
+func (m *PoolManager) UnregisterFunction(ctx context.Context, functionID uuid.UUID) error {
 	return m.InvalidateFunction(ctx, functionID)
 }
 
 // Get returns an existing pool or nil.
-func (m *PoolManagerImpl) Get(functionID uuid.UUID) *FunctionPool {
+func (m *PoolManager) Get(functionID uuid.UUID) *FunctionPool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.pools[functionID]
 }
 
-func (m *PoolManagerImpl) getOrCreatePool(functionID uuid.UUID) *FunctionPool {
+func (m *PoolManager) getOrCreatePool(functionID uuid.UUID) *FunctionPool {
 	m.mu.RLock()
 	pool, ok := m.pools[functionID]
 	m.mu.RUnlock()
