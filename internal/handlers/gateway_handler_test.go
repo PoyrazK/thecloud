@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -331,6 +332,125 @@ func TestGatewayHandlerProxyJWTMissingBearer(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTValidToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	// Use a capturing proxy that records upstream headers
+	var upstreamReqHeaders http.Header
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		upstreamReqHeaders = wreq.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+	mockSvc.On("ValidateJWT", mock.Anything, route, "valid-token").Return(
+		map[string]string{"sub": "user123", "iss": "test-issuer"}, nil).Once()
+
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "user123", upstreamReqHeaders.Get("X-JWT-Claim-sub"))
+	assert.Equal(t, "test-issuer", upstreamReqHeaders.Get("X-JWT-Claim-iss"))
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTInvalidTokenServiceError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+	mockSvc.On("ValidateJWT", mock.Anything, route, "malformed-token").Return(
+		nil, fmt.Errorf("invalid token")).Once()
+
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer malformed-token")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTClaimsPropagation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	var upstreamReqHeaders http.Header
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		upstreamReqHeaders = wreq.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+	mockSvc.On("ValidateJWT", mock.Anything, route, "multi-claim-token").Return(
+		map[string]string{
+			"sub":   "user1",
+			"role":  "admin",
+			"email": "u@example.com",
+		}, nil).Once()
+
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer multi-claim-token")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "user1", upstreamReqHeaders.Get("X-JWT-Claim-sub"))
+	assert.Equal(t, "admin", upstreamReqHeaders.Get("X-JWT-Claim-role"))
+	assert.Equal(t, "u@example.com", upstreamReqHeaders.Get("X-JWT-Claim-email"))
 	mockSvc.AssertExpectations(t)
 }
 
