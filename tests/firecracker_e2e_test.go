@@ -69,7 +69,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		if err != nil {
 			t.Skipf("Launch failed, skipping test: %v", err)
 		}
-		defer adapter.DeleteInstance(ctx, id)
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
 
 		err = adapter.ResizeInstance(ctx, id, 2, 256*1024*1024)
 		require.NoError(t, err, "ResizeInstance should succeed")
@@ -88,7 +88,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		if err != nil {
 			t.Skipf("Launch failed, skipping test: %v", err)
 		}
-		defer adapter.DeleteInstance(ctx, id)
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
 
 		// Use a temporary volume path for testing
 		volumePath := os.Getenv("FIRECRACKER_TEST_VOLUME")
@@ -106,7 +106,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		if err != nil {
 			t.Skipf("Launch failed, skipping test: %v", err)
 		}
-		defer adapter.DeleteInstance(ctx, id)
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
 
 		// Resize first
 		err = adapter.ResizeInstance(ctx, id, 2, 256*1024*1024)
@@ -128,7 +128,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		if err != nil {
 			t.Skipf("Launch failed, skipping test: %v", err)
 		}
-		defer adapter.DeleteInstance(ctx, id)
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
 
 		err = adapter.StopInstance(ctx, id)
 		require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		tapName := "fc-test-tap-e2e"
 		_, err := adapter.CreateNetwork(ctx, tapName)
 		require.NoError(t, err, "CreateNetwork should succeed")
-		defer adapter.DeleteNetwork(ctx, tapName)
+		defer func() { _ = adapter.DeleteNetwork(ctx, tapName) }()
 	})
 
 	t.Run("DeleteNetwork_Twice", func(t *testing.T) {
@@ -157,11 +157,11 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		tapName := "fc-test-tap-e2e-dup"
 		_, err := adapter.CreateNetwork(ctx, tapName)
 		require.NoError(t, err)
-		defer adapter.DeleteNetwork(ctx, tapName)
+		defer func() { _ = adapter.DeleteNetwork(ctx, tapName) }()
 
 		_, err = adapter.CreateNetwork(ctx, tapName)
 		require.NoError(t, err)
-		defer adapter.DeleteNetwork(ctx, tapName)
+		defer func() { _ = adapter.DeleteNetwork(ctx, tapName) }()
 
 		err = adapter.DeleteNetwork(ctx, tapName)
 		require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		if err != nil {
 			t.Skipf("Launch failed, skipping test: %v", err)
 		}
-		defer adapter.DeleteInstance(ctx, id)
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
 
 		ip, err := adapter.GetInstanceIP(ctx, id)
 		if err != nil {
@@ -215,7 +215,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		if err != nil {
 			t.Skipf("Launch failed, skipping test: %v", err)
 		}
-		defer adapter.DeleteInstance(ctx, id)
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
 
 		err = adapter.CreateSnapshot(ctx, id, "e2e-test-snap")
 		if err != nil {
@@ -236,7 +236,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		if err != nil {
 			t.Skipf("Launch failed, skipping test: %v", err)
 		}
-		defer adapter.DeleteInstance(ctx, id)
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
 
 		err = adapter.CreateSnapshot(ctx, id, "e2e-to-delete")
 		if err != nil {
