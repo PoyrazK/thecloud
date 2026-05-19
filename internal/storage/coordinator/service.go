@@ -109,6 +109,9 @@ func (c *Coordinator) SyncClusterState(ctx context.Context) {
 	for id, m := range resp.Members {
 		if m.Status == "dead" {
 			c.ring.RemoveNode(id)
+			// Note: gRPC connection cleanup is handled by the connection manager.
+			// Removing from clients map happens when the node is confirmed dead
+			// and the connection manager closes the channel.
 		} else {
 			// Add new nodes to ring (only if not already present)
 			if _, ok := c.clients[id]; !ok {
@@ -131,8 +134,11 @@ func (c *Coordinator) SyncClusterState(ctx context.Context) {
 	// Trigger rebalance if topology changed (node death or join)
 	if hasChanges {
 		go func() {
-			if err := c.Rebalance(context.Background(), "default"); err != nil {
-				slog.Warn("rebalance failed", "error", err)
+			// Rebalance all known buckets (in production this may be configurable)
+			for _, bucket := range []string{"default"} {
+				if err := c.Rebalance(context.Background(), bucket); err != nil {
+					slog.Warn("rebalance failed", "bucket", bucket, "error", err)
+				}
 			}
 		}()
 	}
@@ -818,10 +824,6 @@ func (c *Coordinator) Rebalance(ctx context.Context, bucket string) error {
 	// For each key, check replication and repair if needed
 	for key := range allKeys {
 		targetNodes := c.ring.GetNodes(bucket+"/"+key, c.replicaCount)
-		targetSet := make(map[string]bool)
-		for _, n := range targetNodes {
-			targetSet[n] = true
-		}
 
 		// Check which target nodes actually have the key
 		haveCount := 0
