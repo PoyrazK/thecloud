@@ -484,13 +484,14 @@ func (c *Coordinator) compareVCResults(res readResult, latest *readResult, candi
 	case 0: // Equal
 		*candidates = append(*candidates, res)
 	case 2: // Concurrent — deterministic tiebreaker
-		if res.vectorClock.Sum() > latest.vectorClock.Sum() {
+		switch {
+		case res.vectorClock.Sum() > latest.vectorClock.Sum():
 			*latest = res
 			*candidates = []readResult{res}
-		} else if res.vectorClock.Sum() == latest.vectorClock.Sum() && res.nodeID > latest.nodeID {
+		case res.vectorClock.Sum() == latest.vectorClock.Sum() && res.nodeID > latest.nodeID:
 			*latest = res
 			*candidates = []readResult{res}
-		} else {
+		default:
 			*candidates = append(*candidates, res)
 		}
 		// Both concurrent entries may need repair if winner dominates them
