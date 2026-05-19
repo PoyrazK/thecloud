@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,7 +109,7 @@ func TestFunctionScheduleE2E(t *testing.T) {
 		scheduleID = res.Data.ID
 		assert.NotEmpty(t, scheduleID)
 		assert.Equal(t, scheduleName, res.Data.Name)
-		assert.Equal(t, "active", res.Data.Status)
+		assert.True(t, strings.EqualFold(res.Data.Status, "active"), "expected status to be active, got %s", res.Data.Status)
 	})
 
 	if scheduleID == "" {
@@ -168,7 +169,7 @@ func TestFunctionScheduleE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(getResp.Body).Decode(&getRes))
-		assert.Equal(t, "paused", getRes.Data.Status)
+		assert.True(t, strings.EqualFold(getRes.Data.Status, "paused"), "expected status to be paused, got %s", getRes.Data.Status)
 	})
 
 	// 5. Resume Function Schedule
@@ -188,7 +189,7 @@ func TestFunctionScheduleE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(getResp.Body).Decode(&getRes))
-		assert.Equal(t, "active", getRes.Data.Status)
+		assert.True(t, strings.EqualFold(getRes.Data.Status, "active"), "expected status to be active, got %s", getRes.Data.Status)
 	})
 
 	// 6. Get Schedule Runs

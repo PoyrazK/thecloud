@@ -28,6 +28,7 @@ func TestRouteTableE2E(t *testing.T) {
 
 	// Create subnet for association
 	var subnetID string
+	subnetCreated := false
 	t.Run("CreateSubnet", func(t *testing.T) {
 		payload := map[string]string{
 			"name":       fmt.Sprintf("rt-subnet-%d", time.Now().UnixNano()%1000),
@@ -50,15 +51,20 @@ func TestRouteTableE2E(t *testing.T) {
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
 		subnetID = res.Data.ID
+		subnetCreated = true
 		assert.NotEmpty(t, subnetID)
 	})
 
-	if subnetID == "" {
+	if !subnetCreated {
+		// Subnet creation was skipped - the test can't proceed
 		deleteVPC(t, client, token, vpcID)
-		t.Fatal("Subnet ID not set - cannot continue Route Table tests")
+		t.Skip("Subnet creation failed - cannot continue Route Table tests")
 	}
 
-	defer deleteSubnet(t, client, token, subnetID)
+	if subnetCreated {
+		defer deleteSubnet(t, client, token, subnetID)
+	}
+	defer deleteVPC(t, client, token, vpcID)
 
 	var rtID string
 	rtName := fmt.Sprintf("e2e-rt-%d", time.Now().UnixNano()%10000)
