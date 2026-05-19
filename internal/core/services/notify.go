@@ -225,7 +225,7 @@ func (s *NotifyService) Publish(ctx context.Context, topicID uuid.UUID, body str
 		ID:        uuid.New(),
 		TopicID:   topic.ID,
 		Body:      body,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := s.repo.SaveMessage(ctx, msg); err != nil {
