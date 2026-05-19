@@ -39,7 +39,8 @@ type Config struct {
 	KernelPath string
 	RootfsPath string
 	SocketDir  string
-	MockMode   bool // If true, don't start real Firecracker process
+	GuestCID   uint32 // Guest CID for vsock (default: 3)
+	MockMode   bool   // If true, don't start real Firecracker process
 }
 
 // Machine defines the firecracker.Machine methods used by the adapter.
@@ -63,6 +64,9 @@ type FirecrackerAdapter struct {
 func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter, error) {
 	if cfg.SocketDir == "" {
 		cfg.SocketDir = defaultSocketDir
+	}
+	if cfg.GuestCID == 0 {
+		cfg.GuestCID = 3 // Default VSOCK guest CID
 	}
 	if err := os.MkdirAll(cfg.SocketDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create socket directory %s: %w", cfg.SocketDir, err)
@@ -116,7 +120,7 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 			{
 				ID:   "vsock0",
 				Path: filepath.Join(a.cfg.SocketDir, id+".vsock"),
-				CID:  3,
+				CID:  a.cfg.GuestCID,
 			},
 		},
 	}

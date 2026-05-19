@@ -417,6 +417,11 @@ func (p *FunctionPool) reapIdleInstances() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Skip if nothing to reap
+	if len(p.warm) == 0 {
+		return
+	}
+
 	cutoff := time.Now().Add(-p.config.MaxIdleTime)
 	var stillWarm []*ports.PoolInstance
 
