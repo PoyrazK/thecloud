@@ -275,6 +275,23 @@ func (s *NATGatewayService) DeleteNATGateway(ctx context.Context, natID uuid.UUI
 		}
 	}
 
+	// Remove auto-added catch-all route from main route table
+	if s.rtRepo != nil {
+		if mainRT, err := s.rtRepo.GetMainByVPC(ctx, nat.VPCID); err == nil {
+			routes, _ := s.rtRepo.ListRoutes(ctx, mainRT.ID)
+			for _, r := range routes {
+				if r.DestinationCIDR == "0.0.0.0/0" && r.TargetType == domain.RouteTargetNAT && r.TargetID != nil && *r.TargetID == natID {
+					if err := s.rtRepo.RemoveRoute(ctx, mainRT.ID, r.ID); err != nil {
+						s.logger.Warn("failed to remove auto-added route during NAT deletion", "route_id", r.ID, "nat_id", natID, "error", err)
+					} else {
+						s.logger.Info("removed auto-added catch-all route for NAT gateway", "route_id", r.ID, "nat_id", natID)
+					}
+					break
+				}
+			}
+		}
+	}
+
 	// Delete NAT record
 	if err := s.repo.Delete(ctx, natID); err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete NAT gateway", err)
