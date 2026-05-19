@@ -25,14 +25,14 @@ func NewCommandValidator() *CommandValidator {
 			"java":   true,
 		},
 		dangerousPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`[;&|` + "\x24" + `<>]`),                              // shell operators
-			regexp.MustCompile(`\.\./`),                                             // path traversal
-			regexp.MustCompile(`--upload-files`),                                   // dangerous flags
+			regexp.MustCompile(`[;&|` + "\x24" + `<>]`), // shell operators
+			regexp.MustCompile(`\.\./`),                 // path traversal
+			regexp.MustCompile(`--upload-files`),        // dangerous flags
 			regexp.MustCompile(`--download-files`),
-			regexp.MustCompile(`--exec`),                                            // recursive exec
-			regexp.MustCompile(`\\`),                                               // backslash escapes
-			regexp.MustCompile(`\$\(`),                                             // command substitution
-			regexp.MustCompile(`\$\{`),                                              // variable expansion
+			regexp.MustCompile(`--exec`), // recursive exec
+			regexp.MustCompile(`\\`),     // backslash escapes
+			regexp.MustCompile(`\$\(`),   // command substitution
+			regexp.MustCompile(`\$\{`),   // variable expansion
 		},
 	}
 }

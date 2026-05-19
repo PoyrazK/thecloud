@@ -141,7 +141,7 @@ func commandValidator() *validator {
 }
 
 type validator struct {
-	allowed  map[string]bool
+	allowed   map[string]bool
 	dangerous []*regexp.Regexp
 }
 

@@ -14,7 +14,7 @@ import (
 // Pool defaults.
 const (
 	DefaultMinSize     = 1
-	DefaultMaxSize    = 10
+	DefaultMaxSize     = 10
 	DefaultMaxIdleSecs = 300
 )
 
@@ -34,11 +34,11 @@ type FunctionPool struct {
 
 // PoolManagerImpl manages per-function warm pools.
 type PoolManagerImpl struct {
-	pools       map[uuid.UUID]*FunctionPool
-	mu          sync.RWMutex
-	backend     ports.ComputeBackend
-	logger      *slog.Logger
-	acquireWg   sync.WaitGroup // tracks in-flight Acquire calls
+	pools     map[uuid.UUID]*FunctionPool
+	mu        sync.RWMutex
+	backend   ports.ComputeBackend
+	logger    *slog.Logger
+	acquireWg sync.WaitGroup // tracks in-flight Acquire calls
 }
 
 // NewPoolManager creates a new pool manager.
@@ -481,4 +481,3 @@ func defaultConfig() ports.PoolConfig {
 		MaxIdleTime: DefaultMaxIdleSecs * time.Second,
 	}
 }
-

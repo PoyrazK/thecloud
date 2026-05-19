@@ -22,16 +22,16 @@ type mockBackend struct {
 	mu          sync.Mutex
 	instances   map[string]bool
 	startDelay  time.Duration
-	startErr     error
-	execOutput   string
-	execErr      error
-	readyResult  bool
-	readyErr     error
+	startErr    error
+	execOutput  string
+	execErr     error
+	readyResult bool
+	readyErr    error
 }
 
 func newMockBackend() *mockBackend {
 	return &mockBackend{
-		instances:  make(map[string]bool),
+		instances:   make(map[string]bool),
 		readyResult: true,
 	}
 }
@@ -73,31 +73,47 @@ func (m *mockBackend) DeleteInstance(ctx context.Context, id string) error {
 func (m *mockBackend) LaunchInstanceWithOptions(ctx context.Context, opts ports.CreateInstanceOptions) (string, []string, error) {
 	return uuid.New().String(), nil, nil
 }
-func (m *mockBackend) StartInstance(ctx context.Context, id string) error                { return nil }
-func (m *mockBackend) StopInstance(ctx context.Context, id string) error                { return nil }
-func (m *mockBackend) PauseInstance(ctx context.Context, id string) error              { return nil }
-func (m *mockBackend) ResumeInstance(ctx context.Context, id string) error               { return nil }
-func (m *mockBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) { return nil, nil }
-func (m *mockBackend) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) { return nil, nil }
-func (m *mockBackend) GetInstancePort(ctx context.Context, id, internalPort string) (int, error) { return 80, nil }
-func (m *mockBackend) GetInstanceIP(ctx context.Context, id string) (string, error)      { return "10.0.0.2", nil }
-func (m *mockBackend) GetConsoleURL(ctx context.Context, id string) (string, error)     { return "", nil }
-func (m *mockBackend) Exec(ctx context.Context, id string, cmd []string) (string, error) { return "", nil }
+func (m *mockBackend) StartInstance(ctx context.Context, id string) error  { return nil }
+func (m *mockBackend) StopInstance(ctx context.Context, id string) error   { return nil }
+func (m *mockBackend) PauseInstance(ctx context.Context, id string) error  { return nil }
+func (m *mockBackend) ResumeInstance(ctx context.Context, id string) error { return nil }
+func (m *mockBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
+	return nil, nil
+}
+func (m *mockBackend) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
+	return nil, nil
+}
+func (m *mockBackend) GetInstancePort(ctx context.Context, id, internalPort string) (int, error) {
+	return 80, nil
+}
+func (m *mockBackend) GetInstanceIP(ctx context.Context, id string) (string, error) {
+	return "10.0.0.2", nil
+}
+func (m *mockBackend) GetConsoleURL(ctx context.Context, id string) (string, error) { return "", nil }
+func (m *mockBackend) Exec(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
 func (m *mockBackend) RunTask(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
 	return uuid.New().String(), nil, nil
 }
-func (m *mockBackend) WaitTask(ctx context.Context, id string) (int64, error) { return 0, nil }
+func (m *mockBackend) WaitTask(ctx context.Context, id string) (int64, error)         { return 0, nil }
 func (m *mockBackend) CreateNetwork(ctx context.Context, name string) (string, error) { return "", nil }
-func (m *mockBackend) DeleteNetwork(ctx context.Context, id string) error    { return nil }
-func (m *mockBackend) AttachVolume(ctx context.Context, id, path string) (string, string, error) { return "", "", nil }
-func (m *mockBackend) DetachVolume(ctx context.Context, id, path string) (string, error) { return "", nil }
-func (m *mockBackend) Ping(ctx context.Context) error                          { return nil }
-func (m *mockBackend) Type() string                                           { return "mock" }
-func (m *mockBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error { return nil }
-func (m *mockBackend) CreateSnapshot(ctx context.Context, id, name string) error { return nil }
+func (m *mockBackend) DeleteNetwork(ctx context.Context, id string) error             { return nil }
+func (m *mockBackend) AttachVolume(ctx context.Context, id, path string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockBackend) DetachVolume(ctx context.Context, id, path string) (string, error) {
+	return "", nil
+}
+func (m *mockBackend) Ping(ctx context.Context) error { return nil }
+func (m *mockBackend) Type() string                   { return "mock" }
+func (m *mockBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error {
+	return nil
+}
+func (m *mockBackend) CreateSnapshot(ctx context.Context, id, name string) error  { return nil }
 func (m *mockBackend) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
-func (m *mockBackend) DeleteSnapshot(ctx context.Context, id, name string) error { return nil }
-func (m *mockBackend) ResetCircuitBreaker()                                     {}
+func (m *mockBackend) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
+func (m *mockBackend) ResetCircuitBreaker()                                       {}
 
 func TestPoolManager_RegisterFunction(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))

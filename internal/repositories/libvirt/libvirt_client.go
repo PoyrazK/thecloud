@@ -13,7 +13,7 @@ type ConsoleFlags uint32
 
 const (
 	ConsoleForce ConsoleFlags = 1 << iota // VIR_DOMAIN_CONSOLE_FORCE
-	ConsoleSafe     ConsoleFlags = 1 << iota // VIR_DOMAIN_CONSOLE_SAFE
+	ConsoleSafe  ConsoleFlags = 1 << iota // VIR_DOMAIN_CONSOLE_SAFE
 )
 
 // LibvirtClient defines the interface for libvirt operations.
