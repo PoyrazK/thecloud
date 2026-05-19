@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
@@ -360,8 +361,14 @@ func TestFirecrackerAdapter_StopInstance_RealMode_ShutdownError(t *testing.T) {
 
 func TestGenerateMAC(t *testing.T) {
 	mac := generateMAC("test-instance")
-	// MAC should be in format 02:xx:xx:xx:xx:xx
-	assert.Regexp(t, `02:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}`, mac)
+	// MAC should be in format xx:xx:xx:xx:xx:xx where first byte has local bit set (bit 1) and multicast bit clear (bit 0)
+	assert.Regexp(t, `[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}`, mac)
+
+	// Verify first octet has local bit set and multicast bit clear
+	firstOctet, err := strconv.ParseUint(mac[:2], 16, 8)
+	require.NoError(t, err)
+	assert.True(t, firstOctet&0x01 == 0, "multicast bit should be clear")
+	assert.True(t, firstOctet&0x02 != 0, "local bit should be set")
 
 	// Different instances should produce different MACs
 	mac2 := generateMAC("instance-b")

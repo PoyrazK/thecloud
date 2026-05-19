@@ -89,6 +89,11 @@ func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter
 	if err := os.MkdirAll(cfg.SocketDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create socket directory %s: %w", cfg.SocketDir, err)
 	}
+	// Create snapshots directory with restrictive permissions
+	snapDir := filepath.Join(cfg.SocketDir, "snapshots")
+	if err := os.MkdirAll(snapDir, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create snapshot directory %s: %w", snapDir, err)
+	}
 
 	return &FirecrackerAdapter{
 		cfg:            cfg,
@@ -169,9 +174,9 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 func generateMAC(instanceID string) string {
 	h := uuid.NewMD5(uuid.NameSpaceDNS, []byte(instanceID))
 	macBytes := h[:]
-	return fmt.Sprintf("02:%02x:%02x:%02x:%02x:%02x",
+	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
 		macBytes[0]&0xfe|0x02, // Set local bit, clear multicast bit
-		macBytes[1], macBytes[2], macBytes[3], macBytes[4]%0xfe)
+		macBytes[1], macBytes[2], macBytes[3], macBytes[4]&0xfe)
 }
 
 func (a *FirecrackerAdapter) StartInstance(ctx context.Context, id string) error {
@@ -230,6 +235,10 @@ func (a *FirecrackerAdapter) DeleteInstance(ctx context.Context, id string) erro
 		return nil // Already gone
 	}
 	delete(a.machines, id)
+	delete(a.macAddresses, id)
+	delete(a.portMappings, id)
+	socketPath := filepath.Join(a.cfg.SocketDir, id+".socket")
+	delete(a.socketToInstID, socketPath)
 	a.mu.Unlock()
 
 	if !a.cfg.MockMode {
@@ -238,7 +247,6 @@ func (a *FirecrackerAdapter) DeleteInstance(ctx context.Context, id string) erro
 		}
 	}
 
-	socketPath := filepath.Join(a.cfg.SocketDir, id+".socket")
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove socket file %s: %w", socketPath, err)
 	}
@@ -438,6 +446,7 @@ func (a *FirecrackerAdapter) GetInstanceIP(ctx context.Context, id string) (stri
 // getIPFromARP queries the ARP table for the IP associated with a MAC address
 func (a *FirecrackerAdapter) getIPFromARP(mac string) (string, error) {
 	// Try `ip neigh show` first
+	// Format: IP dev DEVICE lladdr MAC STATE
 	cmd := exec.Command("ip", "neigh", "show")
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -445,8 +454,8 @@ func (a *FirecrackerAdapter) getIPFromARP(mac string) (string, error) {
 		for _, line := range strings.Split(out.String(), "\n") {
 			if strings.Contains(line, strings.ToLower(mac)) {
 				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					return parts[2], nil // IP is in position 2 (after MAC and dev)
+				if len(parts) >= 1 {
+					return parts[0], nil // IP is the first field
 				}
 			}
 		}
@@ -523,13 +532,12 @@ func (a *FirecrackerAdapter) WaitTask(ctx context.Context, id string) (int64, er
 }
 
 func (a *FirecrackerAdapter) CreateNetwork(ctx context.Context, name string) (string, error) {
-	// Handle empty or short names by generating a unique suffix
-	tapName := "fc-" + name
-	if len(tapName) < 5 { // minimum "fc-X"
-		tapName = "fc-" + uuid.New().String()[:8]
-	} else if len(name) > 8 {
-		tapName = "fc-" + name[:8]
-	}
+	// Derive a unique, conflict-free TAP device name using MD5 hash of the full name.
+	// This avoids collisions that would occur with simple truncation (e.g. "my-network"
+	// and "my-networx" both truncate to "fc-my-netw").
+	// TAP device names must be ≤ 15 chars, so we use first 8 hex chars from MD5.
+	h := uuid.NewMD5(uuid.NameSpaceDNS, []byte(name))
+	tapName := fmt.Sprintf("fc-%x", h[:4]) // e.g. "fc-a1b2c3d4" (12 chars)
 
 	// Create TAP device
 	cmd := exec.Command("ip", "tuntap", "add", "dev", tapName, "mode", "tap")
@@ -548,7 +556,7 @@ func (a *FirecrackerAdapter) CreateNetwork(ctx context.Context, name string) (st
 	}
 
 	a.mu.Lock()
-	a.networks[name] = tapName
+	a.networks[tapName] = tapName
 	a.mu.Unlock()
 
 	return tapName, nil
@@ -710,7 +718,10 @@ func (a *FirecrackerAdapter) DeleteSnapshot(ctx context.Context, id, name string
 }
 
 func (a *FirecrackerAdapter) getSnapshotPath(id, name string) string {
-	return fmt.Sprintf("/tmp/snapshot-%s-%s.tar.gz", id, name)
+	// Use SocketDir/snapshots/ for per-instance snapshot files instead of /tmp.
+	// Directory is created with restrictive permissions (0700).
+	snapDir := filepath.Join(a.cfg.SocketDir, "snapshots")
+	return filepath.Join(snapDir, fmt.Sprintf("snapshot-%s-%s.tar.gz", id, name))
 }
 
 func (a *FirecrackerAdapter) createDiskSnapshot(ctx context.Context, diskPath, snapshotPath string) error {
