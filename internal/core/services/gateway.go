@@ -755,6 +755,11 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		resp, err := rt.base.RoundTrip(req)
 		if err == nil {
 			if !rt.isRetryableStatus(resp.StatusCode) {
+				// Drain body before returning so connection can be reused
+				if resp.Body != nil {
+					_, _ = io.Copy(io.Discard, resp.Body)
+					resp.Body.Close()
+				}
 				return resp, nil //nolint:bodyclose
 			}
 			// drain and close body so connection can be reused, then retry
@@ -803,9 +808,14 @@ func (rt *retryTransport) isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
+	// Use net.Error interface for robust detection of transient errors
+	var netErr net.Error
+	if stderrors.As(err, &netErr) {
+		return netErr.Temporary() || netErr.Timeout()
+	}
+	// Fallback to string matching for errors not wrapped as net.Error
 	msg := err.Error()
 	return strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "timeout") ||
 		strings.Contains(msg, "reset by peer") ||
 		strings.Contains(msg, "broken pipe") ||
 		strings.Contains(msg, "connection reset")
