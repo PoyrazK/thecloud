@@ -13,6 +13,7 @@ import (
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/core/pool"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/poyrazk/thecloud/internal/repositories/noop"
 	"github.com/poyrazk/thecloud/pkg/testutil"
@@ -137,9 +138,10 @@ func BenchmarkFunctionServiceInvoke(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	rbacSvc := &noop.NoopRBACService{}
 	secretSvc := &noop.NoopSecretService{}
+	poolMgr := pool.NewPoolManager(compute, slog.Default())
 	logger := slog.Default()
 
-	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, logger)
+	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, logger)
 
 	ctx := context.Background()
 	id := uuid.New()
@@ -458,9 +460,10 @@ func BenchmarkFunctionServiceList(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	rbacSvc := &noop.NoopRBACService{}
 	secretSvc := &noop.NoopSecretService{}
+	poolMgr := pool.NewPoolManager(compute, slog.Default())
 	logger := slog.Default()
 
-	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, logger)
+	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, logger)
 
 	ctx := context.Background()
 

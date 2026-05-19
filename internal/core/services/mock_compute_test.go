@@ -255,6 +255,18 @@ func (m *MockComputeBackend) DeleteSnapshot(ctx context.Context, id, name string
 	return m.Called(ctx, id, name).Error(0)
 }
 func (m *MockComputeBackend) ResetCircuitBreaker() {}
+func (m *MockComputeBackend) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	args := m.Called(ctx, opts)
+	return args.String(0), args.Get(1).([]string), args.Error(2)
+}
+func (m *MockComputeBackend) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	args := m.Called(ctx, id, cmd)
+	return args.String(0), args.Error(1)
+}
+func (m *MockComputeBackend) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	args := m.Called(ctx, id)
+	return args.Bool(0), args.Error(1)
+}
 
 // MockClusterRepo
 type MockClusterRepo struct{ mock.Mock }
