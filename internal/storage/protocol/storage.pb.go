@@ -385,6 +385,7 @@ type StoreMetadata struct {
 	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
 	Timestamp     int64                  `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	TotalSize     int64                  `protobuf:"varint,4,opt,name=total_size,json=totalSize,proto3" json:"total_size,omitempty"`
+	VectorClock   []byte                 `protobuf:"bytes,5,opt,name=vector_clock,json=vectorClock,proto3" json:"vector_clock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -445,6 +446,13 @@ func (x *StoreMetadata) GetTotalSize() int64 {
 		return x.TotalSize
 	}
 	return 0
+}
+
+func (x *StoreMetadata) GetVectorClock() []byte {
+	if x != nil {
+		return x.VectorClock
+	}
+	return nil
 }
 
 type StoreResponse struct {
@@ -639,6 +647,7 @@ type RetrieveMetadata struct {
 	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
 	Timestamp     int64                  `protobuf:"varint,3,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	TotalSize     int64                  `protobuf:"varint,4,opt,name=total_size,json=totalSize,proto3" json:"total_size,omitempty"`
+	VectorClock   []byte                 `protobuf:"bytes,5,opt,name=vector_clock,json=vectorClock,proto3" json:"vector_clock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -699,6 +708,13 @@ func (x *RetrieveMetadata) GetTotalSize() int64 {
 		return x.TotalSize
 	}
 	return 0
+}
+
+func (x *RetrieveMetadata) GetVectorClock() []byte {
+	if x != nil {
+		return x.VectorClock
+	}
+	return nil
 }
 
 type DeleteRequest struct {

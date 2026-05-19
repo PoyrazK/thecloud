@@ -82,7 +82,7 @@ func run() error {
 	}
 
 	// 1. Init Store
-	store, err := node.NewLocalStore(*dataDir)
+	store, err := node.NewLocalStore(*dataDir, *nodeID)
 	if err != nil {
 		logger.Error("failed to init store", "error", err)
 		return err
