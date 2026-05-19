@@ -225,7 +225,7 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 		err = adapter.StopInstance(ctx, id)
 		require.NoError(t, err)
 
-		_, err = adapter.RestoreSnapshot(ctx, id, "e2e-test-snap")
+		err = adapter.RestoreSnapshot(ctx, id, "e2e-test-snap")
 		if err != nil {
 			t.Skipf("RestoreSnapshot not supported: %v", err)
 		}
