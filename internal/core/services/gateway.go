@@ -582,7 +582,15 @@ func (s *GatewayService) GetProxy(method, path string) (*httputil.ReverseProxy, 
 	}
 
 	if bestMatch != nil {
-		return s.proxies[bestMatch.Route.ID], bestMatch.Route, bestMatch.Params, true
+		proxy := s.proxies[bestMatch.Route.ID]
+		if proxy == nil {
+			s.logger.Error("proxy not found for matched route, possible proxy creation failure",
+				"route_id", bestMatch.Route.ID.String(),
+				"route_name", bestMatch.Route.Name,
+				"path", path)
+			return nil, nil, nil, false
+		}
+		return proxy, bestMatch.Route, bestMatch.Params, true
 	}
 
 	return nil, nil, nil, false
