@@ -1410,6 +1410,8 @@ func (a *LibvirtAdapter) StartPoolInstance(ctx context.Context, opts ports.RunTa
 
 // ExecInInstance executes a command in a warm (already running) VM.
 // It uses the serial console to send the command and capture output.
+// Command completion is detected via a 1s gap in output (no new data = done).
+// This avoids fragile shell-prompt detection that breaks when output contains "$ " or "# ".
 func (a *LibvirtAdapter) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
 	dom, err := a.client.DomainLookupByName(ctx, id)
 	if err != nil {
@@ -1433,10 +1435,14 @@ func (a *LibvirtAdapter) ExecInInstance(ctx context.Context, id string, cmd []st
 		return "", fmt.Errorf("failed to close writer: %w", err)
 	}
 
-	// Read output with timeout
+	// Read output with gap-based detection (500ms silence = done)
 	var output strings.Builder
 	buf := make([]byte, 4096)
 	deadline := time.Now().Add(60 * time.Second)
+	lastData := time.Now()
+	gapDuration := 1 * time.Second
+
+	// Use polling with ticker to detect gaps
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -1445,27 +1451,34 @@ func (a *LibvirtAdapter) ExecInInstance(ctx context.Context, id string, cmd []st
 		case <-ctx.Done():
 			return output.String(), ctx.Err()
 		case <-ticker.C:
-			n, err := reader.Read(buf)
-			if n > 0 {
-				output.Write(buf[:n])
-			}
-			if err != nil && err != io.EOF {
-				return output.String(), fmt.Errorf("console read error: %w", err)
-			}
-			// Check for shell prompt indicating command completed
-			s := output.String()
-			if strings.Contains(s, "$ ") || strings.Contains(s, "# ") || strings.Contains(s, "\r\n$") || strings.Contains(s, "\r\n#") {
-				// Command completed - trim prompt echo
-				break
-			}
 			if time.Now().After(deadline) {
 				return output.String(), fmt.Errorf("exec timed out after 60s")
 			}
-		}
-		break
-	}
 
-	return output.String(), nil
+			// Try to read with a short timeout
+			readBuf := make([]byte, len(buf))
+			n, err := reader.Read(readBuf)
+
+			if n > 0 {
+				output.Write(readBuf[:n])
+				lastData = time.Now()
+			}
+
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// EOF - check if we have enough data (gap detection)
+					if time.Since(lastData) >= gapDuration {
+						return output.String(), nil
+					}
+					continue
+				}
+				// On error, check if we've been silent long enough
+				if time.Since(lastData) >= gapDuration {
+					return output.String(), nil
+				}
+			}
+		}
+	}
 }
 
 // GetInstanceReady checks if a VM is fully initialized and ready to accept work.

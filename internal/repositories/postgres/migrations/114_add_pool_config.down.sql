@@ -1,0 +1,1 @@
+ALTER TABLE functions DROP COLUMN pool_config;

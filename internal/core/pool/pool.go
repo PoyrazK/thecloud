@@ -89,12 +89,12 @@ func (m *PoolManagerImpl) RegisterFunction(functionID uuid.UUID, config ports.Po
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if pool, ok := m.pools[functionID]; ok {
-		pool.updateConfig(config, taskOpts)
+	if existingPool, ok := m.pools[functionID]; ok {
+		existingPool.updateConfig(config, taskOpts)
 		return
 	}
 
-	pool = &FunctionPool{
+	newPool := &FunctionPool{
 		functionID: functionID,
 		config:     config,
 		warm:       make([]*ports.PoolInstance, 0),
@@ -104,8 +104,8 @@ func (m *PoolManagerImpl) RegisterFunction(functionID uuid.UUID, config ports.Po
 		reaperStop: make(chan struct{}),
 		logger:     m.logger,
 	}
-	m.pools[functionID] = pool
-	go pool.reaper()
+	m.pools[functionID] = newPool
+	go newPool.reaper()
 }
 
 // UnregisterFunction removes a function from the pool manager.
@@ -182,11 +182,6 @@ func (p *FunctionPool) Acquire(ctx context.Context) (*ports.PoolInstance, func(e
 }
 
 func (p *FunctionPool) waitForWarmInstance(ctx context.Context) (*ports.PoolInstance, func(error), error) {
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Now().Add(30 * time.Second)
-	}
-
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -228,11 +223,6 @@ func (p *FunctionPool) waitForWarmInstance(ctx context.Context) (*ports.PoolInst
 }
 
 func (p *FunctionPool) waitWithBackpressure(ctx context.Context) (*ports.PoolInstance, func(error), error) {
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Now().Add(30 * time.Second)
-	}
-
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
