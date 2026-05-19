@@ -3,14 +3,17 @@ package services
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"math"
+	"math/big"
 	"math/rand/v2"
 	"net"
 	"net/http"
@@ -33,28 +36,30 @@ import (
 
 // GatewayService manages API gateway routes and reverse proxies.
 type GatewayService struct {
-	repo     ports.GatewayRepository
-	rbacSvc  ports.RBACService
-	proxyMu  sync.RWMutex
-	proxies  map[uuid.UUID]*httputil.ReverseProxy
-	routes   []*domain.GatewayRoute
-	matchers map[uuid.UUID]*routing.PatternMatcher
-	auditSvc ports.AuditService
-	logger   *slog.Logger
-	jwksMu   sync.RWMutex
-	jwksCache map[string]*jwksCacheEntry
+	repo       ports.GatewayRepository
+	rbacSvc    ports.RBACService
+	proxyMu    sync.RWMutex
+	proxies    map[uuid.UUID]*httputil.ReverseProxy
+	routes     []*domain.GatewayRoute
+	matchers   map[uuid.UUID]*routing.PatternMatcher
+	auditSvc   ports.AuditService
+	logger     *slog.Logger
+	jwksMu     sync.RWMutex
+	jwksCache  map[string]*jwksCacheEntry
+	httpClient *http.Client
 }
 
 // NewGatewayService constructs a GatewayService and loads existing routes.
 func NewGatewayService(repo ports.GatewayRepository, rbacSvc ports.RBACService, auditSvc ports.AuditService, logger *slog.Logger) *GatewayService {
 	s := &GatewayService{
-		repo:     repo,
-		rbacSvc:  rbacSvc,
-		proxies:  make(map[uuid.UUID]*httputil.ReverseProxy),
-		routes:   make([]*domain.GatewayRoute, 0),
-		matchers: make(map[uuid.UUID]*routing.PatternMatcher),
-		auditSvc: auditSvc,
-		logger:   logger,
+		repo:       repo,
+		rbacSvc:    rbacSvc,
+		proxies:    make(map[uuid.UUID]*httputil.ReverseProxy),
+		routes:     make([]*domain.GatewayRoute, 0),
+		matchers:   make(map[uuid.UUID]*routing.PatternMatcher),
+		auditSvc:   auditSvc,
+		logger:     logger,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 	// Initial load
 	if err := s.RefreshRoutes(context.Background()); err != nil {
@@ -271,6 +276,11 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	// Configure custom transport with timeouts and TLS
+	tlsConfig, err := s.buildTLSConfig(route)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build TLS config: %w", err)
+	}
+
 	dialTimeout := time.Duration(route.DialTimeout) * time.Millisecond
 	if dialTimeout <= 0 {
 		dialTimeout = 5 * time.Second
@@ -291,7 +301,7 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 		}).DialContext,
 		ResponseHeaderTimeout: responseHeaderTimeout,
 		IdleConnTimeout:       idleConnTimeout,
-		TLSClientConfig:       s.buildTLSConfig(route),
+		TLSClientConfig:       tlsConfig,
 		TLSHandshakeTimeout:   10 * time.Second,
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   10,
@@ -318,7 +328,7 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 	return proxy, nil
 }
 
-func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) *tls.Config {
+func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) (*tls.Config, error) {
 	cfg := &tls.Config{
 		InsecureSkipVerify: route.TLSSkipVerify, //nolint:gosec // User-controlled option for development/testing
 	}
@@ -330,16 +340,19 @@ func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) *tls.Config 
 	// mTLS: load client certificate if provided
 	if route.ClientCert != "" && route.ClientKey != "" {
 		cert, err := tls.X509KeyPair([]byte(route.ClientCert), []byte(route.ClientKey))
-		if err == nil {
-			cfg.Certificates = []tls.Certificate{cert}
+		if err != nil {
+			return nil, fmt.Errorf("invalid client cert/key: %w", err)
 		}
+		cfg.Certificates = []tls.Certificate{cert}
 	}
 	// CA cert for backend verification
 	if route.CACert != "" {
 		cfg.RootCAs = x509.NewCertPool()
-		cfg.RootCAs.AppendCertsFromPEM([]byte(route.CACert))
+		if !cfg.RootCAs.AppendCertsFromPEM([]byte(route.CACert)) {
+			return nil, fmt.Errorf("failed to parse CA certificate")
+		}
 	}
-	return cfg
+	return cfg, nil
 }
 
 func (s *GatewayService) sortRoutes(routes []*domain.GatewayRoute) {
@@ -352,11 +365,11 @@ func (s *GatewayService) sortRoutes(routes []*domain.GatewayRoute) {
 }
 
 type jwksCacheEntry struct {
-	keys      map[string]any
+	keys      map[string]*rsa.PublicKey
 	fetchedAt time.Time
 }
 
-func (s *GatewayService) getJWKS(url string) (map[string]any, error) {
+func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) {
 	s.jwksMu.Lock()
 	defer s.jwksMu.Unlock()
 
@@ -368,7 +381,7 @@ func (s *GatewayService) getJWKS(url string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -381,10 +394,14 @@ func (s *GatewayService) getJWKS(url string) (map[string]any, error) {
 		return nil, err
 	}
 
-	keys := make(map[string]any)
+	keys := make(map[string]*rsa.PublicKey)
 	for _, k := range jwks.Keys {
 		if kid, ok := k["kid"].(string); ok {
-			keys[kid] = k
+			if kty, _ := k["kty"].(string); kty == "RSA" {
+				if pubKey, err := parseRSAPublicKeyFromJWK(k); err == nil {
+					keys[kid] = pubKey
+				}
+			}
 		}
 	}
 	if s.jwksCache == nil {
@@ -392,6 +409,36 @@ func (s *GatewayService) getJWKS(url string) (map[string]any, error) {
 	}
 	s.jwksCache[url] = &jwksCacheEntry{keys: keys, fetchedAt: time.Now()}
 	return keys, nil
+}
+
+// parseRSAPublicKeyFromJWK parses an RSA public key from a JWK map.
+func parseRSAPublicKeyFromJWK(k map[string]any) (*rsa.PublicKey, error) {
+	nVal, ok := k["n"].(string)
+	if !ok {
+		return nil, fmt.Errorf("JWK missing 'n'")
+	}
+	eVal, ok := k["e"].(string)
+	if !ok {
+		return nil, fmt.Errorf("JWK missing 'e'")
+	}
+
+	nBytes, err := base64.RawURLEncoding.DecodeString(nVal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode modulus: %w", err)
+	}
+	eBytes, err := base64.RawURLEncoding.DecodeString(eVal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode exponent: %w", err)
+	}
+
+	n := new(big.Int).SetBytes(nBytes)
+	// e is typically 65537 (0x10001) which encodes as "AQAB" in base64url
+	e := 0
+	for _, b := range eBytes {
+		e = e<<8 + int(b)
+	}
+
+	return &rsa.PublicKey{N: n, E: e}, nil
 }
 
 func (s *GatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayRoute, tokenString string) (map[string]string, error) {
@@ -405,14 +452,18 @@ func (s *GatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayR
 	}
 
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
 		kid, _ := t.Header["kid"].(string)
 		if kid == "" {
 			return nil, fmt.Errorf("kid not found in token header")
 		}
-		if _, ok := keys[kid]; !ok {
+		key, ok := keys[kid]
+		if !ok {
 			return nil, fmt.Errorf("key %s not found in JWKS", kid)
 		}
-		return nil, fmt.Errorf("RSA key parsing not yet implemented")
+		return key, nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("invalid token: %w", err)
@@ -429,8 +480,7 @@ func (s *GatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayR
 		}
 	}
 	if route.JWTAudience != "" {
-		aud, _ := claims["aud"].(string)
-		if aud != route.JWTAudience {
+		if !verifyAudience(claims, route.JWTAudience) {
 			return nil, fmt.Errorf("invalid audience")
 		}
 	}
@@ -442,6 +492,26 @@ func (s *GatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayR
 		}
 	}
 	return result, nil
+}
+
+// verifyAudience checks if the given audience claim matches the expected audience.
+// Handles both string and []interface{} audience claims per RFC 7519.
+func verifyAudience(claims jwt.MapClaims, expected string) bool {
+	aud, ok := claims["aud"]
+	if !ok {
+		return false
+	}
+	switch v := aud.(type) {
+	case string:
+		return v == expected
+	case []interface{}:
+		for _, a := range v {
+			if s, ok := a.(string); ok && s == expected {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ProxyHandler is handled in the API layer for now
@@ -671,6 +741,11 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "exhausted").Inc()
 		return nil, &retryableStatusError{resp: lastResp}
 	}
+	// lastResp may have an undrained body from a network error — drain before returning
+	if lastResp != nil && lastResp.Body != nil {
+		io.Copy(io.Discard, lastResp.Body)
+		lastResp.Body.Close()
+	}
 	return lastResp, nil //nolint:bodyclose
 }
 
@@ -712,7 +787,5 @@ func (rt *retryTransport) backoffWithJitter(attempt int) time.Duration {
 // jitter returns a random duration in [0, max) using math/rand/v2.
 // rand.Uint() is safe for concurrent use; no locking needed.
 func (rt *retryTransport) jitter(max time.Duration) time.Duration {
-	val := float64(rand.Uint()) / float64(1<<64) * float64(math.MaxUint64)
-	frac := val / float64(math.MaxUint64)
-	return time.Duration(float64(max) * frac)
+	return time.Duration(float64(max) * rand.Float64())
 }

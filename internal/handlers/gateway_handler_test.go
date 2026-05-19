@@ -267,6 +267,73 @@ func TestGatewayHandlerProxyWithSlash(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestGatewayHandlerProxyJWTEmptyToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:           uuid.New(),
+		Name:         "jwt-test",
+		JWTJwksURL:   "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+	// Request without Authorization header
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTMissingBearer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:           uuid.New(),
+		Name:         "jwt-test",
+		JWTJwksURL:   "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+	// Request with Authorization header but no Bearer prefix
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Basic dXNlcm5hbWU6cGFzc3dvcmQ=")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
 func TestGatewayHandlerCreateError(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidJSON", func(t *testing.T) {

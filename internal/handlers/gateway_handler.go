@@ -223,7 +223,15 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 	// JWT validation if configured
 	if route != nil && route.JWTJwksURL != "" {
 		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+			return
+		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		if tokenString == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			return
+		}
 		claims, err := h.svc.ValidateJWT(c.Request.Context(), route, tokenString)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
@@ -292,13 +300,22 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 
 	// Wrap response writer to capture status code for CORS headers and optionally compress
 	var wrapper http.ResponseWriter = &responseWrapper{ResponseWriter: c.Writer, status: http.StatusOK}
+	var needsClose bool
 
 	// Enable compression if configured and client accepts it
 	if route != nil && route.Compression != "" && strings.Contains(c.GetHeader("Accept-Encoding"), route.Compression) {
 		wrapper = newCompressWriter(c.Writer, route.Compression)
+		needsClose = true
 	}
 
 	proxy.ServeHTTP(wrapper, c.Request)
+
+	// Flush gzip writer if compression was enabled
+	if needsClose {
+		if cw, ok := wrapper.(*compressWriter); ok {
+			cw.Close()
+		}
+	}
 
 	// Apply route-level CORS headers if configured
 	if route != nil && len(route.AllowedOrigins) > 0 {
@@ -496,6 +513,9 @@ func (h *GatewayHandler) injectCORSHeaders(c *gin.Context, route *domain.Gateway
 	}
 
 	c.Header("Access-Control-Allow-Origin", origin)
+	if origin != "*" {
+		c.Header("Access-Control-Allow-Credentials", "true")
+	}
 	if len(route.AllowedMethods) > 0 {
 		c.Header("Access-Control-Allow-Methods", strings.Join(route.AllowedMethods, ", "))
 	}
