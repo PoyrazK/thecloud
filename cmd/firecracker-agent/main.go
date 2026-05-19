@@ -1,5 +1,7 @@
 //go:build linux && amd64
 
+// Package main provides the Firecracker guest agent that runs inside the VM
+// and handles vsock connections for command execution.
 package main
 
 import (
@@ -12,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -37,16 +38,16 @@ func vsockListen(cid, port int) (net.Listener, error) {
 
 	// Bind to the specific CID and port
 	addr := &unix.SockaddrVM{
-		CID:  uint32(cid),
-		Port: uint32(port),
+		CID:  uint32(cid), // #nosec G115 -- cid is always small positive constant
+		Port: uint32(port), // #nosec G115 -- port is always small positive constant
 	}
 	if err := unix.Bind(fd, addr); err != nil {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return nil, fmt.Errorf("bind failed: %w", err)
 	}
 
 	if err := unix.Listen(fd, 1); err != nil {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return nil, fmt.Errorf("listen failed: %w", err)
 	}
 
@@ -91,15 +92,15 @@ func (c *vsockConn) Close() error {
 	return unix.Close(c.fd)
 }
 
-func (c *vsockConn) SetDeadline(t time.Time) error {
+func (c *vsockConn) SetDeadline(_ time.Time) error {
 	return nil
 }
 
-func (c *vsockConn) SetReadDeadline(t time.Time) error {
+func (c *vsockConn) SetReadDeadline(_ time.Time) error {
 	return nil
 }
 
-func (c *vsockConn) SetWriteDeadline(t time.Time) error {
+func (c *vsockConn) SetWriteDeadline(_ time.Time) error {
 	return nil
 }
 
@@ -117,8 +118,6 @@ func (a *vsockAddr) Network() string {
 }
 
 var (
-	mu       sync.Mutex
-	active   int
 	validate = commandValidator()
 )
 
@@ -163,31 +162,32 @@ func (v *validator) validate(cmd []string) error {
 	return nil
 }
 
-func parseCommand(line string) ([]string, error) {
+func parseCommand(line string) []string {
 	var args []string
 	var current strings.Builder
 	inQuote := false
 	quoteChar := byte(0)
 	for i := 0; i < len(line); i++ {
 		c := line[i]
-		if !inQuote && (c == '"' || c == '\'') {
+		switch {
+		case !inQuote && (c == '"' || c == '\''):
 			inQuote = true
 			quoteChar = c
-		} else if inQuote && c == quoteChar {
+		case inQuote && c == quoteChar:
 			inQuote = false
-		} else if !inQuote && c == ' ' {
+		case !inQuote && c == ' ':
 			if current.Len() > 0 {
 				args = append(args, current.String())
 				current.Reset()
 			}
-		} else {
+		default:
 			current.WriteByte(c)
 		}
 	}
 	if current.Len() > 0 {
 		args = append(args, current.String())
 	}
-	return args, nil
+	return args
 }
 
 func main() {
@@ -200,7 +200,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to listen on vsock: %v", err)
 	}
-	defer lis.Close()
+	defer func() { _ = lis.Close() }()
 
 	log.Printf("firecracker-agent listening on vsock CID %d port %d", ListenCID, ListenPort)
 
@@ -211,20 +211,13 @@ func main() {
 			continue
 		}
 
-		mu.Lock()
-		active++
-		mu.Unlock()
-
 		go handleConnection(conn)
 	}
 }
 
 func handleConnection(conn net.Conn) {
 	defer func() {
-		conn.Close()
-		mu.Lock()
-		active--
-		mu.Unlock()
+		_ = conn.Close()
 	}()
 
 	scanner := bufio.NewScanner(conn)
@@ -241,17 +234,18 @@ func handleConnection(conn net.Conn) {
 		}
 
 		// Validate and parse command
-		args, err := parseCommand(line)
-		if err != nil {
-			conn.Write([]byte(fmt.Sprintf("ERROR: %v\n", err)))
+		args := parseCommand(line)
+		if len(args) == 0 {
+			_, _ = fmt.Fprintf(conn, "ERROR: empty command\n")
 			continue
 		}
 		if err := validate.validate(args); err != nil {
-			conn.Write([]byte(fmt.Sprintf("ERROR: %v\n", err)))
+			_, _ = fmt.Fprintf(conn, "ERROR: %v\n", err)
 			continue
 		}
 
 		// Execute command - only entrypoint with args, no shell interpretation
+		// #nosec G204 -- args are validated by validate.validate() before execution
 		cmd := exec.Command(args[0], args[1:]...)
 		out, err := cmd.CombinedOutput()
 
