@@ -356,3 +356,175 @@ func TestFirecrackerAdapter_StopInstance_RealMode_ShutdownError(t *testing.T) {
 	assert.Contains(t, err.Error(), "shutdown error")
 	failMachine.AssertExpectations(t)
 }
+
+func TestGenerateMAC(t *testing.T) {
+	mac := generateMAC("test-instance")
+	// MAC should be in format xx:xx:xx:xx:xx:xx where first byte has local bit set (bit 1) and multicast bit clear (bit 0)
+	assert.Regexp(t, `[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}`, mac)
+
+	// Verify first octet has local bit set and multicast bit clear
+	firstOctet, err := strconv.ParseUint(mac[:2], 16, 8)
+	require.NoError(t, err)
+	assert.True(t, firstOctet&0x01 == 0, "multicast bit should be clear")
+	assert.True(t, firstOctet&0x02 != 0, "local bit should be set")
+
+	// Different instances should produce different MACs
+	mac2 := generateMAC("instance-b")
+	assert.NotEqual(t, mac, mac2)
+
+	// Same instance should produce same MAC (deterministic)
+	mac3 := generateMAC("test-instance")
+	assert.Equal(t, mac, mac3)
+}
+
+func TestGetJiffiesPerSecond(t *testing.T) {
+	// Should return a positive value (100, 250, 1000, etc. depending on kernel CONFIG_HZ)
+	tck := getJiffiesPerSecond()
+	assert.Greater(t, tck, int64(0))
+	assert.Contains(t, []int64{100, 250, 300, 1000}, tck)
+}
+
+func TestFirecrackerAdapter_ResizeInstance_MockMode(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  true,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = adapter.ResizeInstance(ctx, "any-id", 2, 1024)
+	require.NoError(t, err) // MockMode: Shutdown/Start are no-ops, config update skipped
+}
+
+func TestFirecrackerAdapter_ResizeInstance_RealMode_NotFound(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  false,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = adapter.ResizeInstance(ctx, "nonexistent", 2, 1024)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestFirecrackerAdapter_ResizeInstance_RealMode_ShutdownError(t *testing.T) {
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  false,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	existingID := "existing-vm"
+
+	origNewMachineFn := newMachineFn
+	t.Cleanup(func() { newMachineFn = origNewMachineFn })
+
+	successMachine := new(mockFirecrackerMachine)
+	successMachine.On("Start", mock.Anything).Return(nil).Maybe()
+	successMachine.On("Shutdown", mock.Anything).Return(nil).Maybe()
+
+	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return successMachine, nil
+	}
+
+	_, _, err = adapter.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{Name: "new"})
+	require.NoError(t, err)
+
+	failMachine := new(mockFirecrackerMachine)
+	failMachine.On("Shutdown", mock.Anything).Return(errors.New("shutdown error"))
+
+	adapter.mu.Lock()
+	adapter.machines[existingID] = failMachine
+	adapter.mu.Unlock()
+
+	err = adapter.ResizeInstance(ctx, existingID, 2, 1024)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "shutdown error")
+	failMachine.AssertExpectations(t)
+}
+
+func TestFirecrackerAdapter_ResizeInstance_RealMode_RestartError(t *testing.T) {
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  false,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	existingID := "existing-vm"
+
+	origNewMachineFn := newMachineFn
+	t.Cleanup(func() { newMachineFn = origNewMachineFn })
+
+	successMachine := new(mockFirecrackerMachine)
+	successMachine.On("Start", mock.Anything).Return(nil).Maybe()
+	successMachine.On("Shutdown", mock.Anything).Return(nil).Maybe()
+
+	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return successMachine, nil
+	}
+
+	_, _, err = adapter.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{Name: "new"})
+	require.NoError(t, err)
+
+	// Replace with a machine that succeeds Shutdown but fails Start on restart
+	restartFailMachine := new(mockFirecrackerMachine)
+	restartFailMachine.On("Start", mock.Anything).Return(errors.New("restart error"))
+
+	adapter.mu.Lock()
+	adapter.machines[existingID] = restartFailMachine
+	adapter.mu.Unlock()
+
+	err = adapter.ResizeInstance(ctx, existingID, 2, 1024)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "restart error")
+	restartFailMachine.AssertExpectations(t)
+}
+
+func TestFirecrackerAdapter_AttachVolume_MockMode(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  true,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	// MockMode stores &firecracker.Machine{} which has an uninitialized client,
+	// so PutGuestDriveByID will fail
+	_, _, err = adapter.AttachVolume(ctx, "any-id", "/path/to/volume.qcow2")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to attach")
+}
+
+func TestFirecrackerAdapter_AttachVolume_RealMode_NotFound(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  false,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, _, err = adapter.AttachVolume(ctx, "nonexistent", "/path/to/volume.qcow2")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+>>>>>>> 9793fd1a (test(firecracker): add E2E and unit test coverage for new capabilities)
