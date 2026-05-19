@@ -138,7 +138,7 @@ func BenchmarkFunctionServiceInvoke(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	rbacSvc := &noop.NoopRBACService{}
 	secretSvc := &noop.NoopSecretService{}
-	poolMgr := pool.NewPoolManager(compute, slog.Default())
+	poolMgr := pool.NewManager(compute, slog.Default())
 	logger := slog.Default()
 
 	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, logger)
@@ -460,7 +460,7 @@ func BenchmarkFunctionServiceList(b *testing.B) {
 	auditSvc := &noop.NoopAuditService{}
 	rbacSvc := &noop.NoopRBACService{}
 	secretSvc := &noop.NoopSecretService{}
-	poolMgr := pool.NewPoolManager(compute, slog.Default())
+	poolMgr := pool.NewManager(compute, slog.Default())
 	logger := slog.Default()
 
 	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, logger)

@@ -36,7 +36,7 @@ func testFunctionServiceBasicOps(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	poolMgr := pool.NewPoolManager(compute, slog.Default())
+	poolMgr := pool.NewManager(compute, slog.Default())
 
 	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 
@@ -93,7 +93,7 @@ func testFunctionServiceCreateFunction(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	poolMgr := pool.NewPoolManager(compute, slog.Default())
+	poolMgr := pool.NewManager(compute, slog.Default())
 
 	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 
@@ -126,7 +126,7 @@ func testFunctionServiceInvokeFunction(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	poolMgr := pool.NewPoolManager(compute, slog.Default())
+	poolMgr := pool.NewManager(compute, slog.Default())
 
 	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 
@@ -228,7 +228,7 @@ func testFunctionServiceUpdateFunction(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	poolMgr := pool.NewPoolManager(compute, slog.Default())
+	poolMgr := pool.NewManager(compute, slog.Default())
 
 	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 

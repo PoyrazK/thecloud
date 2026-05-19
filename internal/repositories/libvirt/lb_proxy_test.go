@@ -67,6 +67,15 @@ func (m *mockCompute) CreateSnapshot(ctx context.Context, id, name string) error
 func (m *mockCompute) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
 func (m *mockCompute) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
 func (m *mockCompute) ResetCircuitBreaker()                                       {}
+func (m *mockCompute) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	return "", nil, nil
+}
+func (m *mockCompute) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
+func (m *mockCompute) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	return true, nil
+}
 
 func TestLBProxyAdapter(t *testing.T) {
 	mc := new(mockCompute)

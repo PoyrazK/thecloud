@@ -325,7 +325,7 @@ func InitServices(c ServiceConfig) (*Services, *Workers, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to init secret service: %w", err)
 	}
-	poolMgr := pool.NewPoolManager(c.Compute, c.Logger)
+	poolMgr := pool.NewManager(c.Compute, c.Logger)
 	fnSvc := services.NewFunctionService(c.Repos.Function, rbacSvc, c.Compute, fileStore, auditSvc, secretSvc, poolMgr, c.Logger)
 	fnSchedSvc := services.NewFunctionScheduleService(c.Repos.FunctionSchedule, c.Repos.Function, rbacSvc, eventSvc, auditSvc, c.Logger)
 	cacheSvc := services.NewCacheService(c.Repos.Cache, rbacSvc, c.Compute, c.Repos.Vpc, eventSvc, auditSvc, c.Logger)

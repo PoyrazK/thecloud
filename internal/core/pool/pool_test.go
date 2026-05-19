@@ -36,7 +36,7 @@ func newMockBackend() *mockBackend {
 	}
 }
 
-func (m *mockBackend) StartPoolInstance(_ context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+func (m *mockBackend) StartPoolInstance(_ context.Context, _ ports.RunTaskOptions) (string, []string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.startErr != nil {
@@ -50,7 +50,7 @@ func (m *mockBackend) StartPoolInstance(_ context.Context, opts ports.RunTaskOpt
 	return id, nil, nil
 }
 
-func (m *mockBackend) ExecInInstance(_ context.Context, id string, cmd []string) (string, error) {
+func (m *mockBackend) ExecInInstance(_ context.Context, id string, _ []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.instances[id]; !ok {
@@ -59,66 +59,66 @@ func (m *mockBackend) ExecInInstance(_ context.Context, id string, cmd []string)
 	return m.execOutput, m.execErr
 }
 
-func (m *mockBackend) GetInstanceReady(_ context.Context, id string) (bool, error) {
+func (m *mockBackend) GetInstanceReady(_ context.Context, _ string) (bool, error) {
 	return m.readyResult, m.readyErr
 }
 
-func (m *mockBackend) DeleteInstance(ctx context.Context, id string) error {
+func (m *mockBackend) DeleteInstance(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.instances, id)
 	return nil
 }
 
-func (m *mockBackend) LaunchInstanceWithOptions(ctx context.Context, opts ports.CreateInstanceOptions) (string, []string, error) {
+func (m *mockBackend) LaunchInstanceWithOptions(_ context.Context, _ ports.CreateInstanceOptions) (string, []string, error) {
 	return uuid.New().String(), nil, nil
 }
-func (m *mockBackend) StartInstance(ctx context.Context, id string) error  { return nil }
-func (m *mockBackend) StopInstance(ctx context.Context, id string) error   { return nil }
-func (m *mockBackend) PauseInstance(ctx context.Context, id string) error  { return nil }
-func (m *mockBackend) ResumeInstance(ctx context.Context, id string) error { return nil }
-func (m *mockBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
+func (m *mockBackend) StartInstance(_ context.Context, _ string) error  { return nil }
+func (m *mockBackend) StopInstance(_ context.Context, _ string) error   { return nil }
+func (m *mockBackend) PauseInstance(_ context.Context, _ string) error  { return nil }
+func (m *mockBackend) ResumeInstance(_ context.Context, _ string) error { return nil }
+func (m *mockBackend) GetInstanceLogs(_ context.Context, _ string) (io.ReadCloser, error) {
 	return nil, nil
 }
-func (m *mockBackend) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
+func (m *mockBackend) GetInstanceStats(_ context.Context, _ string) (io.ReadCloser, error) {
 	return nil, nil
 }
-func (m *mockBackend) GetInstancePort(ctx context.Context, id, internalPort string) (int, error) {
+func (m *mockBackend) GetInstancePort(_ context.Context, _, _ string) (int, error) {
 	return 80, nil
 }
-func (m *mockBackend) GetInstanceIP(ctx context.Context, id string) (string, error) {
+func (m *mockBackend) GetInstanceIP(_ context.Context, _ string) (string, error) {
 	return "10.0.0.2", nil
 }
-func (m *mockBackend) GetConsoleURL(ctx context.Context, id string) (string, error) { return "", nil }
-func (m *mockBackend) Exec(ctx context.Context, id string, cmd []string) (string, error) {
+func (m *mockBackend) GetConsoleURL(_ context.Context, _ string) (string, error) { return "", nil }
+func (m *mockBackend) Exec(_ context.Context, _ string, _ []string) (string, error) {
 	return "", nil
 }
-func (m *mockBackend) RunTask(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+func (m *mockBackend) RunTask(_ context.Context, _ ports.RunTaskOptions) (string, []string, error) {
 	return uuid.New().String(), nil, nil
 }
-func (m *mockBackend) WaitTask(ctx context.Context, id string) (int64, error)         { return 0, nil }
-func (m *mockBackend) CreateNetwork(ctx context.Context, name string) (string, error) { return "", nil }
-func (m *mockBackend) DeleteNetwork(ctx context.Context, id string) error             { return nil }
-func (m *mockBackend) AttachVolume(ctx context.Context, id, path string) (string, string, error) {
+func (m *mockBackend) WaitTask(_ context.Context, _ string) (int64, error)         { return 0, nil }
+func (m *mockBackend) CreateNetwork(_ context.Context, _ string) (string, error) { return "", nil }
+func (m *mockBackend) DeleteNetwork(_ context.Context, _ string) error             { return nil }
+func (m *mockBackend) AttachVolume(_ context.Context, _, _ string) (string, string, error) {
 	return "", "", nil
 }
-func (m *mockBackend) DetachVolume(ctx context.Context, id, path string) (string, error) {
+func (m *mockBackend) DetachVolume(_ context.Context, _, _ string) (string, error) {
 	return "", nil
 }
-func (m *mockBackend) Ping(ctx context.Context) error { return nil }
+func (m *mockBackend) Ping(_ context.Context) error { return nil }
 func (m *mockBackend) Type() string                   { return "mock" }
-func (m *mockBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error {
+func (m *mockBackend) ResizeInstance(_ context.Context, _ string, _, _ int64) error {
 	return nil
 }
-func (m *mockBackend) CreateSnapshot(ctx context.Context, id, name string) error  { return nil }
-func (m *mockBackend) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
-func (m *mockBackend) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
+func (m *mockBackend) CreateSnapshot(_ context.Context, _, _ string) error  { return nil }
+func (m *mockBackend) RestoreSnapshot(_ context.Context, _, _ string) error { return nil }
+func (m *mockBackend) DeleteSnapshot(_ context.Context, _, _ string) error  { return nil }
 func (m *mockBackend) ResetCircuitBreaker()                                       {}
 
 func TestPoolManager_RegisterFunction(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -143,7 +143,7 @@ func TestPoolManager_RegisterFunction(t *testing.T) {
 func TestPoolManager_RegisterFunction_ConfigValidation(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 
@@ -186,7 +186,7 @@ func TestPoolManager_RegisterFunction_ConfigValidation(t *testing.T) {
 func TestPoolManager_Acquire(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -222,7 +222,7 @@ func TestPoolManager_Acquire(t *testing.T) {
 func TestPoolManager_Acquire_ConcurrentRelease(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -260,7 +260,7 @@ func TestPoolManager_Acquire_ConcurrentRelease(t *testing.T) {
 func TestPoolManager_InvalidateFunction(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -278,7 +278,7 @@ func TestPoolManager_InvalidateFunction(t *testing.T) {
 
 	// Invalidate should remove the pool
 	err = mgr.InvalidateFunction(ctx, functionID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Pool should be gone
 	pool := mgr.Get(functionID)
@@ -288,7 +288,7 @@ func TestPoolManager_InvalidateFunction(t *testing.T) {
 func TestPoolManager_Stop(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -332,7 +332,7 @@ func TestPoolManager_Stop(t *testing.T) {
 func TestPoolManager_GetPoolStats(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -374,7 +374,7 @@ func TestPoolManager_GetPoolStats(t *testing.T) {
 func TestFunctionPool_ReapIdleInstances(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -401,16 +401,13 @@ func TestFunctionPool_ReapIdleInstances(t *testing.T) {
 	// The reaper should have removed the idle instance
 	pool := mgr.Get(functionID)
 	require.NotNil(t, pool)
-	pool.mu.RLock()
-	// Instance should be reaped since it exceeded MaxIdleTime and MinSize=0
-	// Note: timing here is tricky in tests
-	pool.mu.RUnlock()
+	// Note: timing here is tricky in tests, so we don't assert on pool state
 }
 
 func TestFunctionPool_ReleaseOnError(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	backend := newMockBackend()
-	mgr := NewPoolManager(backend, logger)
+	mgr := NewManager(backend, logger)
 
 	functionID := uuid.New()
 	config := ports.PoolConfig{
@@ -434,6 +431,6 @@ func TestFunctionPool_ReleaseOnError(t *testing.T) {
 	pool := mgr.Get(functionID)
 	require.NotNil(t, pool)
 	pool.mu.RLock()
-	assert.Equal(t, 0, len(pool.warm), "instance should not be in warm after error")
+	assert.Empty(t, pool.warm, "instance should not be in warm after error")
 	pool.mu.RUnlock()
 }

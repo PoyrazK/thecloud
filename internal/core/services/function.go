@@ -76,7 +76,7 @@ type FunctionService struct {
 	fileStore        ports.FileStore
 	auditSvc         ports.AuditService
 	secretSvc        ports.SecretService
-	poolMgr          *pool.PoolManager
+	poolMgr          *pool.Manager
 	logger           *slog.Logger
 	bulkheadRegistry map[uuid.UUID]*platform.Bulkhead
 	bulkheadMu       sync.RWMutex
@@ -84,7 +84,7 @@ type FunctionService struct {
 }
 
 // NewFunctionService constructs a FunctionService with its dependencies.
-func NewFunctionService(repo ports.FunctionRepository, rbacSvc ports.RBACService, compute ports.ComputeBackend, fileStore ports.FileStore, auditSvc ports.AuditService, secretSvc ports.SecretService, poolMgr *pool.PoolManager, logger *slog.Logger) *FunctionService {
+func NewFunctionService(repo ports.FunctionRepository, rbacSvc ports.RBACService, compute ports.ComputeBackend, fileStore ports.FileStore, auditSvc ports.AuditService, secretSvc ports.SecretService, poolMgr *pool.Manager, logger *slog.Logger) *FunctionService {
 	return &FunctionService{
 		repo:             repo,
 		rbacSvc:          rbacSvc,
