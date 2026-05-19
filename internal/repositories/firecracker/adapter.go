@@ -48,7 +48,6 @@ type Machine interface {
 	Wait(ctx context.Context) error
 }
 
-
 // FirecrackerAdapter implements ports.ComputeBackend using Firecracker.
 type FirecrackerAdapter struct {
 	cfg      Config
