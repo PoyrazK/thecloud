@@ -47,6 +47,7 @@ type GatewayService struct {
 	jwksMu     sync.RWMutex
 	jwksCache  map[string]*jwksCacheEntry
 	httpClient *http.Client
+	jwksCircuitBreaker *platform.CircuitBreaker
 }
 
 // NewGatewayService constructs a GatewayService and loads existing routes.
@@ -61,6 +62,16 @@ func NewGatewayService(repo ports.GatewayRepository, rbacSvc ports.RBACService, 
 		logger:     logger,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
+	s.jwksCircuitBreaker = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
+		Name:         "jwks-fetch",
+		Threshold:    3,
+		ResetTimeout: 30 * time.Second,
+		OnStateChange: func(name string, from, to platform.State) {
+			if s.logger != nil {
+				s.logger.Warn("JWKS circuit breaker state change", "name", name, "from", from.String(), "to", to.String())
+			}
+		},
+	})
 	// Initial load
 	if err := s.RefreshRoutes(context.Background()); err != nil {
 		s.logger.Error("failed to refresh routes on startup", "error", err)
@@ -381,9 +392,12 @@ func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) 
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, err
+	var resp *http.Response
+	if cbErr := s.jwksCircuitBreaker.Execute(func() error {
+		resp, err = s.httpClient.Do(req)
+		return err
+	}); cbErr != nil {
+		return nil, cbErr
 	}
 	defer resp.Body.Close()
 
@@ -403,6 +417,10 @@ func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) 
 				}
 			}
 		}
+	}
+	// If JWKS had keys but none parsed successfully, don't cache an empty result
+	if len(keys) == 0 && len(jwks.Keys) > 0 {
+		return nil, fmt.Errorf("JWKS returned %d keys but none were valid RSA keys", len(jwks.Keys))
 	}
 	if s.jwksCache == nil {
 		s.jwksCache = make(map[string]*jwksCacheEntry)
