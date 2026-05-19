@@ -209,4 +209,26 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 		err := svc.DetachVPC(ctx, attID)
 		require.Error(t, err)
 	})
+
+	t.Run("AssociateRouteTable_Success", func(t *testing.T) {
+		rtID := uuid.New()
+		attID := uuid.New()
+		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcUpdate, rtID.String()).Return(nil).Once()
+		mockRepo.On("AssociateAttachment", mock.Anything, rtID, attID).Return(nil).Once()
+
+		err := svc.AssociateRouteTable(ctx, rtID, attID)
+		require.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("EnableRoutePropagation_Success", func(t *testing.T) {
+		rtID := uuid.New()
+		attID := uuid.New()
+		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcUpdate, rtID.String()).Return(nil).Once()
+		mockRepo.On("EnablePropagation", mock.Anything, rtID, attID).Return(nil).Once()
+
+		err := svc.EnableRoutePropagation(ctx, rtID, attID)
+		require.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
 }

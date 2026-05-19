@@ -73,6 +73,10 @@ func (s *TransitGatewayService) CreateTransitGateway(ctx context.Context, name s
 		return nil, err
 	}
 
+	if name == "" {
+		return nil, errors.New(errors.InvalidInput, "name is required")
+	}
+
 	tgID := uuid.New()
 	arn := fmt.Sprintf("arn:thecloud:transit-gateway:local:%s:transit-gateway/%s", tenantID.String(), tgID.String())
 
@@ -83,10 +87,6 @@ func (s *TransitGatewayService) CreateTransitGateway(ctx context.Context, name s
 		Status:        domain.TransitGatewayStatusPending,
 		ARN:           arn,
 		CreatedAt:     time.Now().UTC(),
-	}
-
-	if err := tg.Validate(); err != nil {
-		return nil, errors.New(errors.InvalidInput, err.Error())
 	}
 
 	// Create default route table

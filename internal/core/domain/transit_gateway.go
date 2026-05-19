@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,17 +26,6 @@ type TransitGateway struct {
 	Attachments   []*TransitGatewayAttachment
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
-}
-
-// Validate checks that the Transit Gateway fields are valid.
-func (t *TransitGateway) Validate() error {
-	if t.Name == "" {
-		return fmt.Errorf("name is required")
-	}
-	if t.OwnerTenantID == uuid.Nil {
-		return fmt.Errorf("owner tenant ID is required")
-	}
-	return nil
 }
 
 // TransitGatewayAttachment represents a VPC attached to a Transit Gateway.
