@@ -344,7 +344,7 @@ func (a *FirecrackerAdapter) ExecInInstance(ctx context.Context, id string, cmd 
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to vsock socket %s: %w", vsockPath, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Build command message
 	cmdLine := strings.Join(cmd, " ") + "\n"
@@ -355,7 +355,7 @@ func (a *FirecrackerAdapter) ExecInInstance(ctx context.Context, id string, cmd 
 	}
 
 	// Set read deadline
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
 	// Read response
 	var output strings.Builder

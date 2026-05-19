@@ -85,7 +85,7 @@ func (v *CommandValidator) ValidateWithRuntime(cmd []string, runtime string) err
 
 // SanitizeArgs removes potentially dangerous characters from arguments.
 func (v *CommandValidator) SanitizeArgs(args []string) []string {
-	var sanitized []string
+	sanitized := make([]string, 0, len(args))
 	for _, arg := range args {
 		// Remove control characters and shell metacharacters
 		sanitized = append(sanitized, stripDangerous(arg))
