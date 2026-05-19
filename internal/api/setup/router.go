@@ -245,6 +245,23 @@ func registerIAMRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		iamGroup.DELETE("/users/:userId/policies/:policyId", handlers.IAM.DetachPolicyFromUser)
 		iamGroup.GET("/users/:userId/policies", handlers.IAM.GetUserPolicies)
 
+		// Group routes
+		iamGroup.POST("/groups", handlers.IAM.CreateGroup)
+		iamGroup.GET("/groups", handlers.IAM.ListGroups)
+		iamGroup.GET("/groups/:id", handlers.IAM.GetGroupByID)
+		iamGroup.PUT("/groups/:id", handlers.IAM.UpdateGroup)
+		iamGroup.DELETE("/groups/:id", handlers.IAM.DeleteGroup)
+
+		// Group membership
+		iamGroup.POST("/groups/:id/members/:userId", handlers.IAM.AddUserToGroup)
+		iamGroup.DELETE("/groups/:id/members/:userId", handlers.IAM.RemoveUserFromGroup)
+		iamGroup.GET("/groups/:id/members", handlers.IAM.GetGroupMembers)
+
+		// Group policy attachment
+		iamGroup.POST("/groups/:id/policies/:policyId", handlers.IAM.AttachPolicyToGroup)
+		iamGroup.DELETE("/groups/:id/policies/:policyId", handlers.IAM.DetachPolicyFromGroup)
+		iamGroup.GET("/groups/:id/policies", handlers.IAM.GetGroupPolicies)
+
 		// Service account routes
 		iamGroup.POST("/service-accounts", handlers.IAM.CreateServiceAccount)
 		iamGroup.GET("/service-accounts", handlers.IAM.ListServiceAccounts)
