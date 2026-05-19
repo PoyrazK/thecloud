@@ -260,6 +260,7 @@ func (e *iamEvaluator) matchPattern(pattern, target string) bool {
 // - * matches any sequence of characters (including empty)
 // - ? matches any single character
 // - * can appear at any position in the pattern
+// - \ is the escape character: \*, \?, \: match literal *, ?, :
 //
 // Note: Uses recursion with max depth bounded by min(len(pattern), len(target)).
 // For typical IAM patterns (<100 chars), stack depth is not a concern.
