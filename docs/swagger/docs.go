@@ -12081,6 +12081,9 @@ const docTemplate = `{
         "domain.VPCPeering": {
             "type": "object",
             "properties": {
+                "accepter_tenant_id": {
+                    "type": "string"
+                },
                 "accepter_vpc_id": {
                     "type": "string"
                 },
@@ -12093,13 +12096,13 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "requester_tenant_id": {
+                    "type": "string"
+                },
                 "requester_vpc_id": {
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
-                },
-                "tenant_id": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -12518,10 +12521,14 @@ const docTemplate = `{
         "httphandlers.CreatePeeringRequest": {
             "type": "object",
             "required": [
+                "accepter_tenant_id",
                 "accepter_vpc_id",
                 "requester_vpc_id"
             ],
             "properties": {
+                "accepter_tenant_id": {
+                    "type": "string"
+                },
                 "accepter_vpc_id": {
                     "type": "string"
                 },

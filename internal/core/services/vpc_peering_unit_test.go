@@ -19,15 +19,17 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 	mockRepo := new(MockVPCPeeringRepo)
 	mockVpcRepo := new(MockVpcRepo)
 	mockRTRepo := new(MockRTRepo)
+	mockTenantRepo := new(MockTenantRepo)
 	mockNetwork := new(MockNetworkBackend)
 	mockAuditSvc := new(MockAuditService)
 	svc := services.NewVPCPeeringService(services.VPCPeeringServiceParams{
-		Repo:     mockRepo,
-		VpcRepo:  mockVpcRepo,
-		RTRepo:   mockRTRepo,
-		Network:  mockNetwork,
-		AuditSvc: mockAuditSvc,
-		Logger:   slog.Default(),
+		Repo:       mockRepo,
+		VpcRepo:    mockVpcRepo,
+		RTRepo:     mockRTRepo,
+		TenantRepo: mockTenantRepo,
+		Network:    mockNetwork,
+		AuditSvc:   mockAuditSvc,
+		Logger:     slog.Default(),
 	})
 
 	ctx := context.Background()
@@ -38,7 +40,7 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 
 	t.Run("CreatePeering_SelfPeering", func(t *testing.T) {
 		id := uuid.New()
-		_, err := svc.CreatePeering(ctx, id, id)
+		_, err := svc.CreatePeering(ctx, id, id, tenantID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot peer a VPC with itself")
 	})
@@ -47,7 +49,7 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		vpcID := uuid.New()
 		mockVpcRepo.On("GetByID", mock.Anything, vpcID).Return(nil, fmt.Errorf("not found")).Once()
 
-		_, err := svc.CreatePeering(ctx, vpcID, uuid.New())
+		_, err := svc.CreatePeering(ctx, vpcID, uuid.New(), tenantID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "requester VPC not found")
 	})
@@ -58,8 +60,9 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		requesterVPC := &domain.VPC{ID: requesterVPCID, Name: "req", CIDRBlock: "10.0.0.0/16"}
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(nil, fmt.Errorf("not found")).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Maybe()
 
-		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID)
+		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, tenantID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "accepter VPC not found")
 	})
@@ -71,8 +74,9 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "10.0.0.0/24"} // Overlaps
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Maybe()
 
-		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID)
+		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, tenantID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "overlap")
 	})
@@ -84,9 +88,10 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "11.0.0.0/16"}
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Maybe()
 		mockRepo.On("GetActiveByVPCPair", mock.Anything, requesterVPCID, accepterVPCID).Return(&domain.VPCPeering{ID: uuid.New()}, nil).Once()
 
-		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID)
+		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, tenantID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "already exists")
 	})
@@ -98,17 +103,58 @@ func TestVPCPeeringService_Unit(t *testing.T) {
 		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "11.0.0.0/16"}
 		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, tenantID).Return(&domain.Tenant{ID: tenantID}, nil).Once()
 		mockRepo.On("GetActiveByVPCPair", mock.Anything, requesterVPCID, accepterVPCID).Return(nil, nil).Once()
 		mockRepo.On("Create", mock.Anything, mock.Anything).Return(nil).Once()
 		mockAuditSvc.On("Log", mock.Anything, userID, "vpc_peering.create", "vpc_peering", mock.Anything, mock.Anything).Return(nil).Once()
 
-		peering, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID)
+		peering, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, tenantID)
 		require.NoError(t, err)
 		assert.NotNil(t, peering)
 		assert.Equal(t, domain.PeeringStatusPendingAcceptance, peering.Status)
 		assert.Equal(t, requesterVPCID, peering.RequesterVPCID)
 		assert.Equal(t, accepterVPCID, peering.AccepterVPCID)
+		assert.Equal(t, tenantID, peering.RequesterTenantID)
+		assert.Equal(t, tenantID, peering.AccepterTenantID)
 		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("CreatePeering_CrossTenant", func(t *testing.T) {
+		requesterVPCID := uuid.New()
+		accepterVPCID := uuid.New()
+		accepterTenantID := uuid.New() // Different tenant
+		requesterVPC := &domain.VPC{ID: requesterVPCID, Name: "req", CIDRBlock: "10.0.0.0/16"}
+		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "12.0.0.0/16"}
+		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
+		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, accepterTenantID).Return(&domain.Tenant{ID: accepterTenantID}, nil).Once()
+		mockRepo.On("GetActiveByVPCPair", mock.Anything, requesterVPCID, accepterVPCID).Return(nil, nil).Once()
+		mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *domain.VPCPeering) bool {
+			return p.RequesterTenantID == tenantID && p.AccepterTenantID == accepterTenantID
+		})).Return(nil).Once()
+		mockAuditSvc.On("Log", mock.Anything, userID, "vpc_peering.create", "vpc_peering", mock.Anything, mock.Anything).Return(nil).Once()
+
+		peering, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, accepterTenantID)
+		require.NoError(t, err)
+		assert.NotNil(t, peering)
+		assert.Equal(t, tenantID, peering.RequesterTenantID)
+		assert.Equal(t, accepterTenantID, peering.AccepterTenantID)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("CreatePeering_AccepterTenantNotFound", func(t *testing.T) {
+		requesterVPCID := uuid.New()
+		accepterVPCID := uuid.New()
+		accepterTenantID := uuid.New()
+		requesterVPC := &domain.VPC{ID: requesterVPCID, Name: "req", CIDRBlock: "10.0.0.0/16"}
+		accepterVPC := &domain.VPC{ID: accepterVPCID, Name: "acc", CIDRBlock: "12.0.0.0/16"}
+		mockVpcRepo.On("GetByID", mock.Anything, requesterVPCID).Return(requesterVPC, nil).Once()
+		mockVpcRepo.On("GetByID", mock.Anything, accepterVPCID).Return(accepterVPC, nil).Once()
+		mockTenantRepo.On("GetByID", mock.Anything, accepterTenantID).Return(nil, fmt.Errorf("tenant not found")).Once()
+
+		_, err := svc.CreatePeering(ctx, requesterVPCID, accepterVPCID, accepterTenantID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "accepter tenant not found")
 	})
 
 	t.Run("AcceptPeering_WrongStatus", func(t *testing.T) {
