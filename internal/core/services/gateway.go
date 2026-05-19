@@ -14,7 +14,7 @@ import (
 	"log/slog"
 	"math"
 	"math/big"
-	"math/rand/v2"
+	cryptoRand "crypto/rand"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -413,7 +413,11 @@ func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) 
 			platform.JWKSFetchTotal.WithLabelValues("circuit_open").Inc()
 			return nil, cbErr
 		}
-		defer resp.Body.Close()
+		defer func() { //nolint:bodyclose
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+		}()
 
 		var jwks struct {
 			Keys []map[string]any `json:"keys"`
@@ -794,7 +798,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	}
 	// lastResp may have an undrained body from a network error — drain before returning
 	if lastResp != nil && lastResp.Body != nil {
-		io.Copy(io.Discard, lastResp.Body)
+		io.Copy(io.Discard, lastResp.Body) //nolint:errcheck
 		lastResp.Body.Close()
 	}
 	return lastResp, nil //nolint:bodyclose
@@ -840,8 +844,11 @@ func (rt *retryTransport) backoffWithJitter(attempt int) time.Duration {
 	return rt.jitter(time.Duration(delay))
 }
 
-// jitter returns a random duration in [0, max) using math/rand/v2.
-// rand.Uint() is safe for concurrent use; no locking needed.
+// jitter returns a random duration in [0, max) using crypto/rand.
+// crypto/rand is safe for concurrent use and provides cryptographic randomness.
 func (rt *retryTransport) jitter(max time.Duration) time.Duration {
-	return time.Duration(float64(max) * rand.Float64())
+	b := make([]byte, 8)
+	_, _ = cryptoRand.Read(b) //nolint:errcheck
+	val := float64(uint64(b[0])<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 | uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7]))
+	return time.Duration(float64(max) * (val / float64(1<<64)))
 }
