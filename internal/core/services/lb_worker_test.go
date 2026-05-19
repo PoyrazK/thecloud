@@ -131,8 +131,8 @@ func (m *mockInstRepo) GetByName(ctx context.Context, name string) (*domain.Inst
 	r0, _ := args.Get(0).(*domain.Instance)
 	return r0, args.Error(1)
 }
-func (m *mockInstRepo) List(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *mockInstRepo) List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	r0, _ := args.Get(0).([]*domain.Instance)
 	return r0, args.Error(1)
 }

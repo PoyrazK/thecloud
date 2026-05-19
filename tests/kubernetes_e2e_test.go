@@ -69,11 +69,18 @@ func TestKubernetesE2E(t *testing.T) {
 
 		// It might return 404 or empty if not ready, strictly speaking.
 		// But in our current impl, we return what's in DB. If provisioner hasn't updated it, it might be empty.
-		if resp.StatusCode == http.StatusOK {
-			// Success
-		} else {
-			// It's acceptable for now if it fails due to being provisioning
-			t.Logf("Kubeconfig endpoint returned %d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusOK:
+			// kubeconfig available — success
+		case http.StatusBadRequest:
+			// Cluster proxy not yet initialized — acceptable during provisioning
+			t.Log("Kubeconfig not yet available (cluster still provisioning)")
+		case http.StatusNotFound:
+			// Cluster not found — acceptable during early provisioning
+			t.Log("Cluster not found (may still be provisioning)")
+		default:
+			// Unexpected status — log for CI searchability but don't fail
+			t.Logf("Kubeconfig endpoint returned unexpected status %d", resp.StatusCode)
 		}
 	})
 

@@ -22,20 +22,36 @@ type EnvVar struct {
 // to distinguish "not provided" from "set to empty string" — this is intentional
 // and differs from the pointer pattern used by other fields.
 type FunctionUpdate struct {
-	Handler  *string   `json:"handler,omitempty"`
-	Timeout  *int      `json:"timeout,omitempty"`
-	MemoryMB *int      `json:"memory_mb,omitempty"`
-	Status   string    `json:"status,omitempty"`
-	EnvVars  []*EnvVar `json:"env_vars,omitempty"`
+	Handler                  *string   `json:"handler,omitempty"`
+	Timeout                  *int      `json:"timeout,omitempty"`
+	MemoryMB                 *int      `json:"memory_mb,omitempty"`
+	CPUs                     *float64  `json:"cpus,omitempty"`
+	Status                   string    `json:"status,omitempty"`
+	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
+	MaxConcurrentInvocations *int      `json:"max_concurrent_invocations,omitempty"`
+	MaxQueueDepth            *int      `json:"max_queue_depth,omitempty"`
+	MaxRetries               *int      `json:"max_retries,omitempty"`
 }
 
-// Validate checks that timeout and memory values are within acceptable bounds.
+// Validate checks that timeout, memory, and CPU values are within acceptable bounds.
 func (u *FunctionUpdate) Validate() error {
 	if u.Timeout != nil && (*u.Timeout < 1 || *u.Timeout > 900) {
 		return errors.New(errors.InvalidInput, "timeout must be between 1 and 900 seconds")
 	}
 	if u.MemoryMB != nil && (*u.MemoryMB < 64 || *u.MemoryMB > 10240) {
 		return errors.New(errors.InvalidInput, "memory must be between 64 and 10240 MB")
+	}
+	if u.CPUs != nil && (*u.CPUs < 0.1 || *u.CPUs > 8.0) {
+		return errors.New(errors.InvalidInput, "cpu must be between 0.1 and 8.0 cores")
+	}
+	if u.MaxConcurrentInvocations != nil && (*u.MaxConcurrentInvocations < 0 || *u.MaxConcurrentInvocations > 1000) {
+		return errors.New(errors.InvalidInput, "max_concurrent_invocations must be between 0 and 1000")
+	}
+	if u.MaxQueueDepth != nil && *u.MaxQueueDepth < 0 {
+		return errors.New(errors.InvalidInput, "max_queue_depth must be non-negative")
+	}
+	if u.MaxRetries != nil && *u.MaxRetries < -1 {
+		return errors.New(errors.InvalidInput, "max_retries must be -1 (infinite) or >= 0")
 	}
 	for _, e := range u.EnvVars {
 		if e.Value != "" && e.SecretRef != "" {
@@ -60,11 +76,23 @@ func (u *FunctionUpdate) SetColumns() []string {
 	if u.MemoryMB != nil {
 		cols = append(cols, "memory_mb")
 	}
+	if u.CPUs != nil {
+		cols = append(cols, "cpus")
+	}
 	if u.Status != "" {
 		cols = append(cols, "status")
 	}
 	if u.EnvVars != nil {
 		cols = append(cols, "env_vars")
+	}
+	if u.MaxConcurrentInvocations != nil {
+		cols = append(cols, "max_concurrent_invocations")
+	}
+	if u.MaxQueueDepth != nil {
+		cols = append(cols, "max_queue_depth")
+	}
+	if u.MaxRetries != nil {
+		cols = append(cols, "max_retries")
 	}
 	return cols
 }
@@ -72,29 +100,35 @@ func (u *FunctionUpdate) SetColumns() []string {
 // Function represents a serverless function.
 // Functions are event-driven units of execution (FaaS).
 type Function struct {
-	ID        uuid.UUID `json:"id"`
-	UserID    uuid.UUID `json:"user_id"`
-	TenantID  uuid.UUID `json:"tenant_id"`
-	Name      string    `json:"name"`
-	Runtime   string    `json:"runtime"`   // e.g. "python3.9", "go1.21"
-	Handler   string    `json:"handler"`   // Entry point (e.g. "main.Handle")
-	CodePath  string    `json:"code_path"` // Path to code artifact
-	Timeout   int       `json:"timeout"`   // Execution timeout in seconds
-	MemoryMB  int       `json:"memory_mb"` // Memory allocation
-	Status    string    `json:"status"`    // e.g. "DEPLOYING", "READY"
-	EnvVars   []*EnvVar `json:"env_vars,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                       uuid.UUID `json:"id"`
+	UserID                   uuid.UUID `json:"user_id"`
+	TenantID                 uuid.UUID `json:"tenant_id"`
+	Name                     string    `json:"name"`
+	Runtime                  string    `json:"runtime"`   // e.g. "python3.9", "go1.21"
+	Handler                  string    `json:"handler"`   // Entry point (e.g. "main.Handle")
+	CodePath                 string    `json:"code_path"` // Path to code artifact
+	Timeout                  int       `json:"timeout"`   // Execution timeout in seconds
+	MemoryMB                 int       `json:"memory_mb"` // Memory allocation in MB
+	CPUs                     float64   `json:"cpus"`      // CPU cores (e.g., 0.5, 1.0, 2.0)
+	Status                   string    `json:"status"`    // e.g. "DEPLOYING", "READY"
+	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
+	MaxConcurrentInvocations int       `json:"max_concurrent_invocations"` // 0 = unlimited
+	MaxQueueDepth            int       `json:"max_queue_depth"`            // 0 = no queue (fail fast)
+	MaxRetries               int       `json:"max_retries"`                // 0 = no retries, -1 = infinite retries
+	CreatedAt                time.Time `json:"created_at"`
+	UpdatedAt                time.Time `json:"updated_at"`
 }
 
 // Invocation represents a single execution of a Function.
 type Invocation struct {
 	ID         uuid.UUID  `json:"id"`
 	FunctionID uuid.UUID  `json:"function_id"`
-	Status     string     `json:"status"` // "PENDING", "RUNNING", "SUCCESS", "FAILED"
+	Status     string     `json:"status"` // "PENDING", "RUNNING", "SUCCESS", "FAILED", "DLQ"
 	StartedAt  time.Time  `json:"started_at"`
 	EndedAt    *time.Time `json:"ended_at,omitempty"`
 	DurationMs int        `json:"duration_ms"` // Execution time in milliseconds
 	StatusCode int        `json:"status_code"` // Exit code or HTTP status
 	Logs       string     `json:"logs"`        // Captured stdout/stderr
+	RetryCount int        `json:"retry_count"` // Number of retry attempts
+	MaxRetries int        `json:"max_retries"` // Max retries before moving to DLQ
 }

@@ -3,7 +3,9 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	stdlib_errors "errors"
@@ -95,18 +97,31 @@ func (r *InstanceRepository) GetByName(ctx context.Context, name string) (*domai
 }
 
 // List returns all instances belonging to the authenticated user.
-func (r *InstanceRepository) List(ctx context.Context) ([]*domain.Instance, error) {
+func (r *InstanceRepository) List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, user_id, tenant_id, name, image, COALESCE(container_id, ''), status, COALESCE(ports, ''), vpc_id, subnet_id, COALESCE(private_ip::text, ''), COALESCE(ovs_port, ''), COALESCE(instance_type, ''), 
+		SELECT id, user_id, tenant_id, name, image, COALESCE(container_id, ''), status, COALESCE(ports, ''), vpc_id, subnet_id, COALESCE(private_ip::text, ''), COALESCE(ovs_port, ''), COALESCE(instance_type, ''),
 		       volume_binds, env, cmd, COALESCE(cpu_limit, 0), COALESCE(memory_limit, 0), COALESCE(disk_limit, 0),
 		       COALESCE(metadata, '{}'::jsonb), COALESCE(labels, '{}'::jsonb), ssh_key_id,
 		       version, created_at, updated_at
 		FROM instances
-		WHERE tenant_id = $1
-		ORDER BY created_at DESC
-	`
-	rows, err := r.db.Query(ctx, query, tenantID)
+		WHERE tenant_id = $1`
+	args := []interface{}{tenantID}
+	for i, tag := range tagFilter {
+		// tag format: "key:value" — use JSONB containment (@>) to match instances where labels contains this entry
+		query += fmt.Sprintf(" AND labels @> $%d", i+2)
+		parts := strings.SplitN(tag, ":", 2)
+		if len(parts) == 2 {
+			labelJSON, _ := json.Marshal(map[string]string{parts[0]: parts[1]})
+			args = append(args, string(labelJSON))
+		} else {
+			// bare key filter: labels ? key
+			query = strings.Replace(query, fmt.Sprintf(" AND labels @> $%d", i+2), fmt.Sprintf(" AND labels ? $%d", i+2), 1)
+			args = append(args, tag)
+		}
+	}
+	query += " ORDER BY created_at DESC"
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list instances", err)
 	}

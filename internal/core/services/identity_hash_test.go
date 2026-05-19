@@ -24,27 +24,29 @@ func TestComputeKeyHash(t *testing.T) {
 }
 
 func TestGetServerSecret(t *testing.T) {
-	// Save original value
-	origVal := os.Getenv("SECRETS_ENCRYPTION_KEY")
+	// Save original values
+	origSecrets := os.Getenv("SECRETS_ENCRYPTION_KEY")
+	origTestSecrets := os.Getenv("TEST_SECRETS")
 	defer func() {
-		if origVal != "" {
-			os.Setenv("SECRETS_ENCRYPTION_KEY", origVal)
+		if origSecrets != "" {
+			os.Setenv("SECRETS_ENCRYPTION_KEY", origSecrets)
 		} else {
 			os.Unsetenv("SECRETS_ENCRYPTION_KEY")
 		}
+		os.Setenv("TEST_SECRETS", origTestSecrets)
 	}()
 
 	t.Run("WithEnvVar", func(t *testing.T) {
 		os.Setenv("SECRETS_ENCRYPTION_KEY", "test-secret-key")
-		// getServerSecret reads env directly, no need to modify global
+		os.Unsetenv("TEST_SECRETS")
 		secret := getServerSecret()
 		assert.Equal(t, "test-secret-key", secret)
 	})
 
-	t.Run("WithoutEnvVar", func(t *testing.T) {
+	t.Run("WithoutEnvVar_UsesTestFallback", func(t *testing.T) {
 		os.Unsetenv("SECRETS_ENCRYPTION_KEY")
-		// getServerSecret will return fallback
+		os.Setenv("TEST_SECRETS", "test-only-secret")
 		secret := getServerSecret()
-		assert.Equal(t, "thecloud-development-secret-do-not-use-in-production", secret)
+		assert.Equal(t, "test-only-secret", secret)
 	})
 }

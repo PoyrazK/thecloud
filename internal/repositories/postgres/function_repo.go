@@ -25,11 +25,11 @@ func NewFunctionRepository(db DB) *FunctionRepository {
 
 func (r *FunctionRepository) Create(ctx context.Context, f *domain.Function) error {
 	query := `
-		INSERT INTO functions (id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO functions (id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 	_, err := r.db.Exec(ctx, query,
-		f.ID, f.UserID, f.TenantID, f.Name, f.Runtime, f.Handler, f.CodePath, f.Timeout, f.MemoryMB, f.Status, f.CreatedAt, f.UpdatedAt,
+		f.ID, f.UserID, f.TenantID, f.Name, f.Runtime, f.Handler, f.CodePath, f.Timeout, f.MemoryMB, f.CPUs, f.Status, f.MaxConcurrentInvocations, f.MaxQueueDepth, f.MaxRetries, f.CreatedAt, f.UpdatedAt,
 	)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to create function", err)
@@ -39,19 +39,19 @@ func (r *FunctionRepository) Create(ctx context.Context, f *domain.Function) err
 
 func (r *FunctionRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Function, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
-	query := `SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, status, env_vars, created_at, updated_at FROM functions WHERE id = $1 AND tenant_id = $2`
+	query := `SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, env_vars, created_at, updated_at FROM functions WHERE id = $1 AND tenant_id = $2`
 	return r.scanFunction(r.db.QueryRow(ctx, query, id, tenantID))
 }
 
 func (r *FunctionRepository) GetByName(ctx context.Context, userID uuid.UUID, name string) (*domain.Function, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
-	query := `SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, status, env_vars, created_at, updated_at FROM functions WHERE name = $1 AND tenant_id = $2`
+	query := `SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, env_vars, created_at, updated_at FROM functions WHERE name = $1 AND tenant_id = $2`
 	return r.scanFunction(r.db.QueryRow(ctx, query, name, tenantID))
 }
 
 func (r *FunctionRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Function, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
-	query := `SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, status, env_vars, created_at, updated_at FROM functions WHERE tenant_id = $1 ORDER BY created_at DESC`
+	query := `SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, env_vars, created_at, updated_at FROM functions WHERE tenant_id = $1 ORDER BY created_at DESC`
 	rows, err := r.db.Query(ctx, query, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list functions", err)
@@ -96,8 +96,16 @@ func (r *FunctionRepository) Update(ctx context.Context, id uuid.UUID, u *domain
 			args = append(args, *u.Timeout)
 		case "memory_mb":
 			args = append(args, *u.MemoryMB)
+		case "cpus":
+			args = append(args, *u.CPUs)
 		case "status":
 			args = append(args, u.Status)
+		case "max_concurrent_invocations":
+			args = append(args, *u.MaxConcurrentInvocations)
+		case "max_queue_depth":
+			args = append(args, *u.MaxQueueDepth)
+		case "max_retries":
+			args = append(args, *u.MaxRetries)
 		case "env_vars":
 			envMap := make(map[string]string)
 			for _, e := range u.EnvVars {
@@ -121,11 +129,11 @@ func (r *FunctionRepository) Update(ctx context.Context, id uuid.UUID, u *domain
 
 func (r *FunctionRepository) CreateInvocation(ctx context.Context, i *domain.Invocation) error {
 	query := `
-		INSERT INTO invocations (id, function_id, status, started_at, ended_at, duration_ms, status_code, logs)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO invocations (id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err := r.db.Exec(ctx, query,
-		i.ID, i.FunctionID, i.Status, i.StartedAt, i.EndedAt, i.DurationMs, i.StatusCode, i.Logs,
+		i.ID, i.FunctionID, i.Status, i.StartedAt, i.EndedAt, i.DurationMs, i.StatusCode, i.Logs, i.RetryCount, i.MaxRetries,
 	)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to create invocation", err)
@@ -134,7 +142,7 @@ func (r *FunctionRepository) CreateInvocation(ctx context.Context, i *domain.Inv
 }
 
 func (r *FunctionRepository) GetInvocations(ctx context.Context, functionID uuid.UUID, limit int) ([]*domain.Invocation, error) {
-	query := `SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs FROM invocations WHERE function_id = $1 ORDER BY started_at DESC LIMIT $2`
+	query := `SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries FROM invocations WHERE function_id = $1 ORDER BY started_at DESC LIMIT $2`
 	rows, err := r.db.Query(ctx, query, functionID, limit)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to get invocations", err)
@@ -142,10 +150,34 @@ func (r *FunctionRepository) GetInvocations(ctx context.Context, functionID uuid
 	return r.scanInvocations(rows)
 }
 
+func (r *FunctionRepository) GetDLQInvocations(ctx context.Context, functionID uuid.UUID) ([]*domain.Invocation, error) {
+	query := `SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries FROM invocations WHERE function_id = $1 AND status = 'DLQ' ORDER BY started_at DESC`
+	rows, err := r.db.Query(ctx, query, functionID)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to get DLQ invocations", err)
+	}
+	return r.scanInvocations(rows)
+}
+
+func (r *FunctionRepository) GetInvocationByID(ctx context.Context, invocationID uuid.UUID) (*domain.Invocation, error) {
+	query := `SELECT id, function_id, status, started_at, ended_at, duration_ms, status_code, logs, retry_count, max_retries FROM invocations WHERE id = $1`
+	row := r.db.QueryRow(ctx, query, invocationID)
+	return r.scanInvocation(row)
+}
+
+func (r *FunctionRepository) UpdateInvocation(ctx context.Context, i *domain.Invocation) error {
+	query := `UPDATE invocations SET status = $1, ended_at = $2, duration_ms = $3, status_code = $4, logs = $5, retry_count = $6 WHERE id = $7`
+	_, err := r.db.Exec(ctx, query, i.Status, i.EndedAt, i.DurationMs, i.StatusCode, i.Logs, i.RetryCount, i.ID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to update invocation", err)
+	}
+	return nil
+}
+
 func (r *FunctionRepository) scanFunction(row pgx.Row) (*domain.Function, error) {
 	f := &domain.Function{}
 	var envVarsJSON []byte
-	err := row.Scan(&f.ID, &f.UserID, &f.TenantID, &f.Name, &f.Runtime, &f.Handler, &f.CodePath, &f.Timeout, &f.MemoryMB, &f.Status, &envVarsJSON, &f.CreatedAt, &f.UpdatedAt)
+	err := row.Scan(&f.ID, &f.UserID, &f.TenantID, &f.Name, &f.Runtime, &f.Handler, &f.CodePath, &f.Timeout, &f.MemoryMB, &f.CPUs, &f.Status, &f.MaxConcurrentInvocations, &f.MaxQueueDepth, &f.MaxRetries, &envVarsJSON, &f.CreatedAt, &f.UpdatedAt)
 	if err != nil {
 		return nil, errors.Wrap(errors.NotFound, "function not found", err)
 	}
@@ -176,7 +208,7 @@ func (r *FunctionRepository) scanFunctions(rows pgx.Rows) ([]*domain.Function, e
 
 func (r *FunctionRepository) scanInvocation(row pgx.Row) (*domain.Invocation, error) {
 	i := &domain.Invocation{}
-	err := row.Scan(&i.ID, &i.FunctionID, &i.Status, &i.StartedAt, &i.EndedAt, &i.DurationMs, &i.StatusCode, &i.Logs)
+	err := row.Scan(&i.ID, &i.FunctionID, &i.Status, &i.StartedAt, &i.EndedAt, &i.DurationMs, &i.StatusCode, &i.Logs, &i.RetryCount, &i.MaxRetries)
 	if err != nil {
 		return nil, err
 	}

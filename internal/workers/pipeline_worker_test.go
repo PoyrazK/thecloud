@@ -176,6 +176,7 @@ func (m *mockComputeBackendExtended) RestoreSnapshot(ctx context.Context, id, na
 func (m *mockComputeBackendExtended) DeleteSnapshot(ctx context.Context, id, name string) error {
 	return m.Called(ctx, id, name).Error(0)
 }
+func (m *mockComputeBackendExtended) ResetCircuitBreaker() {}
 
 func TestPipelineWorker_processJob(t *testing.T) {
 	repo := new(mockPipelineRepo)
@@ -231,5 +232,47 @@ func TestPipelineWorker_processJob(t *testing.T) {
 		repo.AssertExpectations(t)
 		compute.AssertExpectations(t)
 		taskQueue.AssertExpectations(t)
+	})
+
+	t.Run("DeleteInstanceCleanupFailure_IsLogged", func(t *testing.T) {
+		build := &domain.Build{ID: buildID, PipelineID: pipelineID, UserID: userID}
+		pipeline := &domain.Pipeline{
+			ID: pipelineID,
+			Config: domain.PipelineConfig{
+				Stages: []domain.PipelineStage{
+					{
+						Name: "Test",
+						Steps: []domain.PipelineStep{
+							{Name: "step1", Image: "alpine", Commands: []string{"echo hi"}},
+						},
+					},
+				},
+			},
+		}
+
+		repo.On("GetBuild", mock.Anything, buildID, userID).Return(build, nil).Once()
+		repo.On("GetPipeline", mock.Anything, pipelineID, userID).Return(pipeline, nil).Once()
+		repo.On("UpdateBuild", mock.Anything, mock.MatchedBy(func(b *domain.Build) bool {
+			return b.Status == domain.BuildStatusRunning
+		})).Return(nil).Once()
+		repo.On("CreateBuildStep", mock.Anything, mock.Anything).Return(nil).Once()
+
+		compute.On("RunTask", mock.Anything, mock.MatchedBy(func(opts ports.RunTaskOptions) bool {
+			return opts.Image == "alpine" && strings.Contains(strings.Join(opts.Command, " "), "echo hi")
+		})).Return("task-1", []string{}, nil).Once()
+		compute.On("WaitTask", mock.Anything, "task-1").Return(int64(0), nil).Once()
+		compute.On("GetInstanceLogs", mock.Anything, "task-1").Return(io.NopCloser(strings.NewReader("logs")), nil).Once()
+		compute.On("DeleteInstance", mock.Anything, "task-1").Return(context.DeadlineExceeded).Once()
+
+		repo.On("AppendBuildLog", mock.Anything, mock.Anything).Return(nil).Once()
+		repo.On("UpdateBuildStep", mock.Anything, mock.Anything).Return(nil).Once()
+		repo.On("UpdateBuild", mock.Anything, mock.MatchedBy(func(b *domain.Build) bool {
+			return b.Status == domain.BuildStatusSucceeded
+		})).Return(nil).Once()
+		taskQueue.On("Ack", mock.Anything, pipelineQueueName, pipelineGroup, msg.ID).Return(nil).Once()
+
+		// Should not panic — cleanup error is logged, not propagated
+		worker.processJob(context.Background(), msg, job)
+		compute.AssertExpectations(t)
 	})
 }

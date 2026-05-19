@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,16 +12,30 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
+	"golang.org/x/time/rate"
 )
 
 // LBService manages load balancers and target registration.
 type LBService struct {
-	lbRepo       ports.LBRepository
-	rbacSvc      ports.RBACService
-	vpcRepo      ports.VpcRepository
-	instanceRepo ports.InstanceRepository
-	auditSvc     ports.AuditService
-	logger       *slog.Logger
+	lbRepo         ports.LBRepository
+	rbacSvc        ports.RBACService
+	vpcRepo        ports.VpcRepository
+	instanceRepo   ports.InstanceRepository
+	auditSvc       ports.AuditService
+	logger         *slog.Logger
+	tenantLimiters map[uuid.UUID]*tenantLimiter
+	mu             sync.Mutex
+	limiterOpts    rateLimitOpts
+}
+
+type rateLimitOpts struct {
+	Rate  rate.Limit
+	Burst int
+}
+
+type tenantLimiter struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
 }
 
 // NewLBService constructs an LBService with its dependencies.
@@ -29,18 +44,47 @@ func NewLBService(lbRepo ports.LBRepository, rbacSvc ports.RBACService, vpcRepo 
 		logger = slog.Default()
 	}
 	return &LBService{
-		lbRepo:       lbRepo,
-		rbacSvc:      rbacSvc,
-		vpcRepo:      vpcRepo,
-		instanceRepo: instanceRepo,
-		auditSvc:     auditSvc,
-		logger:       logger,
+		lbRepo:         lbRepo,
+		rbacSvc:        rbacSvc,
+		vpcRepo:        vpcRepo,
+		instanceRepo:   instanceRepo,
+		auditSvc:       auditSvc,
+		logger:         logger,
+		tenantLimiters: make(map[uuid.UUID]*tenantLimiter),
+		limiterOpts: rateLimitOpts{
+			Rate:  10, // 10 LBs per minute per tenant
+			Burst: 5,
+		},
 	}
+}
+
+// getTenantLimiter returns a rate limiter for the given tenant, creating one if needed.
+func (s *LBService) getTenantLimiter(tenantID uuid.UUID) *rate.Limiter {
+	// Fast path: limiter already exists
+	if v, ok := s.tenantLimiters[tenantID]; ok {
+		return v.limiter
+	}
+	// Slow path: acquire lock and create
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.tenantLimiters[tenantID] == nil {
+		s.tenantLimiters[tenantID] = &tenantLimiter{
+			limiter:  rate.NewLimiter(s.limiterOpts.Rate, s.limiterOpts.Burst),
+			lastSeen: time.Now(),
+		}
+	}
+	return s.tenantLimiters[tenantID].limiter
 }
 
 func (s *LBService) Create(ctx context.Context, name string, vpcID uuid.UUID, port int, algo string, idempotencyKey string) (*domain.LoadBalancer, error) {
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	// Defence-in-depth: the HTTP handler validates min=1,max=65535, but other
+	// callers (CLI, tests, future internal services) can hit Create directly.
+	if port < 1 || port > 65535 {
+		return nil, errors.New(errors.InvalidInput, "port must be in 1..65535")
+	}
 
 	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionLbCreate, "*"); err != nil {
 		return nil, err
@@ -60,6 +104,12 @@ func (s *LBService) Create(ctx context.Context, name string, vpcID uuid.UUID, po
 		return nil, errors.Wrap(errors.NotFound, "VPC not found", err)
 	}
 
+	// Per-tenant rate limit: prevent LB creation spam
+	limiter := s.getTenantLimiter(tenantID)
+	if !limiter.Allow() {
+		return nil, errors.New(errors.ResourceLimitExceeded, "load balancer creation rate limit exceeded for tenant")
+	}
+
 	// Set default algorithm
 	if algo == "" {
 		algo = "round-robin"
@@ -76,7 +126,7 @@ func (s *LBService) Create(ctx context.Context, name string, vpcID uuid.UUID, po
 		Algorithm:      algo,
 		Status:         domain.LBStatusCreating,
 		Version:        1,
-		CreatedAt:      time.Now(),
+		CreatedAt:      time.Now().UTC(),
 	}
 
 	if err := s.lbRepo.Create(ctx, lb); err != nil {
@@ -150,6 +200,10 @@ func (s *LBService) Delete(ctx context.Context, idOrName string) error {
 func (s *LBService) AddTarget(ctx context.Context, lbID, instanceID uuid.UUID, port int, weight int) error {
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if port < 1 || port > 65535 {
+		return errors.New(errors.InvalidInput, "port must be in 1..65535")
+	}
 
 	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionLbUpdate, lbID.String()); err != nil {
 		return err

@@ -88,6 +88,14 @@ func TestClientGetSecret(t *testing.T) {
 	expectedSecret := Secret{ID: secretTestID, Name: secretTestName}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handle list request for ID resolution
+		if r.URL.Path == "/secrets" && r.Method == http.MethodGet {
+			w.Header().Set(secretTestContentType, secretTestAppJSON)
+			resp := Response[[]*Secret]{Data: []*Secret{{ID: secretTestID, Name: secretTestName}}}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		// Handle get request
 		assert.Equal(t, "/secrets/"+secretTestID, r.URL.Path)
 		assert.Equal(t, http.MethodGet, r.Method)
 
@@ -108,6 +116,14 @@ func TestClientGetSecret(t *testing.T) {
 func TestClientDeleteSecret(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Handle list request for ID resolution
+		if r.URL.Path == "/secrets" && r.Method == http.MethodGet {
+			w.Header().Set(secretTestContentType, secretTestAppJSON)
+			resp := Response[[]*Secret]{Data: []*Secret{{ID: secretTestID, Name: secretTestName}}}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		// Handle delete request
 		assert.Equal(t, "/secrets/"+secretTestID, r.URL.Path)
 		assert.Equal(t, http.MethodDelete, r.Method)
 

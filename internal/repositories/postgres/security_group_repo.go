@@ -70,6 +70,24 @@ func (r *SecurityGroupRepository) GetByName(ctx context.Context, vpcID uuid.UUID
 	return sg, nil
 }
 
+func (r *SecurityGroupRepository) GetByNameAcrossVPCs(ctx context.Context, name string) (*domain.SecurityGroup, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `SELECT id, user_id, tenant_id, vpc_id, name, description, arn, created_at FROM security_groups WHERE name = $1 AND tenant_id = $2 LIMIT 1`
+
+	sg, err := r.scanSecurityGroup(r.db.QueryRow(ctx, query, name, tenantID))
+	if err != nil {
+		return nil, err
+	}
+
+	rules, err := r.getRulesForGroup(ctx, sg.ID)
+	if err != nil {
+		return nil, err
+	}
+	sg.Rules = rules
+
+	return sg, nil
+}
+
 func (r *SecurityGroupRepository) ListByVPC(ctx context.Context, vpcID uuid.UUID) ([]*domain.SecurityGroup, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `SELECT id, user_id, tenant_id, vpc_id, name, description, arn, created_at FROM security_groups WHERE vpc_id = $1 AND tenant_id = $2 ORDER BY created_at DESC`

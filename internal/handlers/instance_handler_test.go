@@ -67,8 +67,8 @@ func (m *instanceServiceMock) ResumeInstance(ctx context.Context, idOrName strin
 	return m.Called(ctx, idOrName).Error(0)
 }
 
-func (m *instanceServiceMock) ListInstances(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *instanceServiceMock) ListInstances(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	r0, _ := args.Get(0).([]*domain.Instance)
 	return r0, args.Error(1)
 }
@@ -123,6 +123,20 @@ func (m *instanceServiceMock) ResizeInstance(ctx context.Context, idOrName, newI
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Instance), args.Error(1)
+}
+
+func (m *instanceServiceMock) GetTags(ctx context.Context, id uuid.UUID) (map[string]string, error) {
+	args := m.Called(ctx, id)
+	r0, _ := args.Get(0).(map[string]string)
+	return r0, args.Error(1)
+}
+
+func (m *instanceServiceMock) SetTags(ctx context.Context, id uuid.UUID, labels map[string]string) error {
+	return m.Called(ctx, id, labels).Error(0)
+}
+
+func (m *instanceServiceMock) RemoveTag(ctx context.Context, id uuid.UUID, key string) error {
+	return m.Called(ctx, id, key).Error(0)
 }
 
 func setupInstanceHandlerTest(_ *testing.T) (*instanceServiceMock, *InstanceHandler, *gin.Engine) {
@@ -237,7 +251,7 @@ func TestInstanceHandlerList(t *testing.T) {
 	r.GET(instancesPath, handler.List)
 
 	instances := []*domain.Instance{{ID: uuid.New(), Name: testInstanceName}}
-	mockSvc.On("ListInstances", mock.Anything).Return(instances, nil)
+	mockSvc.On("ListInstances", mock.Anything, []string(nil)).Return(instances, nil)
 
 	req := httptest.NewRequest(http.MethodGet, instancesPath, nil)
 	w := httptest.NewRecorder()

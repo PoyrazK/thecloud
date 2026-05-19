@@ -39,6 +39,7 @@ func TestClientCreateDatabase(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, expectedDB.Name, req.Name)
 		assert.Equal(t, expectedDB.Engine, req.Engine)
+		assert.Equal(t, 10, req.AllocatedStorage)
 
 		w.Header().Set(dbContentType, dbApplicationJSON)
 		resp := Response[Database]{Data: expectedDB}
@@ -47,7 +48,7 @@ func TestClientCreateDatabase(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, dbAPIKey)
-	db, err := client.CreateDatabase(dbTestName, "postgres", "14", &vpcID)
+	db, err := client.CreateDatabase(dbTestName, "postgres", "14", &vpcID, 10)
 
 	require.NoError(t, err)
 	assert.NotNil(t, db)
@@ -166,7 +167,7 @@ func TestClientDatabaseErrors(t *testing.T) {
 
 	client := NewClient(server.URL, dbAPIKey)
 
-	_, err := client.CreateDatabase("db", "postgres", "14", nil)
+	_, err := client.CreateDatabase("db", "postgres", "14", nil, 10)
 	require.Error(t, err)
 
 	_, err = client.ListDatabases()

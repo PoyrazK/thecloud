@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/poyrazk/thecloud/pkg/sdk"
 	"github.com/spf13/cobra"
 )
 
@@ -48,20 +49,48 @@ func newSSHKeyRegisterCmd(o *CLIOptions) *cobra.Command {
 }
 
 func newSSHKeyListCmd(o *CLIOptions) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all registered SSH keys",
 		Run: func(cmd *cobra.Command, args []string) {
 			client := createClient(*o)
-			keys, err := client.ListSSHKeys()
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-				return
+
+			limit, _ := cmd.Flags().GetInt("limit")
+			offset, _ := cmd.Flags().GetInt("offset")
+
+			var keys []sdk.SSHKey
+			var meta *sdk.ListResponse[sdk.SSHKey]
+
+			if limit > 0 || offset > 0 {
+				var err error
+				keys, meta, err = client.ListSSHKeysWithPagination(limit, offset)
+				if err != nil {
+					fmt.Printf("Error: %v\n", err)
+					return
+				}
+			} else {
+				var err error
+				keys, err = client.ListSSHKeys()
+				if err != nil {
+					fmt.Printf("Error: %v\n", err)
+					return
+				}
 			}
 
 			for _, k := range keys {
 				fmt.Printf("%-36s %s\n", k.ID, k.Name)
 			}
+
+			if meta != nil {
+				fmt.Printf("\nShowing %d of %d total", len(keys), meta.TotalCount)
+				if meta.HasMore {
+					fmt.Print(" (more available)")
+				}
+				fmt.Println()
+			}
 		},
 	}
+	cmd.Flags().Int("limit", 0, "Maximum number of results (0 = use server default)")
+	cmd.Flags().Int("offset", 0, "Number of results to skip")
+	return cmd
 }

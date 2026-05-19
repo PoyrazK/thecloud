@@ -147,6 +147,25 @@ func (s *RPCServer) Gossip(ctx context.Context, req *pb.GossipMessage) (*pb.Goss
 	if s.gossiper != nil {
 		s.gossiper.OnGossip(req)
 	}
+
+	if req.WantState {
+		if s.gossiper == nil {
+			return &pb.GossipResponse{Success: true}, nil
+		}
+		s.gossiper.mu.RLock()
+		defer s.gossiper.mu.RUnlock()
+		members := make(map[string]*pb.MemberState)
+		for id, m := range s.gossiper.members {
+			members[id] = &pb.MemberState{
+				Addr:      m.Address,
+				Status:    m.Status,
+				LastSeen:  m.LastSeen.Unix(),
+				Heartbeat: m.Heartbeat,
+			}
+		}
+		return &pb.GossipResponse{Success: true, Members: members}, nil
+	}
+
 	return &pb.GossipResponse{Success: true}, nil
 }
 

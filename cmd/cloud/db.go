@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
@@ -44,27 +45,39 @@ var dbListCmd = &cobra.Command{
 		for _, db := range databases {
 			id := truncateID(db.ID)
 
-			table.Append([]string{
+			if err := table.Append([]string{
 				id,
 				db.Name,
 				db.Engine,
 				db.Version,
 				db.Status,
 				fmt.Sprintf("%d", db.Port),
-			})
+			}); err != nil {
+				fmt.Printf(errorFormat, err)
+				return
+			}
 		}
-		table.Render()
+		if err := table.Render(); err != nil {
+			fmt.Printf(errorFormat, err)
+			return
+		}
 	},
 }
 
 var dbCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new managed database instance",
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(cmd *cobra.Command, _ []string) {
 		name, _ := cmd.Flags().GetString("name")
 		engine, _ := cmd.Flags().GetString("engine")
 		version, _ := cmd.Flags().GetString("version")
 		vpc, _ := cmd.Flags().GetString("vpc")
+		size, _ := cmd.Flags().GetInt("size")
+
+		if size < 10 {
+			fmt.Printf(errorFormat, "--size must be at least 10GB")
+			return
+		}
 
 		var vpcPtr *string
 		if vpc != "" {
@@ -72,7 +85,7 @@ var dbCreateCmd = &cobra.Command{
 		}
 
 		client := createClient(opts)
-		db, err := client.CreateDatabase(name, engine, version, vpcPtr)
+		db, err := client.CreateDatabase(name, engine, version, vpcPtr, size)
 		if err != nil {
 			fmt.Printf(errorFormat, err)
 			return
@@ -177,6 +190,22 @@ var dbRotateCmd = &cobra.Command{
 	},
 }
 
+var dbResizeCmd = &cobra.Command{
+	Use:   "resize [id] [sizeGB]",
+	Short: "Resize database allocated storage",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		id := args[0]
+		size, _ := strconv.Atoi(args[1])
+		client := createClient(opts)
+		if err := client.ResizeDatabase(id, size); err != nil {
+			fmt.Printf(errorFormat, err)
+			return
+		}
+		fmt.Printf("[SUCCESS] Database %s resized to %d GB.\n", id, size)
+	},
+}
+
 func init() {
 	dbCmd.AddCommand(dbListCmd)
 	dbCmd.AddCommand(dbCreateCmd)
@@ -184,10 +213,12 @@ func init() {
 	dbCmd.AddCommand(dbRmCmd)
 	dbCmd.AddCommand(dbConnCmd)
 	dbCmd.AddCommand(dbRotateCmd)
+	dbCmd.AddCommand(dbResizeCmd)
 
 	dbCreateCmd.Flags().StringP("name", "n", "", "Name of the database (required)")
 	dbCreateCmd.Flags().StringP("engine", "e", "postgres", "Database engine (postgres/mysql)")
 	dbCreateCmd.Flags().StringP("version", "v", "16", "Engine version")
 	dbCreateCmd.Flags().StringP("vpc", "V", "", "VPC ID to attach to")
+	dbCreateCmd.Flags().Int("size", 10, "Allocated storage in GB (minimum 10GB)")
 	_ = dbCreateCmd.MarkFlagRequired("name")
 }

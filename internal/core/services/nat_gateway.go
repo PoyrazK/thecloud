@@ -131,7 +131,7 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 		Status:      domain.NATGatewayStatusPending,
 		PrivateIP:   subnet.GatewayIP,
 		ARN:         arn,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	if err := s.repo.Create(ctx, nat); err != nil {

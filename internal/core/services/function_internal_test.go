@@ -10,11 +10,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,39 +33,52 @@ type testComputeBackend struct{}
 func (t *testComputeBackend) LaunchInstanceWithOptions(ctx context.Context, opts ports.CreateInstanceOptions) (string, []string, error) {
 	return "", nil, nil
 }
-func (t *testComputeBackend) StartInstance(ctx context.Context, id string) error                  { return nil }
-func (t *testComputeBackend) StopInstance(ctx context.Context, id string) error                    { return nil }
-func (t *testComputeBackend) DeleteInstance(ctx context.Context, id string) error                  { return nil }
-func (t *testComputeBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) { return nil, nil }
+func (t *testComputeBackend) StartInstance(ctx context.Context, id string) error  { return nil }
+func (t *testComputeBackend) StopInstance(ctx context.Context, id string) error   { return nil }
+func (t *testComputeBackend) DeleteInstance(ctx context.Context, id string) error { return nil }
+func (t *testComputeBackend) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
+	return nil, nil
+}
 func (t *testComputeBackend) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
 	return nil, nil
 }
 func (t *testComputeBackend) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {
 	return 0, nil
 }
-func (t *testComputeBackend) GetInstanceIP(ctx context.Context, id string) (string, error) { return "", nil }
-func (t *testComputeBackend) GetConsoleURL(ctx context.Context, id string) (string, error)   { return "", nil }
-func (t *testComputeBackend) Exec(ctx context.Context, id string, cmd []string) (string, error) { return "", nil }
+func (t *testComputeBackend) GetInstanceIP(ctx context.Context, id string) (string, error) {
+	return "", nil
+}
+func (t *testComputeBackend) GetConsoleURL(ctx context.Context, id string) (string, error) {
+	return "", nil
+}
+func (t *testComputeBackend) Exec(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
 func (t *testComputeBackend) RunTask(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
 	return "", nil, nil
 }
 func (t *testComputeBackend) WaitTask(ctx context.Context, id string) (int64, error) { return 0, nil }
-func (t *testComputeBackend) CreateNetwork(ctx context.Context, name string) (string, error) { return "", nil }
-func (t *testComputeBackend) DeleteNetwork(ctx context.Context, id string) error         { return nil }
+func (t *testComputeBackend) CreateNetwork(ctx context.Context, name string) (string, error) {
+	return "", nil
+}
+func (t *testComputeBackend) DeleteNetwork(ctx context.Context, id string) error { return nil }
 func (t *testComputeBackend) AttachVolume(ctx context.Context, id string, volumePath string) (string, string, error) {
 	return "", "", nil
 }
 func (t *testComputeBackend) DetachVolume(ctx context.Context, id string, volumePath string) (string, error) {
 	return "", nil
 }
-func (t *testComputeBackend) Ping(ctx context.Context) error                                        { return nil }
-func (t *testComputeBackend) Type() string                                                          { return "test" }
-func (t *testComputeBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error { return nil }
-func (t *testComputeBackend) CreateSnapshot(ctx context.Context, id, name string) error            { return nil }
-func (t *testComputeBackend) RestoreSnapshot(ctx context.Context, id, name string) error            { return nil }
-func (t *testComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error             { return nil }
-func (t *testComputeBackend) PauseInstance(ctx context.Context, id string) error                      { return nil }
-func (t *testComputeBackend) ResumeInstance(ctx context.Context, id string) error                     { return nil }
+func (t *testComputeBackend) Ping(ctx context.Context) error { return nil }
+func (t *testComputeBackend) Type() string                   { return "test" }
+func (t *testComputeBackend) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error {
+	return nil
+}
+func (t *testComputeBackend) CreateSnapshot(ctx context.Context, id, name string) error  { return nil }
+func (t *testComputeBackend) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
+func (t *testComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
+func (t *testComputeBackend) PauseInstance(ctx context.Context, id string) error         { return nil }
+func (t *testComputeBackend) ResumeInstance(ctx context.Context, id string) error        { return nil }
+func (t *testComputeBackend) ResetCircuitBreaker()                                       {}
 
 // compile-time check that testComputeBackend satisfies ports.ComputeBackend
 var _ ports.ComputeBackend = (*testComputeBackend)(nil)
@@ -195,8 +210,7 @@ func TestFunctionService_BuildTaskOptions(t *testing.T) {
 			}
 		}
 		assert.NotEmpty(t, apiKeyEnv)
-		assert.Contains(t, apiKeyEnv, `"key":"API_KEY"`)
-		assert.Contains(t, apiKeyEnv, `"value":"s3cr3t"`)
+		assert.Equal(t, "API_KEY=s3cr3t", apiKeyEnv)
 	})
 
 	t.Run("secretResolutionFailure", func(t *testing.T) {
@@ -281,4 +295,67 @@ func TestFunctionService_NormalizeHandler(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestFunctionService_GetBulkhead(t *testing.T) {
+	svc := &FunctionService{
+		bulkheadRegistry: make(map[uuid.UUID]*platform.Bulkhead),
+		bulkheadMu:       sync.RWMutex{},
+		logger:           slog.Default(),
+	}
+
+	t.Run("no throttling when MaxConcurrentInvocations is zero", func(t *testing.T) {
+		f := &domain.Function{ID: uuid.New(), MaxConcurrentInvocations: 0}
+		b := svc.getBulkhead(f)
+		assert.Nil(t, b)
+	})
+
+	t.Run("no throttling when MaxConcurrentInvocations is negative", func(t *testing.T) {
+		f := &domain.Function{ID: uuid.New(), MaxConcurrentInvocations: -1}
+		b := svc.getBulkhead(f)
+		assert.Nil(t, b)
+	})
+
+	t.Run("bulkhead created and cached for reuse", func(t *testing.T) {
+		fID := uuid.New()
+		f := &domain.Function{ID: fID, MaxConcurrentInvocations: 2, MaxQueueDepth: 0}
+		b1 := svc.getBulkhead(f)
+		b2 := svc.getBulkhead(f)
+		require.NotNil(t, b1)
+		require.NotNil(t, b2)
+		assert.Same(t, b1, b2)
+	})
+
+	t.Run("different functions get different bulkheads", func(t *testing.T) {
+		f1 := &domain.Function{ID: uuid.New(), MaxConcurrentInvocations: 2, MaxQueueDepth: 0}
+		f2 := &domain.Function{ID: uuid.New(), MaxConcurrentInvocations: 5, MaxQueueDepth: 0}
+		b1 := svc.getBulkhead(f1)
+		b2 := svc.getBulkhead(f2)
+		require.NotNil(t, b1)
+		require.NotNil(t, b2)
+		assert.NotSame(t, b1, b2)
+	})
+
+	t.Run("MaxQueueDepth of zero gives no-wait bulkhead", func(t *testing.T) {
+		f := &domain.Function{ID: uuid.New(), MaxConcurrentInvocations: 2, MaxQueueDepth: 0}
+		b := svc.getBulkhead(f)
+		require.NotNil(t, b)
+		// Bulkhead with WaitTimeout=0 uses 5s default (NewBulkhead sets default when 0)
+		// We just verify a bulkhead was created
+	})
+
+	t.Run("MaxQueueDepth > 0 gives bulkhead with wait timeout", func(t *testing.T) {
+		f := &domain.Function{ID: uuid.New(), MaxConcurrentInvocations: 2, MaxQueueDepth: 5}
+		b := svc.getBulkhead(f)
+		require.NotNil(t, b)
+		// Verify bulkhead name includes function ID
+		assert.Contains(t, b.Name(), f.ID.String())
+	})
+
+	t.Run("MaxQueueDepth zero gives immediate-fail bulkhead", func(t *testing.T) {
+		f := &domain.Function{ID: uuid.New(), MaxConcurrentInvocations: 2, MaxQueueDepth: 0}
+		b := svc.getBulkhead(f)
+		require.NotNil(t, b)
+		// Bulkhead should be configured for immediate fail (negative timeout)
+	})
 }

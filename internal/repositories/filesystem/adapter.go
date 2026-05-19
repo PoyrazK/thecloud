@@ -27,8 +27,8 @@ func NewLocalFileStore(basePath string) (*LocalFileStore, error) {
 }
 
 const (
-	errTraversal   = "invalid path: traversal detected"
-	maxObjectSize   = 5 * 1024 * 1024 * 1024 // 5 GB - prevents memory exhaustion during writes
+	errTraversal  = "invalid path: traversal detected"
+	maxObjectSize = 5 * 1024 * 1024 * 1024 // 5 GB - prevents memory exhaustion during writes
 )
 
 func (s *LocalFileStore) Write(ctx context.Context, bucket, key string, r io.Reader) (int64, error) {

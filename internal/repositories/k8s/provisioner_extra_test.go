@@ -186,7 +186,7 @@ func TestGetExecutor_FailPaths(t *testing.T) {
 		instSvc := new(mockInstanceService)
 		p := &KubeadmProvisioner{instSvc: instSvc}
 
-		instSvc.On("ListInstances", ctx).Return([]*domain.Instance{}, nil).Once()
+		instSvc.On("ListInstances", ctx, mock.Anything).Return([]*domain.Instance{}, nil).Once()
 
 		_, err := p.getExecutor(ctx, cluster, "10.0.0.1")
 		require.Error(t, err)

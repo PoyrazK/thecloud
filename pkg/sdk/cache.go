@@ -1,7 +1,12 @@
 // Package sdk provides the official Go SDK for the platform.
 package sdk
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // Cache describes a cache instance.
 type Cache struct {
@@ -90,4 +95,24 @@ func (c *Client) GetCacheStats(id string) (*CacheStats, error) {
 		return nil, err
 	}
 	return &resp.Data, nil
+}
+
+func (c *Client) ResizeCache(idOrName string, newMemoryMB int) error {
+	// Resolve name to ID if needed
+	id := idOrName
+	if _, err := uuid.Parse(idOrName); err != nil {
+		caches, err := c.ListCaches()
+		if err != nil {
+			return err
+		}
+		for _, cache := range caches {
+			if cache.Name == idOrName {
+				id = cache.ID
+				break
+			}
+		}
+	}
+	body := map[string]int{"memory_mb": newMemoryMB}
+	path := fmt.Sprintf("%s%s/resize", cachesPath, id)
+	return c.post(path, body, nil)
 }

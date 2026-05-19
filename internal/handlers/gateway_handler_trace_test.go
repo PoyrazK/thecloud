@@ -8,22 +8,22 @@ import (
 
 func TestTraceIDGeneration(t *testing.T) {
 	tests := []struct {
-		name         string
-		generator    func() string
-		expectedLen  int
-		checkUnique  bool
+		name        string
+		generator   func() string
+		expectedLen int
+		checkUnique bool
 	}{
 		{
 			name:        "trace ID has correct length",
 			generator:   generateTraceID,
 			expectedLen: 32,
-			checkUnique:  true,
+			checkUnique: true,
 		},
 		{
 			name:        "span ID has correct length",
 			generator:   generateSpanID,
 			expectedLen: 16,
-			checkUnique:  true,
+			checkUnique: true,
 		},
 	}
 

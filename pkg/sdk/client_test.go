@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -126,4 +127,66 @@ func TestClientPatchStatusError(t *testing.T) {
 
 	err := client.patch("/fail", map[string]string{"a": "b"}, &res)
 	assert.Error(t, err)
+}
+
+func TestResolveID_ValidUUID(t *testing.T) {
+	client := NewClient("http://localhost", clientTestAPIKey)
+	items := []interface{}{
+		struct{ ID, Name string }{"abc123", "test"},
+	}
+	id, err := client.resolveID("test", func() ([]interface{}, error) { return items, nil },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).ID },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).Name },
+		"abc123")
+	require.NoError(t, err)
+	assert.Equal(t, "abc123", id)
+}
+
+func TestResolveID_NameMatch(t *testing.T) {
+	client := NewClient("http://localhost", clientTestAPIKey)
+	items := []interface{}{
+		struct{ ID, Name string }{"abc123", "test-name"},
+	}
+	id, err := client.resolveID("test", func() ([]interface{}, error) { return items, nil },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).ID },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).Name },
+		"test-name")
+	require.NoError(t, err)
+	assert.Equal(t, "abc123", id)
+}
+
+func TestResolveID_NotFound(t *testing.T) {
+	client := NewClient("http://localhost", clientTestAPIKey)
+	items := []interface{}{
+		struct{ ID, Name string }{"abc123", "test"},
+	}
+	_, err := client.resolveID("test", func() ([]interface{}, error) { return items, nil },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).ID },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).Name },
+		"nonexistent")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not found")
+}
+
+func TestResolveID_Ambiguous(t *testing.T) {
+	client := NewClient("http://localhost", clientTestAPIKey)
+	items := []interface{}{
+		struct{ ID, Name string }{"abc123", "test-a"},
+		struct{ ID, Name string }{"abc456", "test-b"},
+	}
+	_, err := client.resolveID("test", func() ([]interface{}, error) { return items, nil },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).ID },
+		func(v interface{}) string { return v.(struct{ ID, Name string }).Name },
+		"abc")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ambiguous")
+}
+
+func TestResolveID_ListError(t *testing.T) {
+	client := NewClient("http://localhost", clientTestAPIKey)
+	_, err := client.resolveID("test", func() ([]interface{}, error) { return nil, assert.AnError },
+		func(v interface{}) string { return "" },
+		func(v interface{}) string { return "" },
+		"abc")
+	require.Error(t, err)
 }

@@ -17,6 +17,8 @@ type CronRepository interface {
 	GetJobByID(ctx context.Context, id, userID uuid.UUID) (*domain.CronJob, error)
 	// ListJobs returns all cron jobs owned by a user.
 	ListJobs(ctx context.Context, userID uuid.UUID) ([]*domain.CronJob, error)
+	// GetJobRuns returns execution history for a cron job.
+	GetJobRuns(ctx context.Context, jobID uuid.UUID, limit int) ([]*domain.CronJobRun, error)
 	// UpdateJob modifies an existing cron job's schedule, target, or status.
 	UpdateJob(ctx context.Context, job *domain.CronJob) error
 	// DeleteJob removes a cron job from persistent storage.
@@ -40,10 +42,14 @@ type CronService interface {
 	ListJobs(ctx context.Context) ([]*domain.CronJob, error)
 	// GetJob fetches details for a specific scheduled task.
 	GetJob(ctx context.Context, id uuid.UUID) (*domain.CronJob, error)
+	// GetJobRuns returns execution history for a cron job.
+	GetJobRuns(ctx context.Context, id uuid.UUID, limit int) ([]*domain.CronJobRun, error)
 	// PauseJob temporarily disables a scheduled task.
 	PauseJob(ctx context.Context, id uuid.UUID) error
 	// ResumeJob re-enables a previously paused task.
 	ResumeJob(ctx context.Context, id uuid.UUID) error
+	// UpdateJob modifies an existing cron job's schedule, target, or status.
+	UpdateJob(ctx context.Context, id uuid.UUID, name, schedule, targetURL, targetMethod, targetPayload string) (*domain.CronJob, error)
 	// DeleteJob permanently removes a scheduled task.
 	DeleteJob(ctx context.Context, id uuid.UUID) error
 }

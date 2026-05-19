@@ -25,6 +25,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/platform"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -87,7 +88,7 @@ type dockerClient interface {
 	ContainerExecStart(ctx context.Context, execID string, config container.ExecStartOptions) error
 	ContainerExecAttach(ctx context.Context, execID string, config container.ExecStartOptions) (types.HijackedResponse, error)
 	ContainerExecInspect(ctx context.Context, execID string) (container.ExecInspect, error)
-		ContainerRename(ctx context.Context, containerID string, newName string) error
+	ContainerRename(ctx context.Context, containerID string, newName string) error
 	ContainerUpdate(ctx context.Context, containerID string, updateConfig container.UpdateConfig) (container.UpdateResponse, error)
 }
 
@@ -484,7 +485,13 @@ func (a *DockerAdapter) GetInstanceLogs(ctx context.Context, containerID string)
 		return nil, fmt.Errorf("failed to get container logs: %w", err)
 	}
 
-	// Use a pipe to clean the stream asynchronously
+	// Use a pipe to clean the stream asynchronously.
+	// The defers below run on every exit path (including a panic out of
+	// stdcopy.StdCopy), so src is always closed even if StdCopy errors
+	// before consuming the stream. src.Close runs first (LIFO) so the
+	// underlying reader stops producing before the pipe writer closes,
+	// avoiding races where the reader keeps trying to push frames into a
+	// closed writer.
 	r, w := io.Pipe()
 	go func() {
 		defer func() { _ = w.Close() }()
@@ -500,7 +507,7 @@ func (a *DockerAdapter) GetInstanceStats(ctx context.Context, containerID string
 	// Stream: false = get one snapshot
 	stats, err := a.cli.ContainerStats(ctx, containerID, false)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(errors.Internal, "failed to get container stats", err)
 	}
 	return stats.Body, nil
 }
@@ -792,6 +799,9 @@ func (a *DockerAdapter) AttachVolume(ctx context.Context, id string, volumePath 
 	// Return the container-side mount path and the new container ID
 	// bindSpec format: "devicePath:containerPath[:mode]"
 	parts := strings.Split(bindSpec, ":")
+	if len(parts) < 2 {
+		return "", createResp.ID, fmt.Errorf("invalid bind spec %q: expected hostPath:containerPath[:mode]", bindSpec)
+	}
 	containerPath := parts[1]
 	return containerPath, createResp.ID, nil
 }
@@ -892,7 +902,7 @@ func (a *DockerAdapter) DetachVolume(ctx context.Context, id string, volumePath 
 }
 
 func (a *DockerAdapter) GetConsoleURL(ctx context.Context, id string) (string, error) {
-	return "", fmt.Errorf("console not supported for docker instances")
+	return "", errors.New(errors.NotImplemented, "console not supported for docker instances")
 }
 
 func (a *DockerAdapter) GetInstanceIP(ctx context.Context, id string) (string, error) {
@@ -1042,3 +1052,7 @@ func (a *DockerAdapter) Exec(ctx context.Context, containerID string, cmd []stri
 
 	return outBuf.String(), nil
 }
+
+// ResetCircuitBreaker is a no-op for the raw Docker adapter.
+// The circuit breaker lives in ResilientCompute wrapping this backend.
+func (a *DockerAdapter) ResetCircuitBreaker() {}

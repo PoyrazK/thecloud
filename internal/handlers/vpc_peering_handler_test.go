@@ -19,8 +19,8 @@ type mockVPCPeeringService struct {
 	mock.Mock
 }
 
-func (m *mockVPCPeeringService) CreatePeering(ctx context.Context, reqVPCID, accVPCID uuid.UUID) (*domain.VPCPeering, error) {
-	args := m.Called(ctx, reqVPCID, accVPCID)
+func (m *mockVPCPeeringService) CreatePeering(ctx context.Context, reqVPCID, accVPCID, accTenantID uuid.UUID) (*domain.VPCPeering, error) {
+	args := m.Called(ctx, reqVPCID, accVPCID, accTenantID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -74,11 +74,13 @@ func TestVPCPeeringHandler(t *testing.T) {
 
 		reqVPC := uuid.New()
 		accVPC := uuid.New()
-		svc.On("CreatePeering", mock.Anything, reqVPC, accVPC).Return(&domain.VPCPeering{ID: uuid.New()}, nil)
+		accTenant := uuid.New()
+		svc.On("CreatePeering", mock.Anything, reqVPC, accVPC, accTenant).Return(&domain.VPCPeering{ID: uuid.New()}, nil)
 
 		body, _ := json.Marshal(map[string]interface{}{
-			"requester_vpc_id": reqVPC,
-			"accepter_vpc_id":  accVPC,
+			"requester_vpc_id":   reqVPC,
+			"accepter_vpc_id":    accVPC,
+			"accepter_tenant_id": accTenant,
 		})
 
 		w := httptest.NewRecorder()

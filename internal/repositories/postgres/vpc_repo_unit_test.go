@@ -45,7 +45,7 @@ func TestVpcRepositoryCreate(t *testing.T) {
 		}
 
 		mock.ExpectExec("INSERT INTO vpcs").
-			WithArgs(vpc.ID, vpc.UserID, vpc.TenantID, vpc.Name, vpc.CIDRBlock, vpc.NetworkID, vpc.VXLANID, vpc.Status, vpc.ARN, vpc.CreatedAt).
+			WithArgs(vpc.ID, vpc.UserID, vpc.TenantID, vpc.Name, vpc.CIDRBlock, vpc.NetworkID, vpc.VXLANID, vpc.Status, vpc.ARN, vpc.CreatedAt, vpc.IdempotencyKey).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		err = repo.Create(context.Background(), vpc)
@@ -305,5 +305,90 @@ func TestVpcRepositoryDelete(t *testing.T) {
 
 		err = repo.Delete(ctx, id)
 		require.Error(t, err)
+	})
+}
+
+func TestVpcRepositoryGetByIdempotencyKey(t *testing.T) {
+	t.Parallel()
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := NewVpcRepository(mock)
+		id := uuid.New()
+		userID := uuid.New()
+		tenantID := uuid.New()
+		ctx := appcontext.WithTenantID(appcontext.WithUserID(context.Background(), userID), tenantID)
+		now := time.Now()
+		key := "test-idempotency-key"
+
+		mock.ExpectQuery("SELECT id, user_id, tenant_id, name, COALESCE").
+			WithArgs(key, userID).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "name", "cidr_block", "network_id", "vxlan_id", "status", "arn", "created_at"}).
+				AddRow(id, userID, tenantID, testVpcName, testutil.TestCIDR, "net-1", 100, "available", "arn", now))
+
+		vpc, err := repo.GetByIdempotencyKey(ctx, key)
+		require.NoError(t, err)
+		assert.NotNil(t, vpc)
+		assert.Equal(t, id, vpc.ID)
+		assert.Equal(t, testVpcName, vpc.Name)
+	})
+
+	t.Run("empty key returns not found", func(t *testing.T) {
+		t.Parallel()
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := NewVpcRepository(mock)
+		ctx := context.Background()
+
+		vpc, err := repo.GetByIdempotencyKey(ctx, "")
+		require.Error(t, err)
+		assert.Nil(t, vpc)
+		var target theclouderrors.Error
+		if errors.As(err, &target) {
+			assert.Equal(t, theclouderrors.NotFound, target.Type)
+		}
+	})
+
+	t.Run(testNotFound, func(t *testing.T) {
+		t.Parallel()
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := NewVpcRepository(mock)
+		userID := uuid.New()
+		ctx := appcontext.WithUserID(context.Background(), userID)
+
+		mock.ExpectQuery("SELECT id, user_id, tenant_id, name, COALESCE\\(cidr_block::text, ''\\), network_id, vxlan_id, status, arn, created_at FROM vpcs WHERE idempotency_key = $1 AND user_id = $2").
+			WithArgs("nonexistent-key", userID).
+			WillReturnError(pgx.ErrNoRows)
+
+		vpc, err := repo.GetByIdempotencyKey(ctx, "nonexistent-key")
+		require.Error(t, err)
+		assert.Nil(t, vpc)
+	})
+
+	t.Run(testDBError, func(t *testing.T) {
+		t.Parallel()
+		mock, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mock.Close()
+
+		repo := NewVpcRepository(mock)
+		userID := uuid.New()
+		ctx := appcontext.WithUserID(context.Background(), userID)
+
+		mock.ExpectQuery("SELECT id, user_id, tenant_id, name, COALESCE\\(cidr_block::text, ''\\), network_id, vxlan_id, status, arn, created_at FROM vpcs WHERE idempotency_key = $1 AND user_id = $2").
+			WithArgs("some-key", userID).
+			WillReturnError(errors.New(testDBError))
+
+		vpc, err := repo.GetByIdempotencyKey(ctx, "some-key")
+		require.Error(t, err)
+		assert.Nil(t, vpc)
 	})
 }

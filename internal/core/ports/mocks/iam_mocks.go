@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -56,6 +57,60 @@ func (m *IAMRepository) GetPoliciesForUser(ctx context.Context, tenantID uuid.UU
 	return r0, args.Error(1)
 }
 
+func (m *IAMRepository) AttachPolicyToRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) DetachPolicyFromRole(ctx context.Context, tenantID uuid.UUID, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) GetPoliciesForRole(ctx context.Context, tenantID uuid.UUID, roleName string) ([]*domain.Policy, error) {
+	args := m.Called(ctx, tenantID, roleName)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMRepository) AttachPolicyToServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) DetachPolicyFromServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, tenantID, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) GetPoliciesForServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID) ([]*domain.Policy, error) {
+	args := m.Called(ctx, tenantID, saID)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMRepository) ListPolicyVersions(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	args := m.Called(ctx, tenantID, policyID)
+	r0, _ := args.Get(0).([]*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMRepository) GetPolicyVersion(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	args := m.Called(ctx, tenantID, policyID, versionNumber)
+	r0, _ := args.Get(0).(*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMRepository) InsertPolicyVersion(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	args := m.Called(ctx, tenantID, pv)
+	return args.Error(0)
+}
+
+func (m *IAMRepository) SyncPolicyCurrentState(ctx context.Context, tenantID uuid.UUID, pv *domain.PolicyVersion) error {
+	args := m.Called(ctx, tenantID, pv)
+	return args.Error(0)
+}
+
 // IAMService is a mock for ports.IAMService
 type IAMService struct {
 	mock.Mock
@@ -102,6 +157,61 @@ func (m *IAMService) GetPoliciesForUser(ctx context.Context, userID uuid.UUID) (
 	args := m.Called(ctx, userID)
 	r0, _ := args.Get(0).([]*domain.Policy)
 	return r0, args.Error(1)
+}
+
+func (m *IAMService) AttachPolicyToRole(ctx context.Context, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) DetachPolicyFromRole(ctx context.Context, roleName string, policyID uuid.UUID) error {
+	args := m.Called(ctx, roleName, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) GetPoliciesForRole(ctx context.Context, roleName string) ([]*domain.Policy, error) {
+	args := m.Called(ctx, roleName)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) AttachPolicyToServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) DetachPolicyFromServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error {
+	args := m.Called(ctx, saID, policyID)
+	return args.Error(0)
+}
+
+func (m *IAMService) GetPoliciesForServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.Policy, error) {
+	args := m.Called(ctx, saID)
+	r0, _ := args.Get(0).([]*domain.Policy)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) SimulatePolicy(ctx context.Context, principal ports.Principal, actions []string, resources []string, evalCtx map[string]interface{}) (*ports.SimulateResult, error) {
+	args := m.Called(ctx, principal, actions, resources, evalCtx)
+	r0, _ := args.Get(0).(*ports.SimulateResult)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) ListPolicyVersions(ctx context.Context, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	args := m.Called(ctx, policyID)
+	r0, _ := args.Get(0).([]*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) GetPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	args := m.Called(ctx, policyID, versionNumber)
+	r0, _ := args.Get(0).(*domain.PolicyVersion)
+	return r0, args.Error(1)
+}
+
+func (m *IAMService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) error {
+	args := m.Called(ctx, policyID, versionNumber)
+	return args.Error(0)
 }
 
 // UserRepository is a mock for ports.UserRepository

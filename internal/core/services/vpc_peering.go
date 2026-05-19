@@ -22,39 +22,43 @@ const vpcPeeringTracer = "vpc-peering-service"
 // VPCPeeringService manages VPC peering connection lifecycle,
 // including CIDR validation and OVS flow rule programming.
 type VPCPeeringService struct {
-	repo     ports.VPCPeeringRepository
-	vpcRepo  ports.VpcRepository
-	rtRepo   ports.RouteTableRepository
-	network  ports.NetworkBackend
-	auditSvc ports.AuditService
-	logger   *slog.Logger
+	repo       ports.VPCPeeringRepository
+	vpcRepo    ports.VpcRepository
+	rtRepo     ports.RouteTableRepository
+	tenantRepo ports.TenantRepository
+	network    ports.NetworkBackend
+	auditSvc   ports.AuditService
+	logger     *slog.Logger
 }
 
 // VPCPeeringServiceParams holds dependencies for VPCPeeringService.
 type VPCPeeringServiceParams struct {
-	Repo     ports.VPCPeeringRepository
-	VpcRepo  ports.VpcRepository
-	RTRepo   ports.RouteTableRepository
-	Network  ports.NetworkBackend
-	AuditSvc ports.AuditService
-	Logger   *slog.Logger
+	Repo       ports.VPCPeeringRepository
+	VpcRepo    ports.VpcRepository
+	RTRepo     ports.RouteTableRepository
+	TenantRepo ports.TenantRepository
+	Network    ports.NetworkBackend
+	AuditSvc   ports.AuditService
+	Logger     *slog.Logger
 }
 
 // NewVPCPeeringService constructs a VPCPeeringService with its dependencies.
 func NewVPCPeeringService(params VPCPeeringServiceParams) *VPCPeeringService {
 	return &VPCPeeringService{
-		repo:     params.Repo,
-		vpcRepo:  params.VpcRepo,
-		rtRepo:   params.RTRepo,
-		network:  params.Network,
-		auditSvc: params.AuditSvc,
-		logger:   params.Logger,
+		repo:       params.Repo,
+		vpcRepo:    params.VpcRepo,
+		rtRepo:     params.RTRepo,
+		tenantRepo: params.TenantRepo,
+		network:    params.Network,
+		auditSvc:   params.AuditSvc,
+		logger:     params.Logger,
 	}
 }
 
 // CreatePeering initiates a peering connection request between two VPCs.
-// Validates that both VPCs belong to the same tenant and have non-overlapping CIDRs.
-func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, accepterVPCID uuid.UUID) (*domain.VPCPeering, error) {
+// Validates that both VPCs exist and have non-overlapping CIDRs.
+// Supports both same-tenant and cross-tenant peering.
+func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, accepterVPCID, accepterTenantID uuid.UUID) (*domain.VPCPeering, error) {
 	ctx, span := otel.Tracer(vpcPeeringTracer).Start(ctx, "CreatePeering")
 	defer span.End()
 
@@ -81,6 +85,11 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 		return nil, errors.Wrap(errors.NotFound, "accepter VPC not found", err)
 	}
 
+	// Verify accepter tenant exists (for cross-tenant peering)
+	if _, err := s.tenantRepo.GetByID(ctx, accepterTenantID); err != nil {
+		return nil, errors.Wrap(errors.NotFound, "accepter tenant not found", err)
+	}
+
 	// 3. CIDR overlap check
 	if err := validateNonOverlappingCIDRs(requesterVPC.CIDRBlock, accepterVPC.CIDRBlock); err != nil {
 		return nil, err
@@ -97,14 +106,15 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 	arn := fmt.Sprintf("arn:thecloud:vpc-peering:local:%s:peering/%s", tenantID.String(), peeringID.String())
 
 	peering := &domain.VPCPeering{
-		ID:             peeringID,
-		RequesterVPCID: requesterVPCID,
-		AccepterVPCID:  accepterVPCID,
-		TenantID:       tenantID,
-		Status:         domain.PeeringStatusPendingAcceptance,
-		ARN:            arn,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		ID:                peeringID,
+		RequesterVPCID:    requesterVPCID,
+		AccepterVPCID:     accepterVPCID,
+		RequesterTenantID: tenantID,
+		AccepterTenantID:  accepterTenantID,
+		Status:            domain.PeeringStatusPendingAcceptance,
+		ARN:               arn,
+		CreatedAt:         time.Now().UTC(),
+		UpdatedAt:         time.Now().UTC(),
 	}
 
 	if err := s.repo.Create(ctx, peering); err != nil {
@@ -113,8 +123,9 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 
 	userID := appcontext.UserIDFromContext(ctx)
 	if err := s.auditSvc.Log(ctx, userID, "vpc_peering.create", "vpc_peering", peeringID.String(), map[string]interface{}{
-		"requester_vpc_id": requesterVPCID.String(),
-		"accepter_vpc_id":  accepterVPCID.String(),
+		"requester_vpc_id":   requesterVPCID.String(),
+		"accepter_vpc_id":    accepterVPCID.String(),
+		"accepter_tenant_id": accepterTenantID.String(),
 	}); err != nil {
 		s.logger.Warn("failed to log audit event", "action", "vpc_peering.create", "peering_id", peeringID, "error", err)
 	}

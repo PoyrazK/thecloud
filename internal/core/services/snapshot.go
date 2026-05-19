@@ -78,7 +78,7 @@ func (s *SnapshotService) CreateSnapshot(ctx context.Context, volumeID uuid.UUID
 		SizeGB:      vol.SizeGB,
 		Status:      domain.SnapshotStatusCreating,
 		Description: description,
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 	}
 
 	// 3. Persist to DB initially
@@ -259,7 +259,7 @@ func (s *SnapshotService) RestoreSnapshot(ctx context.Context, snapshotID uuid.U
 		Name:      newVolumeName,
 		SizeGB:    snapshot.SizeGB,
 		Status:    domain.VolumeStatusAvailable,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 

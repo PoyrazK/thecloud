@@ -95,7 +95,7 @@ func (s *SubnetService) CreateSubnet(ctx context.Context, vpcID uuid.UUID, name,
 		GatewayIP:        gatewayIP,
 		ARN:              arn,
 		Status:           "available",
-		CreatedAt:        time.Now(),
+		CreatedAt:        time.Now().UTC(),
 	}
 
 	if err := s.repo.Create(ctx, subnet); err != nil {

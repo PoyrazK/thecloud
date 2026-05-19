@@ -24,8 +24,8 @@ func (m *MockInstanceRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.I
 	}
 	return args.Get(0).(*domain.Instance), args.Error(1)
 }
-func (m *MockInstanceRepo) List(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *MockInstanceRepo) List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -91,8 +91,8 @@ func (m *MockInstanceService) PauseInstance(ctx context.Context, idOrName string
 func (m *MockInstanceService) ResumeInstance(ctx context.Context, idOrName string) error {
 	return m.Called(ctx, idOrName).Error(0)
 }
-func (m *MockInstanceService) ListInstances(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *MockInstanceService) ListInstances(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	r0, _ := args.Get(0).([]*domain.Instance)
 	return r0, args.Error(1)
 }
@@ -131,6 +131,17 @@ func (m *MockInstanceService) ResizeInstance(ctx context.Context, idOrName, newI
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Instance), args.Error(1)
+}
+func (m *MockInstanceService) GetTags(ctx context.Context, id uuid.UUID) (map[string]string, error) {
+	args := m.Called(ctx, id)
+	r0, _ := args.Get(0).(map[string]string)
+	return r0, args.Error(1)
+}
+func (m *MockInstanceService) SetTags(ctx context.Context, id uuid.UUID, labels map[string]string) error {
+	return m.Called(ctx, id, labels).Error(0)
+}
+func (m *MockInstanceService) RemoveTag(ctx context.Context, id uuid.UUID, key string) error {
+	return m.Called(ctx, id, key).Error(0)
 }
 func (m *MockInstanceService) Provision(ctx context.Context, job domain.ProvisionJob) error {
 	return m.Called(ctx, job).Error(0)
@@ -243,6 +254,7 @@ func (m *MockComputeBackend) RestoreSnapshot(ctx context.Context, id, name strin
 func (m *MockComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error {
 	return m.Called(ctx, id, name).Error(0)
 }
+func (m *MockComputeBackend) ResetCircuitBreaker() {}
 
 // MockClusterRepo
 type MockClusterRepo struct{ mock.Mock }

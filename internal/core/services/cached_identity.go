@@ -41,7 +41,6 @@ func (s *cachedIdentityService) ValidateAPIKey(ctx context.Context, key string) 
 	keyHash := computeKeyHash(key)
 	cacheKey := fmt.Sprintf("apikey:hash:%s", keyHash)
 
-	// Try cache
 	val, err := s.redis.Get(ctx, cacheKey).Result()
 	if err == nil {
 		var apiKey domain.APIKey
@@ -50,13 +49,11 @@ func (s *cachedIdentityService) ValidateAPIKey(ctx context.Context, key string) 
 		}
 	}
 
-	// Cache miss or error
 	apiKey, err := s.base.ValidateAPIKey(ctx, key)
 	if err != nil {
 		return nil, err
 	}
 
-	// Store in cache
 	if data, err := json.Marshal(apiKey); err == nil {
 		s.redis.Set(ctx, cacheKey, data, s.ttl)
 	}
@@ -73,14 +70,12 @@ func (s *cachedIdentityService) GetAPIKeyByID(ctx context.Context, id uuid.UUID)
 }
 
 func (s *cachedIdentityService) RevokeKey(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
-	// Fetch key by ID (base, not cached) to get raw key for cache invalidation
 	key, err := s.base.GetAPIKeyByID(ctx, id)
 	if err != nil {
 		return err
 	}
 	keyHash := computeKeyHash(key.Key)
 
-	// Call authoritative revocation first; only delete from cache if it succeeds
 	if err := s.base.RevokeKey(ctx, userID, id); err != nil {
 		return err
 	}
@@ -93,7 +88,6 @@ func (s *cachedIdentityService) RevokeKey(ctx context.Context, userID uuid.UUID,
 }
 
 func (s *cachedIdentityService) RotateKey(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*domain.APIKey, error) {
-	// Fetch old key to invalidate its cache entry
 	oldKey, err := s.base.GetAPIKeyByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -110,4 +104,56 @@ func (s *cachedIdentityService) RotateKey(ctx context.Context, userID uuid.UUID,
 			"keyHash", oldHash, "userID", userID, "id", id, "error", err)
 	}
 	return newKey, nil
+}
+
+func (s *cachedIdentityService) CreateServiceAccount(ctx context.Context, tenantID uuid.UUID, name, role string) (*domain.ServiceAccountWithSecret, error) {
+	return s.base.CreateServiceAccount(ctx, tenantID, name, role)
+}
+
+func (s *cachedIdentityService) GetServiceAccount(ctx context.Context, id uuid.UUID) (*domain.ServiceAccount, error) {
+	return s.base.GetServiceAccount(ctx, id)
+}
+
+func (s *cachedIdentityService) ListServiceAccounts(ctx context.Context, tenantID uuid.UUID) ([]*domain.ServiceAccount, error) {
+	return s.base.ListServiceAccounts(ctx, tenantID)
+}
+
+func (s *cachedIdentityService) UpdateServiceAccount(ctx context.Context, sa *domain.ServiceAccount) error {
+	return s.base.UpdateServiceAccount(ctx, sa)
+}
+
+func (s *cachedIdentityService) DeleteServiceAccount(ctx context.Context, id uuid.UUID) error {
+	return s.base.DeleteServiceAccount(ctx, id)
+}
+
+func (s *cachedIdentityService) ValidateClientCredentials(ctx context.Context, clientID, clientSecret string) (string, error) {
+	return s.base.ValidateClientCredentials(ctx, clientID, clientSecret)
+}
+
+func (s *cachedIdentityService) ValidateAccessToken(ctx context.Context, token string) (*domain.ServiceAccountClaims, error) {
+	return s.base.ValidateAccessToken(ctx, token)
+}
+
+func (s *cachedIdentityService) RotateServiceAccountSecret(ctx context.Context, saID uuid.UUID) (string, error) {
+	secret, err := s.base.RotateServiceAccountSecret(ctx, saID)
+	if err == nil {
+		s.redis.Del(ctx, fmt.Sprintf("sa:auth:%s", saID))
+	}
+	return secret, err
+}
+
+func (s *cachedIdentityService) RevokeServiceAccountSecret(ctx context.Context, saID uuid.UUID, secretID uuid.UUID) error {
+	err := s.base.RevokeServiceAccountSecret(ctx, saID, secretID)
+	if err == nil {
+		s.redis.Del(ctx, fmt.Sprintf("sa:auth:%s", saID))
+	}
+	return err
+}
+
+func (s *cachedIdentityService) ListServiceAccountSecrets(ctx context.Context, saID uuid.UUID) ([]*domain.ServiceAccountSecret, error) {
+	return s.base.ListServiceAccountSecrets(ctx, saID)
+}
+
+func (s *cachedIdentityService) TokenTTL() time.Duration {
+	return s.base.TokenTTL()
 }

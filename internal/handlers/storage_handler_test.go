@@ -258,7 +258,7 @@ func TestStorageHandlerUpload(t *testing.T) {
 
 	t.Run("Success without Checksum", func(t *testing.T) {
 		obj := &domain.Object{Key: testTxtKey}
-		mockSvc.On("Upload", mock.Anything, "b1", testTxtPath, mock.Anything, "").Return(obj, nil).Once()
+		mockSvc.On("Upload", mock.Anything, "b1", testTxtKey, mock.Anything, "").Return(obj, nil).Once()
 
 		req := httptest.NewRequest(http.MethodPut, testTxtFullURL, strings.NewReader("hello"))
 		w := httptest.NewRecorder()
@@ -269,7 +269,7 @@ func TestStorageHandlerUpload(t *testing.T) {
 	t.Run("Success with Checksum", func(t *testing.T) {
 		checksum := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 		obj := &domain.Object{Key: testTxtKey, Checksum: checksum}
-		mockSvc.On("Upload", mock.Anything, "b1", testTxtPath, mock.Anything, checksum).Return(obj, nil).Once()
+		mockSvc.On("Upload", mock.Anything, "b1", testTxtKey, mock.Anything, checksum).Return(obj, nil).Once()
 
 		req := httptest.NewRequest(http.MethodPut, testTxtFullURL, strings.NewReader("hello"))
 		req.Header.Set("X-Content-Sha256", checksum)
@@ -330,7 +330,7 @@ func TestStorageHandlerDelete(t *testing.T) {
 	mockSvc, handler, r := setupStorageHandlerTest()
 	r.DELETE(bucketKeyPath, handler.Delete)
 
-	mockSvc.On("DeleteObject", mock.Anything, "b1", testTxtPath).Return(nil)
+	mockSvc.On("DeleteObject", mock.Anything, "b1", testTxtKey).Return(nil)
 
 	req := httptest.NewRequest(http.MethodDelete, testTxtFullURL, nil)
 	w := httptest.NewRecorder()
@@ -349,7 +349,7 @@ func TestStorageHandlerDownload(t *testing.T) {
 	reader := io.NopCloser(strings.NewReader(content))
 	obj := &domain.Object{Key: testTxtKey, SizeBytes: int64(len(content)), ContentType: "text/plain"}
 
-	mockSvc.On("Download", mock.Anything, "b1", testTxtPath).Return(reader, obj, nil)
+	mockSvc.On("Download", mock.Anything, "b1", testTxtKey).Return(reader, obj, nil)
 
 	req := httptest.NewRequest(http.MethodGet, testTxtFullURL, nil)
 	w := httptest.NewRecorder()
@@ -432,7 +432,7 @@ func TestStorageHandlerVersioning(t *testing.T) {
 
 	// List Versions
 	versions := []*domain.Object{{Key: testTxtKey, VersionID: "v1"}}
-	mockSvc.On("ListVersions", mock.Anything, "b1", testTxtPath).Return(versions, nil)
+	mockSvc.On("ListVersions", mock.Anything, "b1", testTxtKey).Return(versions, nil)
 	req = httptest.NewRequest(http.MethodGet, "/storage/versions/b1/test.txt", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -498,7 +498,7 @@ func TestStorageHandlerUploadError(t *testing.T) {
 	mockSvc, handler, r := setupStorageHandlerTest()
 	r.PUT(bucketKeyPath, handler.Upload)
 
-	mockSvc.On("Upload", mock.Anything, "b1", testTxtPath, mock.Anything, "").Return(nil, errors.New(errors.Internal, "upload failed"))
+	mockSvc.On("Upload", mock.Anything, "b1", testTxtKey, mock.Anything, "").Return(nil, errors.New(errors.Internal, "upload failed"))
 
 	req := httptest.NewRequest(http.MethodPut, testTxtFullURL, strings.NewReader("hello"))
 	w := httptest.NewRecorder()
@@ -526,7 +526,7 @@ func TestStorageHandlerDeleteError(t *testing.T) {
 	mockSvc, handler, r := setupStorageHandlerTest()
 	r.DELETE(bucketKeyPath, handler.Delete)
 
-	mockSvc.On("DeleteObject", mock.Anything, "b1", testTxtPath).Return(errors.New(errors.Internal, "delete failed"))
+	mockSvc.On("DeleteObject", mock.Anything, "b1", testTxtKey).Return(errors.New(errors.Internal, "delete failed"))
 
 	req := httptest.NewRequest(http.MethodDelete, testTxtFullURL, nil)
 	w := httptest.NewRecorder()
@@ -635,7 +635,7 @@ func TestStorageHandlerVersioningErrors(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
 	// List Error
-	mockSvc.On("ListVersions", mock.Anything, "b1", testTxtPath).Return(nil, errors.New(errors.Internal, "list versions failed"))
+	mockSvc.On("ListVersions", mock.Anything, "b1", testTxtKey).Return(nil, errors.New(errors.Internal, "list versions failed"))
 	req = httptest.NewRequest(http.MethodGet, "/storage/versions/b1/test.txt", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)

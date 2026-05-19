@@ -8,13 +8,15 @@ import (
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
 )
 
 type iamService struct {
-	repo     ports.IAMRepository
-	auditSvc ports.AuditService
-	eventSvc ports.EventService
-	logger   *slog.Logger
+	repo      ports.IAMRepository
+	auditSvc  ports.AuditService
+	eventSvc  ports.EventService
+	logger    *slog.Logger
+	evaluator *iamEvaluator
 }
 
 // NewIAMService creates a new IAM service.
@@ -23,10 +25,11 @@ func NewIAMService(repo ports.IAMRepository, auditSvc ports.AuditService, eventS
 		logger = slog.Default()
 	}
 	return &iamService{
-		repo:     repo,
-		auditSvc: auditSvc,
-		eventSvc: eventSvc,
-		logger:   logger,
+		repo:      repo,
+		auditSvc:  auditSvc,
+		eventSvc:  eventSvc,
+		logger:    logger,
+		evaluator: NewIAMEvaluator(),
 	}
 }
 
@@ -104,4 +107,175 @@ func (s *iamService) DetachPolicyFromUser(ctx context.Context, userID uuid.UUID,
 func (s *iamService) GetPoliciesForUser(ctx context.Context, userID uuid.UUID) ([]*domain.Policy, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	return s.repo.GetPoliciesForUser(ctx, tenantID, userID)
+}
+
+func (s *iamService) AttachPolicyToRole(ctx context.Context, roleName string, policyID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.AttachPolicyToRole(ctx, tenantID, roleName, policyID); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_ATTACH_ROLE", policyID.String(), "POLICY", map[string]interface{}{"role_name": roleName}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_ATTACH_ROLE", "policy_id", policyID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) DetachPolicyFromRole(ctx context.Context, roleName string, policyID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.DetachPolicyFromRole(ctx, tenantID, roleName, policyID); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_DETACH_ROLE", policyID.String(), "POLICY", map[string]interface{}{"role_name": roleName}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_DETACH_ROLE", "policy_id", policyID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) GetPoliciesForRole(ctx context.Context, roleName string) ([]*domain.Policy, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetPoliciesForRole(ctx, tenantID, roleName)
+}
+
+func (s *iamService) AttachPolicyToServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.AttachPolicyToServiceAccount(ctx, tenantID, saID, policyID); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_ATTACH_SA", policyID.String(), "POLICY", map[string]interface{}{"sa_id": saID.String()}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_ATTACH_SA", "policy_id", policyID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) DetachPolicyFromServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.DetachPolicyFromServiceAccount(ctx, tenantID, saID, policyID); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_DETACH_SA", policyID.String(), "POLICY", map[string]interface{}{"sa_id": saID.String()}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_DETACH_SA", "policy_id", policyID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) GetPoliciesForServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.Policy, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetPoliciesForServiceAccount(ctx, tenantID, saID)
+}
+
+func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Principal, actions []string, resources []string, evalCtx map[string]interface{}) (*ports.SimulateResult, error) {
+	const maxSimulatePairs = 100
+	if len(actions)*len(resources) > maxSimulatePairs {
+		return nil, errors.New(errors.InvalidInput, "too many action-resource pairs (max 100)")
+	}
+
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	var policies []*domain.Policy
+	var err error
+
+	switch {
+	case principal.UserID != nil:
+		policies, err = s.repo.GetPoliciesForUser(ctx, tenantID, *principal.UserID)
+	case principal.ServiceAccountID != nil:
+		policies, err = s.repo.GetPoliciesForServiceAccount(ctx, tenantID, *principal.ServiceAccountID)
+	default:
+		return nil, errors.New(errors.InvalidInput, "no principal specified")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	result := &ports.SimulateResult{Evaluated: 0}
+
+	for _, action := range actions {
+		for _, resource := range resources {
+			evalResult, err := s.evaluator.Evaluate(ctx, policies, action, resource, evalCtx)
+			if err != nil {
+				return nil, err
+			}
+			result.Evaluated++
+
+			if evalResult.Effect == domain.EffectDeny {
+				result.Decision = domain.EffectDeny
+				result.Matched = &ports.StatementMatch{
+					Action:       action,
+					Resource:     resource,
+					PolicyID:     evalResult.PolicyID,
+					PolicyName:   evalResult.PolicyName,
+					StatementSid: evalResult.StatementSid,
+					Effect:       domain.EffectDeny,
+					Reason:       evalResult.Reason,
+				}
+				return result, nil
+			}
+			if evalResult.Effect == domain.EffectAllow {
+				result.Decision = domain.EffectAllow
+				result.Matched = &ports.StatementMatch{
+					Action:       action,
+					Resource:     resource,
+					PolicyID:     evalResult.PolicyID,
+					PolicyName:   evalResult.PolicyName,
+					StatementSid: evalResult.StatementSid,
+					Effect:       domain.EffectAllow,
+					Reason:       evalResult.Reason,
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func (s *iamService) ListPolicyVersions(ctx context.Context, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.ListPolicyVersions(ctx, tenantID, policyID)
+}
+
+func (s *iamService) GetPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetPolicyVersion(ctx, tenantID, policyID, versionNumber)
+}
+
+func (s *iamService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	// Fetch the version to restore
+	pv, err := s.repo.GetPolicyVersion(ctx, tenantID, policyID, versionNumber)
+	if err != nil {
+		return err
+	}
+
+	// Get max version to determine new version number
+	versions, err := s.repo.ListPolicyVersions(ctx, tenantID, policyID)
+	if err != nil {
+		return err
+	}
+	maxVersion := 0
+	if len(versions) > 0 {
+		maxVersion = versions[0].VersionNumber
+	}
+
+	// Create a new version with the same content as the rollback target
+	newVersion := &domain.PolicyVersion{
+		ID:            uuid.New(),
+		PolicyID:      policyID,
+		VersionNumber: maxVersion + 1,
+		Name:          pv.Name,
+		Description:   pv.Description,
+		Statements:    pv.Statements,
+	}
+
+	// SyncPolicyCurrentState handles both inserting the version row
+	// and updating the policies table for fast lookups.
+	if err := s.repo.SyncPolicyCurrentState(ctx, tenantID, newVersion); err != nil {
+		return err
+	}
+
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_ROLLBACK", policyID.String(), "POLICY", map[string]interface{}{
+		"rolled_back_to_version": versionNumber,
+		"new_version":            newVersion.VersionNumber,
+	}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_ROLLBACK", "policy_id", policyID, "error", err)
+	}
+	return nil
 }

@@ -1,6 +1,7 @@
 package node
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -55,6 +56,34 @@ func TestLocalStorePathTraversal(t *testing.T) {
 	// Attempt to read outside root
 	_, _, err = store.Read("bucket", "../outside.txt")
 	require.Error(t, err)
+
+	// Table-driven tests for path isolation edge cases
+	testCases := []struct {
+		name    string
+		key     string
+		wantErr bool
+	}{
+		{name: "dot key", key: ".", wantErr: true},
+		{name: "dot slash", key: "./", wantErr: true},
+		{name: "dot dot dot", key: "./.", wantErr: true},
+		// Dot in middle is allowed: filepath.Clean normalizes "foo/./bar" to "foo/bar"
+		{name: "dot in middle works", key: "foo/./bar", wantErr: false},
+		{name: "url encoded traversal", key: "..%2Foutside.txt", wantErr: true},
+		{name: "backslash encoded", key: "..%5Coutside.txt", wantErr: true},
+		{name: "multi dot dot", key: "../foo/../../bar", wantErr: true},
+	}
+	for _, tc := range testCases {
+		tc := tc // capture range variable for parallel subtest
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := store.Write("bucket", tc.key, []byte("data"), 0)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestLocalStoreAssemble(t *testing.T) {
@@ -117,4 +146,80 @@ func TestLocalStoreInvalidAbsolutePath(t *testing.T) {
 	err := store.Write("bucket", "/abs/path", []byte("data"), 0)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, os.ErrInvalid)
+}
+
+func TestLocalStoreReadSizeLimit(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, _ := NewLocalStore(tmpDir)
+	bucket := "test-bucket"
+	key := "largefile.bin"
+
+	// Create a file larger than maxReadBytes (100MB)
+	// Use WriteStream which doesn't have the size check
+	largeData := make([]byte, maxReadBytes+1024)
+	for i := range largeData {
+		largeData[i] = byte(i % 256)
+	}
+
+	err := store.Write(bucket, key, largeData, 0)
+	require.NoError(t, err)
+
+	// Read() should fail due to size limit
+	_, _, err = store.Read(bucket, key)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "file too large")
+
+	// But ReadStream() should still work
+	rc, _, err := store.ReadStream(bucket, key)
+	require.NoError(t, err)
+	defer rc.Close()
+
+	// Verify we can read the data via stream
+	data, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	assert.Equal(t, len(largeData), len(data))
+}
+
+func TestLocalStoreDeleteMissingMetaOk(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewLocalStore(tmpDir)
+	require.NoError(t, err)
+
+	bucket := "test-bucket"
+	key := "testfile.txt"
+	data := []byte("hello")
+	err = store.Write(bucket, key, data, 0)
+	require.NoError(t, err)
+
+	// Remove the .meta file to simulate pre-existing state where only data file exists
+	metaPath := filepath.Join(tmpDir, bucket, key+".meta")
+	err = os.Remove(metaPath)
+	require.NoError(t, err)
+
+	// Delete should succeed even though .meta is missing
+	err = store.Delete(bucket, key)
+	require.NoError(t, err, "Delete must succeed when .meta is already gone")
+
+	// Verify data file is gone
+	_, err = os.Stat(filepath.Join(tmpDir, bucket, key))
+	require.True(t, os.IsNotExist(err))
+}
+
+func TestLocalStoreWriteAndReadRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewLocalStore(tmpDir)
+	require.NoError(t, err)
+
+	bucket := "test-bucket"
+	key := "obj"
+	data := []byte("round-trip-test")
+	ts := time.Now().UnixNano()
+
+	err = store.Write(bucket, key, data, ts)
+	require.NoError(t, err)
+
+	readBack, readTs, err := store.Read(bucket, key)
+	require.NoError(t, err)
+	assert.Equal(t, data, readBack)
+	assert.Equal(t, ts, readTs)
 }

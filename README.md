@@ -109,6 +109,13 @@ npm run dev
 
 ## Recent Improvements
 
+### CLI Enhancements
+- **Multiple Output Formats**: `--output table|json|yaml` flag (default: table)
+- **Shell Completion**: `cloud completion [bash|zsh|fish|powershell]`
+- **Persistent Configuration**: `cloud config show|set|unset` for storing API URL and defaults
+- **Debug Mode**: `--debug` flag for tracing API calls
+- **Pagination Support**: `--limit` and `--offset` flags on list commands
+
 ### Code Quality & Features
 - **Simplified Architecture**: Refactored `InstanceService` using parameter structs and helper methods.
 - **Enhanced Storage**: Added support for **LVM Block Storage** and **VNC Console** access.

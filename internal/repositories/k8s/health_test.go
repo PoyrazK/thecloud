@@ -54,7 +54,7 @@ func TestKubeadmProvisionerGetHealthServiceExecutor(t *testing.T) {
 
 	repo.On("GetNodes", mock.Anything, clusterID).Return([]*domain.ClusterNode{{ID: uuid.New(), InstanceID: instanceID}}, nil)
 	instSvc.On("GetInstance", mock.Anything, instanceID.String()).Return(&domain.Instance{ID: instanceID, PrivateIP: masterIP}, nil)
-	instSvc.On("ListInstances", mock.Anything).Return([]*domain.Instance{{ID: instanceID, PrivateIP: masterIP}}, nil)
+	instSvc.On("ListInstances", mock.Anything, mock.Anything).Return([]*domain.Instance{{ID: instanceID, PrivateIP: masterIP}}, nil)
 	instSvc.On("Exec", mock.Anything, instanceID.String(), []string{kubeShell, "-c", kubectlBase + " get nodes"}).Return("", nil)
 	instSvc.On("Exec", mock.Anything, instanceID.String(), []string{kubeShell, "-c", kubectlBase + " get nodes --no-headers"}).Return("node-a Ready \nnode-b NotReady", nil)
 
@@ -79,7 +79,7 @@ func TestKubeadmProvisionerGetHealthAPIServerDown(t *testing.T) {
 
 	repo.On("GetNodes", mock.Anything, clusterID).Return([]*domain.ClusterNode{{ID: uuid.New(), InstanceID: instanceID}}, nil)
 	instSvc.On("GetInstance", mock.Anything, instanceID.String()).Return(&domain.Instance{ID: instanceID, PrivateIP: masterIP}, nil)
-	instSvc.On("ListInstances", mock.Anything).Return([]*domain.Instance{{ID: instanceID, PrivateIP: masterIP}}, nil)
+	instSvc.On("ListInstances", mock.Anything, mock.Anything).Return([]*domain.Instance{{ID: instanceID, PrivateIP: masterIP}}, nil)
 	instSvc.On("Exec", mock.Anything, instanceID.String(), []string{kubeShell, "-c", kubectlBase + " get nodes"}).Return("", errors.New("down"))
 	instSvc.On("Exec", mock.Anything, instanceID.String(), []string{kubeShell, "-c", kubectlBase + " get nodes --no-headers"}).Return("", io.EOF)
 

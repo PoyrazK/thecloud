@@ -73,4 +73,5 @@ type Database struct {
 	KmsKeyID            string            `json:"kms_key_id,omitempty"`
 	EncryptedVolume     bool              `json:"encrypted_volume"`
 	VolumeKeyRef        string            `json:"volume_key_ref,omitempty"`
+	CredentialVersion   int               `json:"-"`
 }

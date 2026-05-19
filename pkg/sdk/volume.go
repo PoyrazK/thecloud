@@ -2,6 +2,7 @@
 package sdk
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -28,6 +29,14 @@ func (c *Client) ListVolumes() ([]Volume, error) {
 	return res.Data, nil
 }
 
+func (c *Client) ListVolumesWithContext(ctx context.Context) ([]Volume, error) {
+	var res Response[[]Volume]
+	if err := c.getWithContext(ctx, "/volumes", &res); err != nil {
+		return nil, err
+	}
+	return res.Data, nil
+}
+
 func (c *Client) CreateVolume(name string, sizeGB int) (*Volume, error) {
 	body := map[string]interface{}{
 		"name":    name,
@@ -41,15 +50,29 @@ func (c *Client) CreateVolume(name string, sizeGB int) (*Volume, error) {
 }
 
 func (c *Client) GetVolume(idOrName string) (*Volume, error) {
+	id, err := c.resolveID("volume", func() ([]interface{}, error) {
+		vols, err := c.ListVolumes()
+		return interfaceSlice(vols), err
+	}, func(v interface{}) string { return v.(Volume).ID.String() }, func(v interface{}) string { return v.(Volume).Name }, idOrName)
+	if err != nil {
+		return nil, err
+	}
 	var res Response[Volume]
-	if err := c.get(fmt.Sprintf("/volumes/%s", idOrName), &res); err != nil {
+	if err := c.get(fmt.Sprintf("/volumes/%s", id), &res); err != nil {
 		return nil, err
 	}
 	return &res.Data, nil
 }
 
 func (c *Client) DeleteVolume(idOrName string) error {
-	return c.delete(fmt.Sprintf("/volumes/%s", idOrName), nil)
+	id, err := c.resolveID("volume", func() ([]interface{}, error) {
+		vols, err := c.ListVolumes()
+		return interfaceSlice(vols), err
+	}, func(v interface{}) string { return v.(Volume).ID.String() }, func(v interface{}) string { return v.(Volume).Name }, idOrName)
+	if err != nil {
+		return err
+	}
+	return c.delete(fmt.Sprintf("/volumes/%s", id), nil)
 }
 
 func (c *Client) AttachVolume(volumeID, instanceID, mountPath string) (string, error) {
@@ -66,4 +89,17 @@ func (c *Client) AttachVolume(volumeID, instanceID, mountPath string) (string, e
 
 func (c *Client) DetachVolume(volumeID string) error {
 	return c.post(fmt.Sprintf("/volumes/%s/detach", volumeID), nil, nil)
+}
+
+// ResizeVolume increases the capacity of a volume.
+func (c *Client) ResizeVolume(idOrName string, newSizeGB int) error {
+	id, err := c.resolveID("volume", func() ([]interface{}, error) {
+		vols, err := c.ListVolumes()
+		return interfaceSlice(vols), err
+	}, func(v interface{}) string { return v.(Volume).ID.String() }, func(v interface{}) string { return v.(Volume).Name }, idOrName)
+	if err != nil {
+		return err
+	}
+	body := map[string]int{"new_size_gb": newSizeGB}
+	return c.post(fmt.Sprintf("/volumes/%s/resize", id), body, nil)
 }

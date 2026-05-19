@@ -19,6 +19,7 @@ import (
 
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	apierrors "github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/testutil"
 )
 
@@ -75,6 +76,13 @@ func TestDockerAdapterGetInstanceStatsReturnsBody(t *testing.T) {
 	rc, err := a.GetInstanceStats(context.Background(), "cid")
 	require.NoError(t, err)
 	defer func() { _ = rc.Close() }()
+}
+
+func TestDockerAdapterGetInstanceStatsError(t *testing.T) {
+	a := &DockerAdapter{cli: &fakeDockerClient{statsErr: apierrors.New("Internal", "docker stats failed")}}
+	_, err := a.GetInstanceStats(context.Background(), "cid")
+	require.Error(t, err)
+	require.True(t, apierrors.Is(err, apierrors.Internal))
 }
 
 func TestDockerAdapterExecNonZeroExit(t *testing.T) {

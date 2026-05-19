@@ -47,9 +47,25 @@ var listFnCmd = &cobra.Command{
 	Short: "List all functions",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := createClient(opts)
-		functions, err := client.ListFunctions()
-		if err != nil {
-			return err
+
+		limit, _ := cmd.Flags().GetInt("limit")
+		offset, _ := cmd.Flags().GetInt("offset")
+
+		var functions []*sdk.Function
+		var meta *sdk.ListResponse[sdk.Function]
+
+		if limit > 0 || offset > 0 {
+			var err error
+			functions, meta, err = client.ListFunctionsWithPagination(limit, offset)
+			if err != nil {
+				return err
+			}
+		} else {
+			var err error
+			functions, err = client.ListFunctions()
+			if err != nil {
+				return err
+			}
 		}
 
 		if len(functions) == 0 {
@@ -63,6 +79,14 @@ var listFnCmd = &cobra.Command{
 			table.Append([]string{f.ID, f.Name, f.Runtime, f.Status, f.CreatedAt.Format("2006-01-02 15:04:05")})
 		}
 		table.Render()
+
+		if meta != nil {
+			fmt.Printf("\nShowing %d of %d total", len(functions), meta.TotalCount)
+			if meta.HasMore {
+				fmt.Print(" (more available)")
+			}
+			fmt.Println()
+		}
 		return nil
 	},
 }
@@ -266,6 +290,9 @@ func init() {
 	updateFnCmd.Flags().Int("memory", 0, "Memory in MB (64-10240)")
 	updateFnCmd.Flags().StringSlice("env", []string{}, "Environment variable KEY=VALUE")
 	updateFnCmd.Flags().String("status", "", "Function status (e.g., paused, running)")
+
+	listFnCmd.Flags().Int("limit", 0, "Maximum number of results (0 = use server default)")
+	listFnCmd.Flags().Int("offset", 0, "Number of results to skip")
 
 	functionCmd.AddCommand(createFnCmd)
 	functionCmd.AddCommand(listFnCmd)

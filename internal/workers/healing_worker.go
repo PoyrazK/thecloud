@@ -109,6 +109,13 @@ func (w *HealingWorker) healERRORInstances(ctx context.Context) {
 			case <-timer.C:
 			}
 
+			// Check context cancellation again after delay
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			w.logger.Info("initiating healing restart", "instance_id", id)
 			if err := w.instSvc.StopInstance(hCtx, id); err != nil {
 				w.logger.Warn("healing: stop failed", "instance_id", id, "error", err)

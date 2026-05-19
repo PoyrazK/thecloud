@@ -134,14 +134,14 @@ func handleVPCs(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func handleVolumes(w http.ResponseWriter, r *http.Request) bool {
+	volID := uuid.New()
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/volumes":
-		volID := uuid.New()
 		resp := sdk.Response[[]sdk.Volume]{
 			Data: []sdk.Volume{
 				{
 					ID:        volID,
-					Name:      "data",
+					Name:      "vol-1", // Named "vol-1" so short ID resolution by name works
 					SizeGB:    20,
 					Status:    "available",
 					CreatedAt: time.Now().UTC(),
@@ -152,7 +152,6 @@ func handleVolumes(w http.ResponseWriter, r *http.Request) bool {
 		_ = json.NewEncoder(w).Encode(resp)
 		return true
 	case r.Method == http.MethodPost && r.URL.Path == "/volumes":
-		volID := uuid.New()
 		resp := sdk.Response[sdk.Volume]{
 			Data: sdk.Volume{
 				ID:        volID,
@@ -165,7 +164,8 @@ func handleVolumes(w http.ResponseWriter, r *http.Request) bool {
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 		return true
-	case r.Method == http.MethodDelete && r.URL.Path == "/volumes/vol-1":
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/volumes/"):
+		// Accept any volume ID prefix since resolveID may resolve short IDs to full UUID
 		return respondNoContent(w)
 	}
 	return false
@@ -491,7 +491,7 @@ func TestVolumeListCommandJSONOutput(t *testing.T) {
 	out := captureStdout(t, func() {
 		volumeListCmd.Run(volumeListCmd, nil)
 	})
-	if !strings.Contains(out, "\"name\": \"data\"") {
+	if !strings.Contains(out, "\"name\": \"vol-1\"") {
 		t.Fatalf("expected volume list output, got: %s", out)
 	}
 }

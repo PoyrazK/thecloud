@@ -1040,6 +1040,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/caches/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Changes the memory allocation of a running Redis cache instance (requires restart)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "caches"
+                ],
+                "summary": "Resize cache memory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cache ID or name",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeCacheRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/clusters": {
             "get": {
                 "security": [
@@ -1725,6 +1789,70 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/domain.Database"
+                        }
+                    }
+                }
+            }
+        },
+        "/databases/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Increases the allocated storage capacity of a database instance",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "databases"
+                ],
+                "summary": "Resize database storage",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Database ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeDatabaseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
                         }
                     }
                 }
@@ -2585,6 +2713,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/functions/{id}/dlq": {
+            "get": {
+                "description": "Gets all dead letter queue invocations for a function",
+                "summary": "Get DLQ invocations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Function ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Invocation"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/functions/{id}/dlq/{invocation_id}/retry": {
+            "post": {
+                "description": "Retries a failed invocation from the dead letter queue by resetting its status to PENDING",
+                "summary": "Retry DLQ invocation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Function ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Invocation ID",
+                        "name": "invocation_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.Invocation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/gateway/routes": {
             "get": {
                 "security": [
@@ -3436,6 +3644,767 @@ const docTemplate = `{
                 }
             }
         },
+        "/iam/policies/{id}/rollback/{version}": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Restore a policy to a specific historical version by creating a new version with the old content.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Rollback Policy Version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Version Number to Rollback To",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/policies/{id}/versions": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "List all historical versions of a specific IAM policy.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "List Policy Versions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httputil.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.PolicyVersion"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/policies/{id}/versions/{version}": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Get a specific historical version of an IAM policy.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Get Policy Version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Version Number",
+                        "name": "version",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httputil.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.PolicyVersion"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/service-accounts": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "List all service accounts for the tenant.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "List Service Accounts",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.ServiceAccount"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Create a new service account with credentials for M2M authentication.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Create Service Account",
+                "parameters": [
+                    {
+                        "description": "Service account details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.CreateServiceAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.ServiceAccountWithSecret"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/service-accounts/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Get details of a specific service account.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Get Service Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.ServiceAccount"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Delete an existing service account and all its secrets.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Delete Service Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/service-accounts/{id}/rotate-secret": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Rotate the secret for a service account, returns new plaintext.",
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Rotate Service Account Secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/service-accounts/{id}/secrets": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "List all secrets for a service account.",
+                "tags": [
+                    "iam"
+                ],
+                "summary": "List Service Account Secrets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.ServiceAccountSecret"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/service-accounts/{id}/secrets/{secretId}": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Revoke a specific secret from a service account.",
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Revoke Service Account Secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Secret ID",
+                        "name": "secretId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/service-accounts/{saId}/policies": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "List all IAM policies currently attached to a specific service account.",
+                "tags": [
+                    "iam"
+                ],
+                "summary": "List Service Account IAM Policies",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "saId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.Policy"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/service-accounts/{saId}/policies/{policyId}": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Attach a specific IAM policy to a service account.",
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Attach IAM Policy to Service Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "saId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "policyId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Remove a specific IAM policy assignment from a service account.",
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Detach IAM Policy from Service Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Service Account ID",
+                        "name": "saId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Policy ID",
+                        "name": "policyId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/iam/simulate": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Evaluates what actions and resources would be allowed or denied by attached policies",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "iam"
+                ],
+                "summary": "Simulate IAM policy decision",
+                "parameters": [
+                    {
+                        "description": "Simulation parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.SimulateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/httputil.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/httphandlers.SimulateResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/iam/users/{userId}/policies": {
             "get": {
                 "security": [
@@ -4250,6 +5219,152 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Instance ID",
                         "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/instances/{id}/tags": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Returns the label set (tags) assigned to an instance.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instances"
+                ],
+                "summary": "Get instance tags",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Merges the provided tags into the instance's label set. Existing keys are overwritten.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instances"
+                ],
+                "summary": "Set instance tags",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/instances/{id}/tags/{key}": {
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Deletes the label with the given key from an instance.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "instances"
+                ],
+                "summary": "Remove instance tag",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Instance ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Tag key",
+                        "name": "key",
                         "in": "path",
                         "required": true
                     }
@@ -5098,6 +6213,64 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/oauth2/token": {
+            "post": {
+                "description": "OAuth2 Client Credentials flow - exchange client_id and client_secret for JWT. Response includes access_token (JWT), token_type (\"Bearer\"), and expires_in (seconds, e.g. 3600 = 1 hour).",
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Exchange client credentials for access token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "grant_type (client_credentials)",
+                        "name": "grant_type",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "client_id (service account ID)",
+                        "name": "client_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "client_secret",
+                        "name": "client_secret",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/httputil.Response"
                         }
@@ -7647,6 +8820,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/volumes/{id}/resize": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Increases the capacity of an existing block storage volume",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "volumes"
+                ],
+                "summary": "Resize a volume",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Volume ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resize request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.ResizeVolumeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/vpc-peerings": {
             "get": {
                 "security": [
@@ -8083,6 +9320,73 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "description": "Modifies an existing VPC's name",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vpcs"
+                ],
+                "summary": "Update a VPC",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VPC ID or Name",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "VPC update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.VPC"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/httputil.Response"
                         }
@@ -8694,6 +9998,14 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "circuit_breaker_threshold": {
+                    "description": "consecutive failures to trip open (0=disabled)",
+                    "type": "integer"
+                },
+                "circuit_breaker_timeout": {
+                    "description": "ms in open before half-open",
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -8710,6 +10022,10 @@ const docTemplate = `{
                 },
                 "max_body_size": {
                     "description": "Max request body size in bytes",
+                    "type": "integer"
+                },
+                "max_retries": {
+                    "description": "max retry attempts (0=disabled)",
                     "type": "integer"
                 },
                 "methods": {
@@ -8755,6 +10071,10 @@ const docTemplate = `{
                 },
                 "response_header_timeout": {
                     "description": "Time to receive headers in milliseconds",
+                    "type": "integer"
+                },
+                "retry_timeout": {
+                    "description": "total retry window in ms",
                     "type": "integer"
                 },
                 "strip_prefix": {
@@ -9202,6 +10522,47 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Invocation": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "description": "Execution time in milliseconds",
+                    "type": "integer"
+                },
+                "ended_at": {
+                    "type": "string"
+                },
+                "function_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "logs": {
+                    "description": "Captured stdout/stderr",
+                    "type": "string"
+                },
+                "max_retries": {
+                    "description": "Max retries before moving to DLQ",
+                    "type": "integer"
+                },
+                "retry_count": {
+                    "description": "Number of retry attempts",
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"PENDING\", \"RUNNING\", \"SUCCESS\", \"FAILED\", \"DLQ\"",
+                    "type": "string"
+                },
+                "status_code": {
+                    "description": "Exit code or HTTP status",
+                    "type": "integer"
+                }
+            }
+        },
         "domain.LBStatus": {
             "type": "string",
             "enum": [
@@ -9621,6 +10982,10 @@ const docTemplate = `{
                 "identity:read",
                 "identity:delete",
                 "identity:read_all",
+                "service_account:create",
+                "service_account:read",
+                "service_account:update",
+                "service_account:delete",
                 "accounting:read",
                 "audit:read",
                 "dashboard:read",
@@ -9739,6 +11104,10 @@ const docTemplate = `{
                 "PermissionIdentityRead",
                 "PermissionIdentityDelete",
                 "PermissionIdentityReadAll",
+                "PermissionServiceAccountCreate",
+                "PermissionServiceAccountRead",
+                "PermissionServiceAccountUpdate",
+                "PermissionServiceAccountDelete",
                 "PermissionAccountingRead",
                 "PermissionAuditRead",
                 "PermissionDashboardRead",
@@ -9778,6 +11147,38 @@ const docTemplate = `{
                 "EffectAllow",
                 "EffectDeny"
             ]
+        },
+        "domain.PolicyVersion": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "policy_id": {
+                    "type": "string"
+                },
+                "statements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Statement"
+                    }
+                },
+                "version_number": {
+                    "type": "integer"
+                }
+            }
         },
         "domain.RecordType": {
             "type": "string",
@@ -10208,6 +11609,91 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.ServiceAccount": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ServiceAccountSecret": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "service_account_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ServiceAccountWithSecret": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "secret": {
+                    "description": "Only set on create/rotate",
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Snapshot": {
             "type": "object",
             "properties": {
@@ -10566,6 +12052,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "idempotency_key": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -10592,6 +12081,9 @@ const docTemplate = `{
         "domain.VPCPeering": {
             "type": "object",
             "properties": {
+                "accepter_tenant_id": {
+                    "type": "string"
+                },
                 "accepter_vpc_id": {
                     "type": "string"
                 },
@@ -10604,13 +12096,13 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "requester_tenant_id": {
+                    "type": "string"
+                },
                 "requester_vpc_id": {
                     "type": "string"
                 },
                 "status": {
-                    "type": "string"
-                },
-                "tenant_id": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -10750,7 +12242,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "port": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 65535,
+                    "minimum": 1
                 },
                 "weight": {
                     "type": "integer"
@@ -11000,7 +12494,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "port": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 65535,
+                    "minimum": 1
                 },
                 "vpc_id": {
                     "type": "string"
@@ -11025,10 +12521,14 @@ const docTemplate = `{
         "httphandlers.CreatePeeringRequest": {
             "type": "object",
             "required": [
+                "accepter_tenant_id",
                 "accepter_vpc_id",
                 "requester_vpc_id"
             ],
             "properties": {
+                "accepter_tenant_id": {
+                    "type": "string"
+                },
                 "accepter_vpc_id": {
                     "type": "string"
                 },
@@ -11102,6 +12602,14 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "circuit_breaker_threshold": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "circuit_breaker_timeout": {
+                    "type": "integer",
+                    "minimum": 0
+                },
                 "dial_timeout": {
                     "type": "integer",
                     "minimum": 0
@@ -11111,6 +12619,10 @@ const docTemplate = `{
                     "minimum": 0
                 },
                 "max_body_size": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "max_retries": {
                     "type": "integer",
                     "minimum": 0
                 },
@@ -11138,6 +12650,10 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "response_header_timeout": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "retry_timeout": {
                     "type": "integer",
                     "minimum": 0
                 },
@@ -11199,6 +12715,24 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "vpc_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "httphandlers.CreateServiceAccountRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "role"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
                     "type": "string"
                 }
             }
@@ -11465,6 +12999,30 @@ const docTemplate = `{
                 }
             }
         },
+        "httphandlers.ResizeCacheRequest": {
+            "type": "object",
+            "required": [
+                "memory_mb"
+            ],
+            "properties": {
+                "memory_mb": {
+                    "type": "integer",
+                    "minimum": 64
+                }
+            }
+        },
+        "httphandlers.ResizeDatabaseRequest": {
+            "type": "object",
+            "required": [
+                "allocated_storage"
+            ],
+            "properties": {
+                "allocated_storage": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
         "httphandlers.ResizeInstanceRequest": {
             "type": "object",
             "required": [
@@ -11487,6 +13045,18 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "httphandlers.ResizeVolumeRequest": {
+            "type": "object",
+            "required": [
+                "new_size_gb"
+            ],
+            "properties": {
+                "new_size_gb": {
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -11567,9 +13137,13 @@ const docTemplate = `{
         },
         "httphandlers.ScaleClusterRequest": {
             "type": "object",
+            "required": [
+                "workers"
+            ],
             "properties": {
                 "workers": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 1
                 }
             }
         },
@@ -11581,6 +13155,100 @@ const docTemplate = `{
             "properties": {
                 "replicas": {
                     "type": "integer"
+                }
+            }
+        },
+        "httphandlers.SimulateRequest": {
+            "type": "object",
+            "required": [
+                "actions",
+                "resources"
+            ],
+            "properties": {
+                "actions": {
+                    "description": "Actions to simulate (e.g., [\"compute:instance:launch\"]). Max 100.",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "context": {
+                    "description": "Context overrides for condition evaluation.\nKeys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "resources": {
+                    "description": "Resources to test (e.g., [\"arn:thecloud:compute:us-east-1:*:instance/*\"]). Max 100.",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "service_account_id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "Principal identifies whose policies to simulate.\nExactly one of UserID or ServiceAccountID must be set.",
+                    "type": "string"
+                }
+            }
+        },
+        "httphandlers.SimulateResponse": {
+            "type": "object",
+            "properties": {
+                "decision": {
+                    "description": "\"allow\" or \"deny\"",
+                    "type": "string"
+                },
+                "evaluated": {
+                    "type": "integer"
+                },
+                "matched": {
+                    "$ref": "#/definitions/httphandlers.StatementMatch"
+                }
+            }
+        },
+        "httphandlers.StatementMatch": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "effect": {
+                    "type": "string"
+                },
+                "policy_id": {
+                    "type": "string"
+                },
+                "policy_name": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "resource": {
+                    "type": "string"
+                },
+                "statement_sid": {
+                    "type": "string"
+                }
+            }
+        },
+        "httphandlers.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "token_type": {
+                    "type": "string"
                 }
             }
         },

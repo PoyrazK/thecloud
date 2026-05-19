@@ -99,6 +99,11 @@ func (m *mockRBACService) EvaluatePolicy(ctx context.Context, userID uuid.UUID, 
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *mockRBACService) AuthorizeServiceAccount(ctx context.Context, saID uuid.UUID, tenantID uuid.UUID, permission domain.Permission, resource string) error {
+	args := m.Called(ctx, saID, tenantID, permission, resource)
+	return args.Error(0)
+}
+
 func setupRBACHandlerTest(_ *testing.T) (*mockRBACService, *RBACHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockRBACService)

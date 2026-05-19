@@ -52,7 +52,24 @@ func TestSecurityGroupService_Unit(t *testing.T) {
 		mockNetwork.On("AddFlowRule", mock.Anything, "net-1", mock.Anything).Return(nil).Maybe()
 		mockAuditSvc.On("Log", mock.Anything, userID, "security_group.add_rule", "security_group", sgID.String(), mock.Anything).Return(nil).Maybe()
 
-		res, err := svc.AddRule(ctx, sgID, rule)
+		res, err := svc.AddRule(ctx, sgID.String(), rule)
+		require.NoError(t, err)
+		assert.NotNil(t, res)
+	})
+
+	t.Run("AddRule_ByName", func(t *testing.T) {
+		sgID := uuid.New()
+		sg := &domain.SecurityGroup{ID: sgID, UserID: userID, VPCID: vpcID, Name: "my-sg"}
+		rule := domain.SecurityRule{Protocol: "tcp", PortMin: 80, PortMax: 80, Direction: domain.RuleIngress}
+
+		mockRepo.On("GetByNameAcrossVPCs", mock.Anything, "my-sg").Return(sg, nil).Once()
+		mockRepo.On("GetByID", mock.Anything, sgID).Return(sg, nil).Once()
+		mockRepo.On("AddRule", mock.Anything, mock.Anything).Return(nil).Once()
+		mockVpcRepo.On("GetByID", mock.Anything, vpcID).Return(&domain.VPC{ID: vpcID, NetworkID: "net-1"}, nil).Maybe()
+		mockNetwork.On("AddFlowRule", mock.Anything, "net-1", mock.Anything).Return(nil).Maybe()
+		mockAuditSvc.On("Log", mock.Anything, userID, "security_group.add_rule", "security_group", sgID.String(), mock.Anything).Return(nil).Maybe()
+
+		res, err := svc.AddRule(ctx, "my-sg", rule)
 		require.NoError(t, err)
 		assert.NotNil(t, res)
 	})

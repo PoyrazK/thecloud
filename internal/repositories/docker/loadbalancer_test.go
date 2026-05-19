@@ -38,8 +38,8 @@ func (m *mockInstanceRepo) GetByName(ctx context.Context, name string) (*domain.
 	return r0, args.Error(1)
 }
 
-func (m *mockInstanceRepo) List(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *mockInstanceRepo) List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -109,8 +109,22 @@ func (m *mockVpcRepo) List(ctx context.Context) ([]*domain.VPC, error) {
 	return r0, args.Error(1)
 }
 
+func (m *mockVpcRepo) GetByIdempotencyKey(ctx context.Context, key string) (*domain.VPC, error) {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.VPC)
+	return r0, args.Error(1)
+}
+
 func (m *mockVpcRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *mockVpcRepo) Update(ctx context.Context, vpc *domain.VPC) error {
+	args := m.Called(ctx, vpc)
 	return args.Error(0)
 }
 

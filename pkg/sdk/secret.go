@@ -44,13 +44,27 @@ func (c *Client) ListSecrets() ([]*Secret, error) {
 }
 
 func (c *Client) GetSecret(idOrName string) (*Secret, error) {
+	id, err := c.resolveID("secret", func() ([]interface{}, error) {
+		secrets, err := c.ListSecrets()
+		return interfaceSlicePtr(secrets), err
+	}, func(v interface{}) string { return v.(*Secret).ID }, func(v interface{}) string { return v.(*Secret).Name }, idOrName)
+	if err != nil {
+		return nil, err
+	}
 	var resp Response[Secret]
-	if err := c.get("/secrets/"+idOrName, &resp); err != nil {
+	if err := c.get("/secrets/"+id, &resp); err != nil {
 		return nil, err
 	}
 	return &resp.Data, nil
 }
 
 func (c *Client) DeleteSecret(idOrName string) error {
-	return c.delete("/secrets/"+idOrName, nil)
+	id, err := c.resolveID("secret", func() ([]interface{}, error) {
+		secrets, err := c.ListSecrets()
+		return interfaceSlicePtr(secrets), err
+	}, func(v interface{}) string { return v.(*Secret).ID }, func(v interface{}) string { return v.(*Secret).Name }, idOrName)
+	if err != nil {
+		return err
+	}
+	return c.delete("/secrets/"+id, nil)
 }

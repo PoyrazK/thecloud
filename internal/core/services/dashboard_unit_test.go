@@ -45,7 +45,7 @@ func testDashboardServiceGetStats(t *testing.T) {
 		events := []*domain.Event{{ID: uuid.New(), Action: "test.action"}}
 
 		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		instRepo.On("List", ctx).Return(instances, nil).Once()
+		instRepo.On("List", ctx, []string(nil)).Return(instances, nil).Once()
 		volRepo.On("List", ctx).Return(volumes, nil).Once()
 		vpcRepo.On("List", ctx).Return(vpcs, nil).Once()
 		eventRepo.On("List", ctx, 10).Return(events, nil).Once()
@@ -65,7 +65,7 @@ func testDashboardServiceGetStats(t *testing.T) {
 	})
 
 	t.Run("RepoError", func(t *testing.T) {
-		instRepo.On("List", ctx).Return(nil, fmt.Errorf("db fail")).Once()
+		instRepo.On("List", ctx, []string(nil)).Return(nil, fmt.Errorf("db fail")).Once()
 
 		_, err := svc.GetStats(ctx)
 		require.Error(t, err)
@@ -98,7 +98,7 @@ func testDashboardServiceGetSummary(t *testing.T) {
 		}
 		vpcs := []*domain.VPC{{ID: uuid.New()}, {ID: uuid.New()}}
 
-		instRepo.On("List", ctx).Return(instances, nil).Once()
+		instRepo.On("List", ctx, []string(nil)).Return(instances, nil).Once()
 		volRepo.On("List", ctx).Return(volumes, nil).Once()
 		vpcRepo.On("List", ctx).Return(vpcs, nil).Once()
 
@@ -120,7 +120,7 @@ func testDashboardServiceGetSummary(t *testing.T) {
 		ctx = appcontext.WithTenantID(ctx, tenantID)
 		rbacSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionDashboardRead, "*").Return(nil)
 
-		instRepo.On("List", ctx).Return(nil, fmt.Errorf("db fail")).Once()
+		instRepo.On("List", ctx, []string(nil)).Return(nil, fmt.Errorf("db fail")).Once()
 
 		_, err := svc.GetSummary(ctx)
 		require.Error(t, err)

@@ -12,15 +12,17 @@ import (
 
 // AuthHandler handles authentication and password reset endpoints.
 type AuthHandler struct {
-	authSvc ports.AuthService
-	pwdSvc  ports.PasswordResetService
+	authSvc     ports.AuthService
+	pwdSvc      ports.PasswordResetService
+	identitySvc ports.IdentityService
 }
 
 // NewAuthHandler constructs an AuthHandler.
-func NewAuthHandler(authSvc ports.AuthService, pwdSvc ports.PasswordResetService) *AuthHandler {
+func NewAuthHandler(authSvc ports.AuthService, pwdSvc ports.PasswordResetService, identitySvc ports.IdentityService) *AuthHandler {
 	return &AuthHandler{
-		authSvc: authSvc,
-		pwdSvc:  pwdSvc,
+		authSvc:     authSvc,
+		pwdSvc:      pwdSvc,
+		identitySvc: identitySvc,
 	}
 }
 
@@ -46,6 +48,20 @@ type ForgotPasswordRequest struct {
 type ResetPasswordRequest struct {
 	Token       string `json:"token" binding:"required"`
 	NewPassword string `json:"new_password" binding:"required,min=8,max=72"`
+}
+
+// TokenRequest is the payload for OAuth2 token endpoint.
+type TokenRequest struct {
+	GrantType    string `form:"grant_type" binding:"required"`
+	ClientID     string `form:"client_id" binding:"required"`
+	ClientSecret string `form:"client_secret" binding:"required"`
+}
+
+// TokenResponse is the OAuth2 token response.
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
 }
 
 // LoginResponse contains the authenticated user and API key.
@@ -172,4 +188,42 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 	httputil.Success(c, http.StatusOK, user)
+}
+
+// Token godoc
+// @Summary Exchange client credentials for access token
+// @Description OAuth2 Client Credentials flow - exchange client_id and client_secret for JWT. Response includes access_token (JWT), token_type ("Bearer"), and expires_in (seconds, e.g. 3600 = 1 hour).
+// @Tags Auth
+// @Accept x-www-form-urlencoded
+// @Produce json
+// @Param grant_type formData string true "grant_type (client_credentials)"
+// @Param client_id formData string true "client_id (service account ID)"
+// @Param client_secret formData string true "client_secret"
+// @Success 200 {object} TokenResponse
+// @Failure 400 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Router /oauth2/token [post]
+func (h *AuthHandler) Token(c *gin.Context) {
+	var req TokenRequest
+	if err := c.ShouldBind(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid request"))
+		return
+	}
+
+	if req.GrantType != "client_credentials" {
+		httputil.Error(c, errors.New(errors.InvalidInput, "unsupported grant type"))
+		return
+	}
+
+	token, err := h.identitySvc.ValidateClientCredentials(c.Request.Context(), req.ClientID, req.ClientSecret)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.Unauthorized, "invalid client credentials"))
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, TokenResponse{
+		AccessToken: token,
+		TokenType:   "Bearer",
+		ExpiresIn:   int(h.identitySvc.TokenTTL().Seconds()),
+	})
 }

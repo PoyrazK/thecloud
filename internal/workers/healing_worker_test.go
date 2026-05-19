@@ -38,8 +38,8 @@ func (m *mockInstanceRepo) GetByName(ctx context.Context, name string) (*domain.
 	r0, _ := args.Get(0).(*domain.Instance)
 	return r0, args.Error(1)
 }
-func (m *mockInstanceRepo) List(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *mockInstanceRepo) List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -95,8 +95,8 @@ func (m *mockInstanceSvc) StartInstance(ctx context.Context, idOrName string) er
 func (m *mockInstanceSvc) StopInstance(ctx context.Context, idOrName string) error {
 	return m.Called(ctx, idOrName).Error(0)
 }
-func (m *mockInstanceSvc) ListInstances(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *mockInstanceSvc) ListInstances(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -149,6 +149,20 @@ func (m *mockInstanceSvc) PauseInstance(ctx context.Context, idOrName string) er
 }
 func (m *mockInstanceSvc) ResumeInstance(ctx context.Context, idOrName string) error {
 	return m.Called(ctx, idOrName).Error(0)
+}
+func (m *mockInstanceSvc) GetTags(ctx context.Context, id uuid.UUID) (map[string]string, error) {
+	args := m.Called(ctx, id)
+	var r0 map[string]string
+	if args.Get(0) != nil {
+		r0, _ = args.Get(0).(map[string]string)
+	}
+	return r0, args.Error(1)
+}
+func (m *mockInstanceSvc) SetTags(ctx context.Context, id uuid.UUID, labels map[string]string) error {
+	return m.Called(ctx, id, labels).Error(0)
+}
+func (m *mockInstanceSvc) RemoveTag(ctx context.Context, id uuid.UUID, key string) error {
+	return m.Called(ctx, id, key).Error(0)
 }
 
 func TestHealingWorker(t *testing.T) {

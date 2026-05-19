@@ -47,7 +47,7 @@ type RouteTableAssociation struct {
 // ListRouteTables returns all route tables for a VPC.
 func (c *Client) ListRouteTables(vpcID string) ([]RouteTable, error) {
 	var res Response[[]RouteTable]
-	path := fmt.Sprintf("/vpcs/%s/route-tables", vpcID)
+	path := fmt.Sprintf("/route-tables?vpc_id=%s", vpcID)
 	if err := c.get(path, &res); err != nil {
 		return nil, err
 	}

@@ -110,13 +110,13 @@ func TestMultiTenancy_TenantIsolation(t *testing.T) {
 		require.NoError(t, instRepo.Create(ctxB3, instB))
 
 		// Tenant A list
-		listA, err := instRepo.List(ctxA1)
+		listA, err := instRepo.List(ctxA1, nil)
 		require.NoError(t, err)
 		assert.Len(t, listA, 1)
 		assert.Equal(t, instA.ID, listA[0].ID)
 
 		// Tenant B list
-		listB, err := instRepo.List(ctxB3)
+		listB, err := instRepo.List(ctxB3, nil)
 		require.NoError(t, err)
 		assert.Len(t, listB, 1)
 		assert.Equal(t, instB.ID, listB[0].ID)

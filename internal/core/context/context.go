@@ -10,9 +10,11 @@ import (
 type contextKey string
 
 const (
-	userIDKey   contextKey = "user_id"
-	tenantIDKey contextKey = "tenant_id"
-	internalKey contextKey = "is_internal"
+	userIDKey           contextKey = "user_id"
+	tenantIDKey         contextKey = "tenant_id"
+	internalKey         contextKey = "is_internal"
+	sourceIPKey         contextKey = "source_ip"
+	serviceAccountIDKey contextKey = "service_account_id"
 
 	systemUserIDStr = "00000000-0000-0000-0000-000000000001"
 )
@@ -59,4 +61,32 @@ func TenantIDFromContext(ctx context.Context) uuid.UUID {
 		return uuid.Nil
 	}
 	return tenantID
+}
+
+// WithSourceIP returns a new context with the client source IP address.
+func WithSourceIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, sourceIPKey, ip)
+}
+
+// SourceIPFromContext returns the source IP from the context, or empty string if not found.
+func SourceIPFromContext(ctx context.Context) string {
+	ip, ok := ctx.Value(sourceIPKey).(string)
+	if !ok {
+		return ""
+	}
+	return ip
+}
+
+// WithServiceAccountID returns a new context with the given service account ID.
+func WithServiceAccountID(ctx context.Context, saID uuid.UUID) context.Context {
+	return context.WithValue(ctx, serviceAccountIDKey, saID)
+}
+
+// ServiceAccountIDFromContext returns the service account ID from the context, or uuid.Nil if not found.
+func ServiceAccountIDFromContext(ctx context.Context) uuid.UUID {
+	saID, ok := ctx.Value(serviceAccountIDKey).(uuid.UUID)
+	if !ok {
+		return uuid.Nil
+	}
+	return saID
 }

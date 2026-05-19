@@ -30,7 +30,7 @@ func (p *KubeadmProvisioner) ensureClusterSecurityGroup(ctx context.Context, clu
 	}
 
 	for _, rule := range rules {
-		_, _ = p.sgSvc.AddRule(ctx, newSG.ID, rule)
+		_, _ = p.sgSvc.AddRule(ctx, newSG.ID.String(), rule)
 	}
 
 	return nil

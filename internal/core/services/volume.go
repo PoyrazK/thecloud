@@ -88,7 +88,7 @@ func (s *VolumeService) CreateVolume(ctx context.Context, name string, sizeGB in
 		Name:      name,
 		SizeGB:    sizeGB,
 		Status:    domain.VolumeStatusAvailable,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now(),
 	}
 

@@ -178,6 +178,12 @@ const (
 	PermissionIdentityDelete  Permission = "identity:delete"
 	PermissionIdentityReadAll Permission = "identity:read_all"
 
+	// Service Account Permissions
+	PermissionServiceAccountCreate Permission = "service_account:create"
+	PermissionServiceAccountRead   Permission = "service_account:read"
+	PermissionServiceAccountUpdate Permission = "service_account:update"
+	PermissionServiceAccountDelete Permission = "service_account:delete"
+
 	// Accounting Permissions
 	PermissionAccountingRead Permission = "accounting:read"
 

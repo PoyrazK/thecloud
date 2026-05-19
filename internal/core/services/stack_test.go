@@ -67,7 +67,7 @@ Resources:
 	// Async expectations
 	vpcID := uuid.New()
 	vpc := &domain.VPC{ID: vpcID, Name: stackTestVpc}
-	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "").Return(vpc, nil)
+	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "", "").Return(vpc, nil)
 	repo.On("AddResource", mock.Anything, mock.MatchedBy(func(r *domain.StackResource) bool {
 		return r.LogicalID == "MyVPC" && r.ResourceType == "VPC"
 	})).Return(nil)
@@ -155,7 +155,7 @@ Resources:
 	// 1. VPC Success
 	vpcID := uuid.New()
 	vpc := &domain.VPC{ID: vpcID, Name: stackTestVpc}
-	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "").Return(vpc, nil)
+	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "", "").Return(vpc, nil)
 	repo.On("AddResource", mock.Anything, mock.MatchedBy(func(r *domain.StackResource) bool {
 		return r.LogicalID == "MyVPC" && r.ResourceType == "VPC"
 	})).Return(nil)
@@ -223,7 +223,7 @@ Resources:
 
 	vpcID := uuid.New()
 	vpc := &domain.VPC{ID: vpcID, Name: stackTestVpc}
-	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "").Return(vpc, nil)
+	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "", "").Return(vpc, nil)
 	repo.On("AddResource", mock.Anything, mock.MatchedBy(func(r *domain.StackResource) bool {
 		return r.LogicalID == "MyVPC" && r.ResourceType == "VPC"
 	})).Return(nil)
@@ -286,7 +286,7 @@ Resources:
 
 	vpcID := uuid.New()
 	vpc := &domain.VPC{ID: vpcID, Name: stackTestVpc}
-	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "").Return(vpc, nil)
+	vpcSvc.On("CreateVPC", mock.Anything, stackTestVpc, "", "").Return(vpc, nil)
 	repo.On("AddResource", mock.Anything, mock.MatchedBy(func(r *domain.StackResource) bool {
 		return r.LogicalID == "MyVPC" && r.ResourceType == "VPC"
 	})).Return(nil)

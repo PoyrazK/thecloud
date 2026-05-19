@@ -24,6 +24,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/poyrazk/thecloud/internal/api/setup"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	apphandlers "github.com/poyrazk/thecloud/internal/handlers"
 	"github.com/poyrazk/thecloud/internal/platform"
 	"github.com/poyrazk/thecloud/internal/repositories/postgres"
 	"github.com/poyrazk/thecloud/pkg/tracing"
@@ -159,6 +160,7 @@ func run() error {
 	}
 
 	handlers := deps.InitHandlers(svcs, cfg, logger)
+	handlers.Admin = apphandlers.NewAdminHandler(compute)
 	r := deps.SetupRouter(cfg, logger, handlers, svcs, network)
 
 	// Add Tracing Middleware if enabled

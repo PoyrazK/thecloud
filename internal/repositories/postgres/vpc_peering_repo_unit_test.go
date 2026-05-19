@@ -24,17 +24,18 @@ func TestVPCPeeringRepository_Create(t *testing.T) {
 
 	repo := NewVPCPeeringRepository(mock)
 	peering := &domain.VPCPeering{
-		ID:             uuid.New(),
-		RequesterVPCID: uuid.New(),
-		AccepterVPCID:  uuid.New(),
-		TenantID:       uuid.New(),
-		Status:         domain.PeeringStatusPendingAcceptance,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		ID:                uuid.New(),
+		RequesterVPCID:    uuid.New(),
+		AccepterVPCID:     uuid.New(),
+		RequesterTenantID: uuid.New(),
+		AccepterTenantID:  uuid.New(),
+		Status:            domain.PeeringStatusPendingAcceptance,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
 	}
 
 	mock.ExpectExec("INSERT INTO vpc_peerings").
-		WithArgs(peering.ID, peering.RequesterVPCID, peering.AccepterVPCID, peering.TenantID, peering.Status, peering.ARN, peering.CreatedAt, peering.UpdatedAt).
+		WithArgs(peering.ID, peering.RequesterVPCID, peering.AccepterVPCID, peering.RequesterTenantID, peering.AccepterTenantID, peering.Status, peering.ARN, peering.CreatedAt, peering.UpdatedAt).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 	err = repo.Create(context.Background(), peering)
@@ -52,10 +53,10 @@ func TestVPCPeeringRepository_GetByID(t *testing.T) {
 	tenantID := uuid.New()
 	ctx := appcontext.WithTenantID(context.Background(), tenantID)
 
-	mock.ExpectQuery("SELECT id, requester_vpc_id, accepter_vpc_id, tenant_id, status, arn, created_at, updated_at FROM vpc_peerings").
+	mock.ExpectQuery("SELECT id, requester_vpc_id, accepter_vpc_id, requester_tenant_id, accepter_tenant_id, status, arn, created_at, updated_at FROM vpc_peerings").
 		WithArgs(id, tenantID).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "requester_vpc_id", "accepter_vpc_id", "tenant_id", "status", "arn", "created_at", "updated_at"}).
-			AddRow(id, uuid.New(), uuid.New(), tenantID, domain.PeeringStatusActive, "", time.Now(), time.Now()))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "requester_vpc_id", "accepter_vpc_id", "requester_tenant_id", "accepter_tenant_id", "status", "arn", "created_at", "updated_at"}).
+			AddRow(id, uuid.New(), uuid.New(), tenantID, tenantID, domain.PeeringStatusActive, "", time.Now(), time.Now()))
 
 	peering, err := repo.GetByID(ctx, id)
 	require.NoError(t, err)
@@ -110,11 +111,12 @@ func TestVPCPeeringRepository_GetActiveByVPCPair(t *testing.T) {
 	repo := NewVPCPeeringRepository(mock)
 	vpc1 := uuid.New()
 	vpc2 := uuid.New()
+	tenantID := uuid.New()
 
-	mock.ExpectQuery("SELECT id, requester_vpc_id, accepter_vpc_id, tenant_id, status, arn, created_at, updated_at FROM vpc_peerings").
+	mock.ExpectQuery("SELECT id, requester_vpc_id, accepter_vpc_id, requester_tenant_id, accepter_tenant_id, status, arn, created_at, updated_at FROM vpc_peerings").
 		WithArgs(vpc1, vpc2, domain.PeeringStatusPendingAcceptance, domain.PeeringStatusActive).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "requester_vpc_id", "accepter_vpc_id", "tenant_id", "status", "arn", "created_at", "updated_at"}).
-			AddRow(uuid.New(), vpc1, vpc2, uuid.New(), domain.PeeringStatusActive, "", time.Now(), time.Now()))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "requester_vpc_id", "accepter_vpc_id", "requester_tenant_id", "accepter_tenant_id", "status", "arn", "created_at", "updated_at"}).
+			AddRow(uuid.New(), vpc1, vpc2, tenantID, tenantID, domain.PeeringStatusActive, "", time.Now(), time.Now()))
 
 	peering, err := repo.GetActiveByVPCPair(context.Background(), vpc1, vpc2)
 	require.NoError(t, err)
@@ -132,7 +134,7 @@ func TestVPCPeeringRepository_NotFound(t *testing.T) {
 	tenantID := uuid.New()
 	ctx := appcontext.WithTenantID(context.Background(), tenantID)
 
-	mock.ExpectQuery("SELECT id, requester_vpc_id, accepter_vpc_id, tenant_id, status, arn, created_at, updated_at FROM vpc_peerings").
+	mock.ExpectQuery("SELECT id, requester_vpc_id, accepter_vpc_id, requester_tenant_id, accepter_tenant_id, status, arn, created_at, updated_at FROM vpc_peerings").
 		WithArgs(id, tenantID).
 		WillReturnError(pgx.ErrNoRows)
 

@@ -75,6 +75,7 @@ func testCacheServiceUnitExtended(t *testing.T) {
 	ctx = appcontext.WithTenantID(ctx, tenantID)
 
 	t.Run("CreateCache_Success", func(t *testing.T) {
+		compute.On("Type").Return("docker").Maybe()
 		repo.On("Create", mock.Anything, mock.Anything).Return(nil).Once()
 		compute.On("LaunchInstanceWithOptions", mock.Anything, mock.Anything).Return("cid", []string{"30001:6379"}, nil).Once()
 		repo.On("Update", mock.Anything, mock.Anything).Return(nil).Once()
@@ -88,6 +89,7 @@ func testCacheServiceUnitExtended(t *testing.T) {
 	})
 
 	t.Run("CreateCache_LaunchFailure", func(t *testing.T) {
+		compute.On("Type").Return("docker").Maybe()
 		repo.On("Create", mock.Anything, mock.Anything).Return(nil).Once()
 		compute.On("LaunchInstanceWithOptions", mock.Anything, mock.Anything).Return("", nil, fmt.Errorf("launch fail")).Once()
 		repo.On("Delete", mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
@@ -175,5 +177,48 @@ func testCacheServiceUnitExtended(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, stats)
 		assert.Equal(t, int64(1024), stats.UsedMemoryBytes)
+	})
+
+	t.Run("ResizeCache_Success", func(t *testing.T) {
+		cacheID := uuid.New()
+		cache := &domain.Cache{
+			ID:          cacheID,
+			TenantID:    tenantID,
+			UserID:      userID,
+			Name:        "my-cache",
+			Engine:      "redis",
+			Version:     "7.0",
+			MemoryMB:    128,
+			ContainerID: "old-cid",
+			Status:      domain.CacheStatusRunning,
+		}
+		repo.On("GetByID", mock.Anything, cacheID, mock.Anything).Return(cache, nil).Once()
+		compute.On("StopInstance", mock.Anything, "old-cid").Return(nil).Once()
+		compute.On("DeleteInstance", mock.Anything, "old-cid").Return(nil).Once()
+		compute.On("LaunchInstanceWithOptions", mock.Anything, mock.Anything).Return("new-cid", []string{"30002:6379"}, nil).Once()
+		compute.On("GetInstancePort", mock.Anything, "new-cid", 6379).Return(30002, nil).Once()
+		repo.On("Update", mock.Anything, mock.Anything).Return(nil).Once()
+		auditSvc.On("Log", mock.Anything, userID, "cache.resize", "cache", mock.Anything, mock.Anything).Return(nil).Once()
+
+		err := svc.ResizeCache(ctx, cacheID.String(), 256)
+		require.NoError(t, err)
+	})
+
+	t.Run("ResizeCache_SameOrSmallerMemory", func(t *testing.T) {
+		cacheID := uuid.New()
+		cache := &domain.Cache{
+			ID:       cacheID,
+			TenantID: tenantID,
+			UserID:   userID,
+			Name:     "my-cache",
+			MemoryMB: 256,
+			Status:   domain.CacheStatusRunning,
+		}
+		repo.On("GetByName", mock.Anything, mock.Anything, "my-cache").Return(cache, nil).Maybe()
+		compute.On("Type").Return("docker").Maybe()
+
+		err := svc.ResizeCache(ctx, "my-cache", 256)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "larger than current")
 	})
 }

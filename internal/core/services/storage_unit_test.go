@@ -178,7 +178,7 @@ func TestStorageServiceUnit(t *testing.T) {
 	})
 
 	t.Run("Download", func(t *testing.T) {
-		obj := &domain.Object{Bucket: "my-bucket", Key: "test.txt", VersionID: "null", SizeBytes: 12}
+		obj := &domain.Object{Bucket: "my-bucket", Key: "test.txt", VersionID: "", SizeBytes: 12}
 		mockRepo.On("GetMeta", mock.Anything, "my-bucket", "test.txt").Return(obj, nil).Once()
 		mockStore.On("Read", mock.Anything, "my-bucket", "test.txt").Return(io.NopCloser(strings.NewReader("hello world!")), nil).Once()
 		mockRepo.On("GetBucket", mock.Anything, "my-bucket").Return(&domain.Bucket{Name: "my-bucket"}, nil).Once()
@@ -196,7 +196,7 @@ func TestStorageServiceUnit(t *testing.T) {
 	})
 
 	t.Run("Download Bucket Lookup Failure Closes Reader", func(t *testing.T) {
-		obj := &domain.Object{Bucket: "my-bucket", Key: "test.txt", VersionID: "null"}
+		obj := &domain.Object{Bucket: "my-bucket", Key: "test.txt", VersionID: ""}
 		reader := &trackingReadCloser{Reader: strings.NewReader("hello world!")}
 		mockRepo.On("GetMeta", mock.Anything, "my-bucket", "test.txt").Return(obj, nil).Once()
 		mockStore.On("Read", mock.Anything, "my-bucket", "test.txt").Return(reader, nil).Once()
@@ -281,10 +281,10 @@ func TestStorageServiceUnit(t *testing.T) {
 	})
 
 	t.Run("CleanupDeleted", func(t *testing.T) {
-		deleted := []*domain.Object{{Bucket: "b1", Key: "k1", VersionID: "null"}}
+		deleted := []*domain.Object{{Bucket: "b1", Key: "k1", VersionID: ""}}
 		mockRepo.On("ListDeleted", mock.Anything, 10).Return(deleted, nil).Once()
 		mockStore.On("Delete", mock.Anything, "b1", "k1").Return(nil).Once()
-		mockRepo.On("HardDelete", mock.Anything, "b1", "k1", "null").Return(nil).Once()
+		mockRepo.On("HardDelete", mock.Anything, "b1", "k1", "").Return(nil).Once()
 
 		count, err := svc.CleanupDeleted(ctx, 10)
 		require.NoError(t, err)
@@ -294,10 +294,10 @@ func TestStorageServiceUnit(t *testing.T) {
 	})
 
 	t.Run("CleanupPendingUploads", func(t *testing.T) {
-		pending := []*domain.Object{{Bucket: "b1", Key: "k1", VersionID: "null"}}
+		pending := []*domain.Object{{Bucket: "b1", Key: "k1", VersionID: ""}}
 		mockRepo.On("ListPending", mock.Anything, mock.Anything, 10).Return(pending, nil).Once()
 		mockStore.On("Delete", mock.Anything, "b1", "k1").Return(nil).Once()
-		mockRepo.On("HardDelete", mock.Anything, "b1", "k1", "null").Return(nil).Once()
+		mockRepo.On("HardDelete", mock.Anything, "b1", "k1", "").Return(nil).Once()
 
 		count, err := svc.CleanupPendingUploads(ctx, time.Hour, 10)
 		require.NoError(t, err)
@@ -421,10 +421,10 @@ func TestStorageServiceUnit(t *testing.T) {
 	t.Run("CleanupDeleted_HardDeleteError", func(t *testing.T) {
 		mockRepo.ExpectedCalls = nil
 		mockStore.ExpectedCalls = nil
-		deleted := []*domain.Object{{Bucket: "b", Key: "k", VersionID: "null"}}
+		deleted := []*domain.Object{{Bucket: "b", Key: "k", VersionID: ""}}
 		mockRepo.On("ListDeleted", mock.Anything, 10).Return(deleted, nil).Once()
 		mockStore.On("Delete", mock.Anything, "b", "k").Return(nil).Once()
-		mockRepo.On("HardDelete", mock.Anything, "b", "k", "null").Return(fmt.Errorf("hard delete failed")).Once()
+		mockRepo.On("HardDelete", mock.Anything, "b", "k", "").Return(fmt.Errorf("hard delete failed")).Once()
 		_, err := svc.CleanupDeleted(ctx, 10)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "hard delete failed")
@@ -592,7 +592,7 @@ func TestStorageServiceUnit(t *testing.T) {
 		mockRepo.ExpectedCalls = nil
 		mockStore.ExpectedCalls = nil
 
-		mockRepo.On("GetMeta", mock.Anything, "b", "k").Return(&domain.Object{Bucket: "b", Key: "k", VersionID: "null"}, nil).Once()
+		mockRepo.On("GetMeta", mock.Anything, "b", "k").Return(&domain.Object{Bucket: "b", Key: "k", VersionID: ""}, nil).Once()
 		mockStore.On("Read", mock.Anything, "b", "k").Return(io.NopCloser(strings.NewReader("data")), nil).Once()
 		mockRepo.On("GetBucket", mock.Anything, "b").Return(nil, fmt.Errorf("bucket error")).Once()
 		_, _, err := svc.Download(ctx, "b", "k")

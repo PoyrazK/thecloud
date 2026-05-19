@@ -8,6 +8,7 @@ bin/
 
 # Test binary, built with `go test -c`
 *.test
+cloud-test
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
@@ -67,6 +68,7 @@ coverage.html
 libvirt_key
 libvirt_key.pub
 auth_env.sh
+*.pam
 
 # Coverage data
 *.cov

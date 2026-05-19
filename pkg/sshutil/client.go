@@ -6,11 +6,21 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
+
+// envInsecureHostKey, when set to "1"/"true", makes NewClientWithKey accept any host key.
+// This exists only as an explicit escape hatch for tests and one-shot bootstrap flows.
+// Production callers should provide their own HostKeyCallback (e.g. via known_hosts).
+const envInsecureHostKey = "THECLOUD_SSH_INSECURE_IGNORE_HOSTKEY"
+
+// envKnownHostsPath overrides the default ~/.ssh/known_hosts lookup.
+const envKnownHostsPath = "THECLOUD_SSH_KNOWN_HOSTS"
 
 // Client represents an SSH client for remote execution.
 type Client struct {
@@ -21,10 +31,22 @@ type Client struct {
 }
 
 // NewClientWithKey constructs an SSH client using a private key.
+// The HostKeyCallback is derived in order from:
+//  1. THECLOUD_SSH_INSECURE_IGNORE_HOSTKEY=1 → ssh.InsecureIgnoreHostKey() (test/bootstrap only)
+//  2. THECLOUD_SSH_KNOWN_HOSTS → known_hosts file at that path
+//  3. ~/.ssh/known_hosts if it exists
+//
+// If none of the above yield a callback, an error is returned so callers cannot
+// silently fall back to InsecureIgnoreHostKey.
 func NewClientWithKey(host, user, privateKey string) (*Client, error) {
 	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	cb, err := resolveHostKeyCallback()
+	if err != nil {
+		return nil, err
 	}
 
 	return &Client{
@@ -33,8 +55,53 @@ func NewClientWithKey(host, user, privateKey string) (*Client, error) {
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeys(signer),
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: cb,
 	}, nil
+}
+
+// NewClientWithKeyAndCallback is the explicit constructor for callers that
+// already have a HostKeyCallback (e.g. a known_hosts-backed callback they
+// share with other SSH consumers).
+func NewClientWithKeyAndCallback(host, user, privateKey string, cb ssh.HostKeyCallback) (*Client, error) {
+	if cb == nil {
+		return nil, fmt.Errorf("host key callback is required")
+	}
+	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	}
+	return &Client{
+		Host:            host,
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: cb,
+	}, nil
+}
+
+func resolveHostKeyCallback() (ssh.HostKeyCallback, error) {
+	if v := os.Getenv(envInsecureHostKey); v == "1" || v == "true" {
+		return ssh.InsecureIgnoreHostKey(), nil
+	}
+
+	candidates := make([]string, 0, 2)
+	if p := os.Getenv(envKnownHostsPath); p != "" {
+		candidates = append(candidates, p)
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		candidates = append(candidates, filepath.Join(home, ".ssh", "known_hosts"))
+	}
+	for _, p := range candidates {
+		if _, statErr := os.Stat(p); statErr != nil {
+			continue
+		}
+		cb, err := knownhosts.New(p)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load known_hosts %q: %w", p, err)
+		}
+		return cb, nil
+	}
+
+	return nil, fmt.Errorf("ssh host key verification not configured: set %s to a known_hosts file or %s=1 to bypass (insecure)", envKnownHostsPath, envInsecureHostKey)
 }
 
 // Run executes a command and returns its output.

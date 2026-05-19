@@ -58,7 +58,7 @@ func TestVpcService_Integration(t *testing.T) {
 
 	t.Run("CreateAndGet", func(t *testing.T) {
 		name := "test-vpc"
-		vpc, err := svc.CreateVPC(ctx, name, testutil.TestCIDR)
+		vpc, err := svc.CreateVPC(ctx, name, testutil.TestCIDR, "")
 		require.NoError(t, err)
 		assert.Equal(t, name, vpc.Name)
 		assert.Equal(t, userID, vpc.UserID)
@@ -70,8 +70,8 @@ func TestVpcService_Integration(t *testing.T) {
 	})
 
 	t.Run("ListVPCs", func(t *testing.T) {
-		_, _ = svc.CreateVPC(ctx, "vpc1", testutil.TestCIDR)
-		_, _ = svc.CreateVPC(ctx, "vpc2", testutil.TestCIDR)
+		_, _ = svc.CreateVPC(ctx, "vpc1", testutil.TestCIDR, "")
+		_, _ = svc.CreateVPC(ctx, "vpc2", testutil.TestCIDR, "")
 
 		vpcs, err := svc.ListVPCs(ctx)
 		require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestVpcService_Integration(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		vpc, _ := svc.CreateVPC(ctx, "to-delete", testutil.TestCIDR)
+		vpc, _ := svc.CreateVPC(ctx, "to-delete", testutil.TestCIDR, "")
 
 		err := svc.DeleteVPC(ctx, vpc.ID.String())
 		require.NoError(t, err)

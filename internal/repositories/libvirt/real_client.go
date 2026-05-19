@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sync"
 
 	"github.com/digitalocean/go-libvirt"
 )
@@ -16,59 +15,27 @@ type RealLibvirtClient struct {
 }
 
 func (r *RealLibvirtClient) Connect(ctx context.Context) error {
-	errChan := make(chan error, 1)
-	done := make(chan struct{})
-	once := sync.Once{}
-	go func() {
-		select {
-		case <-done:
-			return
-		default:
-		}
-		err := r.conn.Connect()
-		select {
-		case errChan <- err:
-		case <-done:
-		case <-ctx.Done():
-		}
-	}()
-
+	// Check context before starting - if cancelled, return early
 	select {
 	case <-ctx.Done():
-		once.Do(func() { close(done) })
 		return ctx.Err()
-	case err := <-errChan:
-		once.Do(func() { close(done) })
-		return err
+	default:
 	}
+	// r.conn.Connect() is a blocking C call; we run it synchronously since
+	// it cannot be interrupted anyway. A goroutine wouldn't help cancellation.
+	return r.conn.Connect()
 }
 
 func (r *RealLibvirtClient) ConnectToURI(ctx context.Context, uri string) error {
-	errChan := make(chan error, 1)
-	done := make(chan struct{})
-	once := sync.Once{}
-	go func() {
-		select {
-		case <-done:
-			return
-		default:
-		}
-		err := r.conn.ConnectToURI(libvirt.ConnectURI(uri))
-		select {
-		case errChan <- err:
-		case <-done:
-		case <-ctx.Done():
-		}
-	}()
-
+	// Check context before starting - if cancelled, return early
 	select {
 	case <-ctx.Done():
-		once.Do(func() { close(done) })
 		return ctx.Err()
-	case err := <-errChan:
-		once.Do(func() { close(done) })
-		return err
+	default:
 	}
+	// r.conn.ConnectToURI() is a blocking C call; run it synchronously
+	// since it cannot be interrupted anyway
+	return r.conn.ConnectToURI(libvirt.ConnectURI(uri))
 }
 
 func (r *RealLibvirtClient) Close() error {

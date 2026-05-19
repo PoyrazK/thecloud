@@ -136,8 +136,8 @@ var asgPolicyAddCmd = &cobra.Command{
 }
 
 func init() {
-	asgCreateCmd.Flags().String("name", "", "Group Name")
-	asgCreateCmd.Flags().String("vpc", "", "VPC ID")
+	asgCreateCmd.Flags().StringP("name", "n", "", "Group Name")
+	asgCreateCmd.Flags().StringP("vpc", "v", "", "VPC ID")
 	asgCreateCmd.Flags().String("image", "", "Docker Image")
 	asgCreateCmd.Flags().String("lb", "", "Load Balancer ID (Optional)")
 	asgCreateCmd.Flags().String("ports", "", "Ports (e.g. 8080:80)")
@@ -148,7 +148,7 @@ func init() {
 	cobra.CheckErr(asgCreateCmd.MarkFlagRequired("vpc"))
 	cobra.CheckErr(asgCreateCmd.MarkFlagRequired("image"))
 
-	asgPolicyAddCmd.Flags().String("name", "", "Policy Name")
+	asgPolicyAddCmd.Flags().StringP("name", "n", "", "Policy Name")
 	asgPolicyAddCmd.Flags().String("metric", "cpu", "Metric Type (cpu|memory)")
 	asgPolicyAddCmd.Flags().Float64("target", 80.0, "Target Value")
 	asgPolicyAddCmd.Flags().Int("scale-out", 1, "Scale out step")

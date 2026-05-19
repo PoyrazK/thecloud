@@ -55,6 +55,12 @@ func TestClientGetInstance(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
 		assert.Equal(t, computeInstancesPath+computeInstanceID, r.URL.Path)
 		assert.Equal(t, "GET", r.Method)
 
@@ -102,10 +108,21 @@ func TestClientLaunchInstance(t *testing.T) {
 }
 
 func TestClientStopInstance(t *testing.T) {
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
 		assert.Equal(t, computeInstancesPath+computeInstanceID+"/stop", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
-		w.Header().Set(computeContentType, computeApplicationJSON) // Added for consistency, though no body is returned
+		w.Header().Set(computeContentType, computeApplicationJSON)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -117,7 +134,18 @@ func TestClientStopInstance(t *testing.T) {
 }
 
 func TestClientTerminateInstance(t *testing.T) {
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
 		assert.Equal(t, computeInstancesPath+computeInstanceID, r.URL.Path)
 		assert.Equal(t, "DELETE", r.Method)
 		w.WriteHeader(http.StatusOK)
@@ -132,8 +160,19 @@ func TestClientTerminateInstance(t *testing.T) {
 
 func TestClientGetInstanceLogs(t *testing.T) {
 	mockLogs := "hello world\n"
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
 		assert.Equal(t, computeInstancesPath+computeInstanceID+"/logs", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(mockLogs))
@@ -148,7 +187,18 @@ func TestClientGetInstanceLogs(t *testing.T) {
 }
 
 func TestClientGetInstanceLogsErrorStatus(t *testing.T) {
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
 		assert.Equal(t, computeInstancesPath+computeInstanceID+"/logs", r.URL.Path)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("boom"))
@@ -174,8 +224,19 @@ func TestClientGetInstanceStats(t *testing.T) {
 		CPUPercentage:    15.5,
 		MemoryUsageBytes: 1024 * 1024 * 10,
 	}
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
 		assert.Equal(t, computeInstancesPath+computeInstanceID+"/stats", r.URL.Path)
 		w.Header().Set(computeContentType, computeApplicationJSON)
 		w.WriteHeader(http.StatusOK)
@@ -191,7 +252,18 @@ func TestClientGetInstanceStats(t *testing.T) {
 }
 
 func TestClientComputeErrors(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("boom"))
 	}))
@@ -231,4 +303,59 @@ func TestClientAPIError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "api error")
 	assert.Contains(t, err.Error(), "invalid input")
+}
+
+func TestClientResizeInstance(t *testing.T) {
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
+		assert.Equal(t, computeInstancesPath+computeInstanceID+"/resize", r.URL.Path)
+		assert.Equal(t, http.MethodPost, r.Method)
+
+		var req map[string]string
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			t.Fatalf("failed to decode request: %v", err)
+		}
+		assert.Equal(t, "basic-4", req["instance_type"])
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, computeAPIKey)
+	err := client.ResizeInstance(computeInstanceID, "basic-4")
+	require.NoError(t, err)
+}
+
+func TestClientResizeInstanceError(t *testing.T) {
+	mockInstance := Instance{
+		ID:     computeInstanceID,
+		Name:   "test-instance",
+		Status: "running",
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/instances" && r.Method == "GET" {
+			w.Header().Set(computeContentType, computeApplicationJSON)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(Response[[]Instance]{Data: []Instance{mockInstance}})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, computeAPIKey)
+	err := client.ResizeInstance(computeInstanceID, "basic-4")
+	require.Error(t, err)
 }

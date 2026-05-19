@@ -57,7 +57,7 @@ func (s *EventService) RecordEvent(ctx context.Context, action, resourceID, reso
 		ResourceID:   resourceID,
 		ResourceType: resourceType,
 		Metadata:     metaJSON,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 	}
 
 	// We don't want event recording to block the main flow or return error to user if it fails

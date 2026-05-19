@@ -80,7 +80,7 @@ func (s *FunctionScheduleService) CreateSchedule(ctx context.Context, functionID
 		Payload:    payload,
 		Status:     domain.FunctionScheduleStatusActive,
 		NextRunAt:  &nextRun,
-		CreatedAt:  time.Now(),
+		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now(),
 	}
 

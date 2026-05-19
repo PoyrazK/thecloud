@@ -8,21 +8,24 @@ import (
 
 // VPCPeering describes a network peering connection resource.
 type VPCPeering struct {
-	ID             string    `json:"id"`
-	RequesterVPCID string    `json:"requester_vpc_id"`
-	AccepterVPCID  string    `json:"accepter_vpc_id"`
-	TenantID       string    `json:"tenant_id"`
-	Status         string    `json:"status"`
-	ARN            string    `json:"arn"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID                string    `json:"id"`
+	RequesterVPCID    string    `json:"requester_vpc_id"`
+	AccepterVPCID     string    `json:"accepter_vpc_id"`
+	RequesterTenantID string    `json:"requester_tenant_id"`
+	AccepterTenantID  string    `json:"accepter_tenant_id"`
+	Status            string    `json:"status"`
+	ARN               string    `json:"arn"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // CreateVPCPeering initiates a new VPC peering connection request.
-func (c *Client) CreateVPCPeering(requesterVPCID, accepterVPCID string) (*VPCPeering, error) {
+// For cross-tenant peering, provide the accepterVPCTenantID of the other tenant.
+func (c *Client) CreateVPCPeering(requesterVPCID, accepterVPCID, accepterVPCTenantID string) (*VPCPeering, error) {
 	body := map[string]string{
-		"requester_vpc_id": requesterVPCID,
-		"accepter_vpc_id":  accepterVPCID,
+		"requester_vpc_id":   requesterVPCID,
+		"accepter_vpc_id":    accepterVPCID,
+		"accepter_tenant_id": accepterVPCTenantID,
 	}
 	var res Response[VPCPeering]
 	if err := c.post("/vpc-peerings", body, &res); err != nil {
@@ -41,7 +44,15 @@ func (c *Client) ListVPCPeerings() ([]VPCPeering, error) {
 }
 
 // GetVPCPeering retrieves details of a specific VPC peering connection.
-func (c *Client) GetVPCPeering(id string) (*VPCPeering, error) {
+// Note: VPC Peering resources don't have a Name field, so getName returns ID (matching by ID prefix only).
+func (c *Client) GetVPCPeering(idOrName string) (*VPCPeering, error) {
+	id, err := c.resolveID("vpc-peering", func() ([]interface{}, error) {
+		peerings, err := c.ListVPCPeerings()
+		return interfaceSlice(peerings), err
+	}, func(v interface{}) string { return v.(VPCPeering).ID }, func(v interface{}) string { return v.(VPCPeering).ID }, idOrName)
+	if err != nil {
+		return nil, err
+	}
 	var res Response[VPCPeering]
 	if err := c.get(fmt.Sprintf("/vpc-peerings/%s", id), &res); err != nil {
 		return nil, err

@@ -35,10 +35,37 @@ jobs:
           SECRETS_ENCRYPTION_KEY: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
           JWT_SECRET: e2e-test-secret-key-that-is-long-enough-for-32-chars
           DATABASE_READ_URL: postgres://cloud:cloud@postgres:5432/cloud?sslmode=disable
+          STORAGE_SECRET: e2e-test-storage-secret-key
+          POWERDNS_API_KEY: e2e-test-powerdns-api-key
         run: |
-          # Start internal dependencies
-          docker compose up -d postgres redis jaeger
-          
+          # Retry loop for Docker Hub transient 500 errors.
+          # Uses exponential backoff to avoid hammering the registry.
+          max_retries=5
+          retry_delay=10
+          attempt=1
+
+          while true; do
+            echo "Attempt $attempt/$max_retries: pulling images..."
+            if docker compose up -d --pull always postgres redis jaeger 2>&1; then
+              echo "Infrastructure started successfully."
+              break
+            fi
+
+            echo "docker compose failed (attempt $attempt/$max_retries)"
+            if [ $attempt -ge $max_retries ]; then
+              echo "Max retries reached. Infrastructure failed to start."
+              docker compose logs --tail=50
+              exit 1
+            fi
+
+            echo "Retrying in ${retry_delay}s..."
+            sleep $retry_delay
+            attempt=$((attempt + 1))
+            # Exponential backoff: double delay each retry (capped at 60s)
+            retry_delay=$((retry_delay * 2))
+            [ $retry_delay -gt 60 ] && retry_delay=60
+          done
+
           # Wait for Postgres to be healthy
           until docker compose exec -T postgres pg_isready -U cloud; do
             echo "Waiting for postgres..."
@@ -67,6 +94,8 @@ jobs:
           JWT_SECRET: e2e-test-secret-key-that-is-long-enough-for-32-chars
           DATABASE_READ_URL: postgres://cloud:cloud@postgres:5432/cloud?sslmode=disable
           TRACING_ENABLED: false
+          STORAGE_SECRET: e2e-test-storage-secret-key
+          POWERDNS_API_KEY: e2e-test-powerdns-api-key
         run: |
           # Export variables so docker-compose can access them
           export SECRETS_ENCRYPTION_KEY="${SECRETS_ENCRYPTION_KEY}"
@@ -76,6 +105,8 @@ jobs:
           export DB_PORT_MAPPING="${DB_PORT_MAPPING}"
           export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}"
           export DOCKER_DEFAULT_NETWORK="${DOCKER_DEFAULT_NETWORK}"
+          export STORAGE_SECRET="${STORAGE_SECRET}"
+          export POWERDNS_API_KEY="${POWERDNS_API_KEY}"
 
           # Ensure Docker socket has proper permissions for API to create containers
           sudo chmod 666 /var/run/docker.sock

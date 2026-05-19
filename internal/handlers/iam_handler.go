@@ -3,6 +3,9 @@ package httphandlers
 import (
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,12 +17,13 @@ import (
 
 // IAMHandler handles HTTP requests for identity and access management.
 type IAMHandler struct {
-	svc ports.IAMService
+	svc         ports.IAMService
+	identitySvc ports.IdentityService
 }
 
 // NewIAMHandler creates a new IAM handler.
-func NewIAMHandler(svc ports.IAMService) *IAMHandler {
-	return &IAMHandler{svc: svc}
+func NewIAMHandler(svc ports.IAMService, identitySvc ports.IdentityService) *IAMHandler {
+	return &IAMHandler{svc: svc, identitySvc: identitySvc}
 }
 
 // CreatePolicy creates a new IAM policy.
@@ -171,6 +175,108 @@ func (h *IAMHandler) DeletePolicy(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, gin.H{"status": "deleted"})
 }
 
+// GetPolicyVersions lists all versions of a policy.
+// @Summary List Policy Versions
+// @Description List all historical versions of a specific IAM policy.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Policy ID"
+// @Success 200 {object} httputil.Response{data=[]domain.PolicyVersion}
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/policies/{id}/versions [get]
+func (h *IAMHandler) GetPolicyVersions(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	// Validate policy exists under this tenant before listing versions
+	if _, err := h.svc.GetPolicyByID(c.Request.Context(), id); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	versions, err := h.svc.ListPolicyVersions(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, versions)
+}
+
+// GetPolicyVersion returns a specific version of a policy.
+// @Summary Get Policy Version
+// @Description Get a specific historical version of an IAM policy.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Policy ID"
+// @Param version path int true "Version Number"
+// @Success 200 {object} httputil.Response{data=domain.PolicyVersion}
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/policies/{id}/versions/{version} [get]
+func (h *IAMHandler) GetPolicyVersion(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	versionStr := c.Param("version")
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid version number"))
+		return
+	}
+
+	pv, err := h.svc.GetPolicyVersion(c.Request.Context(), id, version)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, pv)
+}
+
+// RollbackPolicyVersion restores a policy to a specific historical version.
+// @Summary Rollback Policy Version
+// @Description Restore a policy to a specific historical version by creating a new version with the old content.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Policy ID"
+// @Param version path int true "Version Number to Rollback To"
+// @Success 200 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/policies/{id}/rollback/{version} [post]
+func (h *IAMHandler) RollbackPolicyVersion(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	versionStr := c.Param("version")
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid version number"))
+		return
+	}
+
+	if err := h.svc.RollbackPolicyVersion(c.Request.Context(), id, version); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	httputil.Success(c, http.StatusOK, gin.H{"status": "rolled_back", "version": version})
+}
+
 // AttachPolicyToUser attaches a policy to a user.
 // @Summary Attach IAM Policy to User
 // @Description Attach a specific IAM policy to a user.
@@ -283,4 +389,397 @@ func (h *IAMHandler) validatePolicy(policy *domain.Policy) error {
 		}
 	}
 	return nil
+}
+
+// CreateServiceAccount creates a new service account.
+// @Summary Create Service Account
+// @Description Create a new service account with credentials for M2M authentication.
+// @Tags iam
+// @Security APIKeyAuth
+// @Accept json
+// @Produce json
+// @Param request body CreateServiceAccountRequest true "Service account details"
+// @Success 201 {object} domain.ServiceAccountWithSecret
+// @Failure 400 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts [post]
+func (h *IAMHandler) CreateServiceAccount(c *gin.Context) {
+	var req CreateServiceAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, err.Error()))
+		return
+	}
+
+	tenantID := httputil.GetTenantID(c)
+	sa, err := h.identitySvc.CreateServiceAccount(c.Request.Context(), tenantID, req.Name, req.Role)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusCreated, sa)
+}
+
+// CreateServiceAccountRequest is the payload for service account creation.
+type CreateServiceAccountRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Role        string `json:"role" binding:"required"`
+	Description string `json:"description"`
+}
+
+// ListServiceAccounts returns all service accounts for the tenant.
+// @Summary List Service Accounts
+// @Description List all service accounts for the tenant.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Success 200 {array} domain.ServiceAccount
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts [get]
+func (h *IAMHandler) ListServiceAccounts(c *gin.Context) {
+	tenantID := httputil.GetTenantID(c)
+	accounts, err := h.identitySvc.ListServiceAccounts(c.Request.Context(), tenantID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, accounts)
+}
+
+// GetServiceAccount returns a specific service account.
+// @Summary Get Service Account
+// @Description Get details of a specific service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Service Account ID"
+// @Success 200 {object} domain.ServiceAccount
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/service-accounts/{id} [get]
+func (h *IAMHandler) GetServiceAccount(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	sa, err := h.identitySvc.GetServiceAccount(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, sa)
+}
+
+// DeleteServiceAccount removes a service account.
+// @Summary Delete Service Account
+// @Description Delete an existing service account and all its secrets.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Service Account ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/service-accounts/{id} [delete]
+func (h *IAMHandler) DeleteServiceAccount(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.identitySvc.DeleteServiceAccount(c.Request.Context(), id); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// RevokeServiceAccountSecret invalidates a secret.
+// @Summary Revoke Service Account Secret
+// @Description Revoke a specific secret from a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Service Account ID"
+// @Param secretId path string true "Secret ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{id}/secrets/{secretId} [post]
+func (h *IAMHandler) RevokeServiceAccountSecret(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	secretID, err := uuid.Parse(c.Param("secretId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.identitySvc.RevokeServiceAccountSecret(c.Request.Context(), saID, secretID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "revoked"})
+}
+
+// ListServiceAccountSecrets returns all secrets for a service account.
+// @Summary List Service Account Secrets
+// @Description List all secrets for a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Service Account ID"
+// @Success 200 {array} domain.ServiceAccountSecret
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{id}/secrets [get]
+func (h *IAMHandler) ListServiceAccountSecrets(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	secrets, err := h.identitySvc.ListServiceAccountSecrets(c.Request.Context(), saID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, secrets)
+}
+
+// RotateServiceAccountSecret rotates the secret and returns new plaintext.
+// @Summary Rotate Service Account Secret
+// @Description Rotate the secret for a service account, returns new plaintext.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Service Account ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{id}/rotate-secret [post]
+func (h *IAMHandler) RotateServiceAccountSecret(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	secret, err := h.identitySvc.RotateServiceAccountSecret(c.Request.Context(), saID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"secret": secret})
+}
+
+// AttachPolicyToServiceAccount attaches a policy to a service account.
+// @Summary Attach IAM Policy to Service Account
+// @Description Attach a specific IAM policy to a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param saId path string true "Service Account ID"
+// @Param policyId path string true "Policy ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{saId}/policies/{policyId} [post]
+func (h *IAMHandler) AttachPolicyToServiceAccount(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("saId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	policyID, err := uuid.Parse(c.Param("policyId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.AttachPolicyToServiceAccount(c.Request.Context(), saID, policyID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "attached"})
+}
+
+// DetachPolicyFromServiceAccount removes a policy from a service account.
+// @Summary Detach IAM Policy from Service Account
+// @Description Remove a specific IAM policy assignment from a service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param saId path string true "Service Account ID"
+// @Param policyId path string true "Policy ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{saId}/policies/{policyId} [delete]
+func (h *IAMHandler) DetachPolicyFromServiceAccount(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("saId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	policyID, err := uuid.Parse(c.Param("policyId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.DetachPolicyFromServiceAccount(c.Request.Context(), saID, policyID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "detached"})
+}
+
+// GetServiceAccountPolicies lists all policies attached to a specific service account.
+// @Summary List Service Account IAM Policies
+// @Description List all IAM policies currently attached to a specific service account.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param saId path string true "Service Account ID"
+// @Success 200 {array} domain.Policy
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/service-accounts/{saId}/policies [get]
+func (h *IAMHandler) GetServiceAccountPolicies(c *gin.Context) {
+	saID, err := uuid.Parse(c.Param("saId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	policies, err := h.svc.GetPoliciesForServiceAccount(c.Request.Context(), saID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, policies)
+}
+
+// SimulateRequest is the payload for policy simulation.
+// SimulateRequest is the payload for policy simulation.
+// max 100 actions and 100 resources per request; pair count capped at 100 in the service.
+type SimulateRequest struct {
+	// Principal identifies whose policies to simulate.
+	// Exactly one of UserID or ServiceAccountID must be set.
+	UserID           *uuid.UUID `json:"user_id,omitempty"`
+	ServiceAccountID *uuid.UUID `json:"service_account_id,omitempty"`
+	// Actions to simulate (e.g., ["compute:instance:launch"]). Max 100.
+	Actions []string `json:"actions" binding:"required,min=1,max=100"`
+	// Resources to test (e.g., ["arn:thecloud:compute:us-east-1:*:instance/*"]). Max 100.
+	Resources []string `json:"resources" binding:"required,min=1,max=100"`
+	// Context overrides for condition evaluation.
+	// Keys: thecloud:SourceIp, thecloud:CurrentTime, thecloud:TenantId, etc.
+	Context map[string]interface{} `json:"context,omitempty"`
+}
+
+// SimulateResponse is the result of a policy simulation.
+type SimulateResponse struct {
+	Decision  string          `json:"decision"` // "allow" or "deny"
+	Matched   *StatementMatch `json:"matched,omitempty"`
+	Evaluated int             `json:"evaluated"`
+}
+
+// StatementMatch describes which statement allowed or denied the request.
+type StatementMatch struct {
+	Action       string    `json:"action,omitempty"`
+	Resource     string    `json:"resource,omitempty"`
+	PolicyID     uuid.UUID `json:"policy_id"`
+	PolicyName   string    `json:"policy_name"`
+	StatementSid string    `json:"statement_sid,omitempty"`
+	Effect       string    `json:"effect"`
+	Reason       string    `json:"reason"`
+}
+
+// Simulate godoc
+// @Summary Simulate IAM policy decision
+// @Description Evaluates what actions and resources would be allowed or denied by attached policies
+// @Tags iam
+// @Security APIKeyAuth
+// @Accept json
+// @Produce json
+// @Param request body SimulateRequest true "Simulation parameters"
+// @Success 200 {object} httputil.Response{data=SimulateResponse}
+// @Failure 400 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/simulate [post]
+func (h *IAMHandler) Simulate(c *gin.Context) {
+	var req SimulateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, err.Error()))
+		return
+	}
+
+	if req.UserID == nil && req.ServiceAccountID == nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "user_id or service_account_id is required"))
+		return
+	}
+
+	principal := ports.Principal{
+		UserID:           req.UserID,
+		ServiceAccountID: req.ServiceAccountID,
+	}
+
+	evalCtx := buildSimulateCtx(c, req.Context)
+
+	result, err := h.svc.SimulatePolicy(c.Request.Context(), principal, req.Actions, req.Resources, evalCtx)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	response := SimulateResponse{
+		Decision:  strings.ToLower(string(result.Decision)),
+		Evaluated: result.Evaluated,
+	}
+	if result.Matched != nil {
+		response.Matched = &StatementMatch{
+			Action:       result.Matched.Action,
+			Resource:     result.Matched.Resource,
+			PolicyID:     result.Matched.PolicyID,
+			PolicyName:   result.Matched.PolicyName,
+			StatementSid: result.Matched.StatementSid,
+			Effect:       string(result.Matched.Effect),
+			Reason:       result.Matched.Reason,
+		}
+	}
+
+	httputil.Success(c, http.StatusOK, response)
+}
+
+func buildSimulateCtx(c *gin.Context, overrides map[string]interface{}) map[string]interface{} {
+	ctx := map[string]interface{}{
+		"thecloud:TenantId":    httputil.GetTenantID(c),
+		"thecloud:CurrentTime": time.Now().Format(time.RFC3339),
+	}
+	if ip := c.ClientIP(); ip != "" {
+		ctx["thecloud:SourceIp"] = ip
+	}
+	if ua := c.GetHeader("User-Agent"); ua != "" {
+		ctx["thecloud:UserAgent"] = ua
+	}
+	for k, v := range overrides {
+		ctx[k] = v
+	}
+	return ctx
 }

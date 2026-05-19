@@ -26,16 +26,16 @@ func NewClusterRepository(db DB) *ClusterRepository {
 func (r *ClusterRepository) Create(ctx context.Context, cluster *domain.Cluster) error {
 	query := `
 		INSERT INTO clusters (
-			id, user_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled, 
-			network_isolation, pod_cidr, service_cidr, api_server_lb_address, 
-			kubeconfig_encrypted, ssh_private_key_encrypted, join_token, 
-			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days, 
+			id, user_id, tenant_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled,
+			network_isolation, pod_cidr, service_cidr, api_server_lb_address,
+			kubeconfig_encrypted, ssh_private_key_encrypted, join_token,
+			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days,
 			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 	`
 	_, err := r.db.Exec(ctx, query,
-		cluster.ID, cluster.UserID, cluster.VpcID, cluster.Name, cluster.Version,
+		cluster.ID, cluster.UserID, cluster.TenantID, cluster.VpcID, cluster.Name, cluster.Version,
 		string(cluster.Status), cluster.ControlPlaneIPs, cluster.WorkerCount, cluster.HAEnabled,
 		cluster.NetworkIsolation, cluster.PodCIDR, cluster.ServiceCIDR,
 		cluster.APIServerLBAddress, cluster.KubeconfigEncrypted,
@@ -51,17 +51,18 @@ func (r *ClusterRepository) Create(ctx context.Context, cluster *domain.Cluster)
 
 func (r *ClusterRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Cluster, error) {
 	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT 
-			id, user_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled, 
-			network_isolation, pod_cidr, service_cidr, api_server_lb_address, 
-			kubeconfig_encrypted, ssh_private_key_encrypted, join_token, 
-			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days, 
+		SELECT
+			id, user_id, tenant_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled,
+			network_isolation, pod_cidr, service_cidr, api_server_lb_address,
+			kubeconfig_encrypted, ssh_private_key_encrypted, join_token,
+			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days,
 			created_at, updated_at
 		FROM clusters
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1 AND tenant_id = $2 AND user_id = $3
 	`
-	cluster, err := r.scanCluster(r.db.QueryRow(ctx, query, id, userID))
+	cluster, err := r.scanCluster(r.db.QueryRow(ctx, query, id, tenantID, userID))
 	if err != nil || cluster == nil {
 		return cluster, err
 	}
@@ -77,27 +78,28 @@ func (r *ClusterRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 }
 
 func (r *ClusterRepository) ListByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.Cluster, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT 
-			id, user_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled, 
-			network_isolation, pod_cidr, service_cidr, api_server_lb_address, 
-			kubeconfig_encrypted, ssh_private_key_encrypted, join_token, 
-			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days, 
+		SELECT
+			id, user_id, tenant_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled,
+			network_isolation, pod_cidr, service_cidr, api_server_lb_address,
+			kubeconfig_encrypted, ssh_private_key_encrypted, join_token,
+			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days,
 			created_at, updated_at
 		FROM clusters
-		WHERE user_id = $1
+		WHERE tenant_id = $1 AND user_id = $2
 		ORDER BY created_at DESC
 	`
-	return r.list(ctx, query, userID)
+	return r.list(ctx, query, tenantID, userID)
 }
 
 func (r *ClusterRepository) ListAll(ctx context.Context) ([]*domain.Cluster, error) {
 	query := `
-		SELECT 
-			id, user_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled, 
-			network_isolation, pod_cidr, service_cidr, api_server_lb_address, 
-			kubeconfig_encrypted, ssh_private_key_encrypted, join_token, 
-			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days, 
+		SELECT
+			id, user_id, tenant_id, vpc_id, name, version, status, control_plane_ips, worker_count, ha_enabled,
+			network_isolation, pod_cidr, service_cidr, api_server_lb_address,
+			kubeconfig_encrypted, ssh_private_key_encrypted, join_token,
+			token_expires_at, ca_cert_hash, job_id, backup_schedule, backup_retention_days,
 			created_at, updated_at
 		FROM clusters
 		ORDER BY created_at DESC
@@ -133,16 +135,17 @@ func (r *ClusterRepository) list(ctx context.Context, query string, args ...any)
 }
 
 func (r *ClusterRepository) Update(ctx context.Context, cluster *domain.Cluster) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		UPDATE clusters
-		SET 
-			vpc_id = $1, name = $2, version = $3, status = $4, control_plane_ips = $5, 
-			worker_count = $6, ha_enabled = $7, network_isolation = $8, pod_cidr = $9, 
-			service_cidr = $10, api_server_lb_address = $11, kubeconfig_encrypted = $12, 
-			ssh_private_key_encrypted = $13, join_token = $14, token_expires_at = $15, 
-			ca_cert_hash = $16, job_id = $17, backup_schedule = $18, backup_retention_days = $19, 
+		SET
+			vpc_id = $1, name = $2, version = $3, status = $4, control_plane_ips = $5,
+			worker_count = $6, ha_enabled = $7, network_isolation = $8, pod_cidr = $9,
+			service_cidr = $10, api_server_lb_address = $11, kubeconfig_encrypted = $12,
+			ssh_private_key_encrypted = $13, join_token = $14, token_expires_at = $15,
+			ca_cert_hash = $16, job_id = $17, backup_schedule = $18, backup_retention_days = $19,
 			updated_at = $20
-		WHERE id = $21 AND user_id = $22
+		WHERE id = $21 AND tenant_id = $22 AND user_id = $23
 	`
 	_, err := r.db.Exec(ctx, query,
 		cluster.VpcID, cluster.Name, cluster.Version, string(cluster.Status),
@@ -151,7 +154,7 @@ func (r *ClusterRepository) Update(ctx context.Context, cluster *domain.Cluster)
 		cluster.APIServerLBAddress, cluster.KubeconfigEncrypted,
 		cluster.SSHPrivateKeyEncrypted, cluster.JoinToken, cluster.TokenExpiresAt,
 		cluster.CACertHash, cluster.JobID, cluster.BackupSchedule, cluster.BackupRetentionDays,
-		time.Now(), cluster.ID, cluster.UserID,
+		time.Now(), cluster.ID, tenantID, cluster.UserID,
 	)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to update cluster", err)
@@ -161,8 +164,9 @@ func (r *ClusterRepository) Update(ctx context.Context, cluster *domain.Cluster)
 
 func (r *ClusterRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	userID := appcontext.UserIDFromContext(ctx)
-	query := `DELETE FROM clusters WHERE id = $1 AND user_id = $2`
-	_, err := r.db.Exec(ctx, query, id, userID)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `DELETE FROM clusters WHERE id = $1 AND tenant_id = $2 AND user_id = $3`
+	_, err := r.db.Exec(ctx, query, id, tenantID, userID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete cluster", err)
 	}
@@ -295,7 +299,7 @@ func (r *ClusterRepository) scanCluster(row pgx.Row) (*domain.Cluster, error) {
 	var c domain.Cluster
 	var status string
 	err := row.Scan(
-		&c.ID, &c.UserID, &c.VpcID, &c.Name, &c.Version, &status, &c.ControlPlaneIPs, &c.WorkerCount,
+		&c.ID, &c.UserID, &c.TenantID, &c.VpcID, &c.Name, &c.Version, &status, &c.ControlPlaneIPs, &c.WorkerCount,
 		&c.HAEnabled, &c.NetworkIsolation, &c.PodCIDR, &c.ServiceCIDR,
 		&c.APIServerLBAddress, &c.KubeconfigEncrypted, &c.SSHPrivateKeyEncrypted,
 		&c.JoinToken, &c.TokenExpiresAt, &c.CACertHash, &c.JobID, &c.BackupSchedule, &c.BackupRetentionDays,

@@ -17,7 +17,7 @@ func TestNoopRepositoriesExtra(t *testing.T) {
 
 	t.Run("InstanceRepository", func(t *testing.T) {
 		repo := &NoopInstanceRepository{}
-		list, err := repo.List(ctx)
+		list, err := repo.List(ctx, nil)
 		require.NoError(t, err)
 		assert.Empty(t, list)
 

@@ -16,6 +16,8 @@ type SecurityGroupRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.SecurityGroup, error)
 	// GetByName retrieves a security group by name within a specific VPC.
 	GetByName(ctx context.Context, vpcID uuid.UUID, name string) (*domain.SecurityGroup, error)
+	// GetByNameAcrossVPCs retrieves a security group by name across all VPCs in the tenant.
+	GetByNameAcrossVPCs(ctx context.Context, name string) (*domain.SecurityGroup, error)
 	// ListByVPC returns all security groups belonging to a VPC.
 	ListByVPC(ctx context.Context, vpcID uuid.UUID) ([]*domain.SecurityGroup, error)
 	// AddRule appends a new traffic filtering rule to an existing group.
@@ -49,7 +51,7 @@ type SecurityGroupService interface {
 	DeleteGroup(ctx context.Context, id uuid.UUID) error
 
 	// AddRule adds an ingress or egress firewall rule to a group.
-	AddRule(ctx context.Context, groupID uuid.UUID, rule domain.SecurityRule) (*domain.SecurityRule, error)
+	AddRule(ctx context.Context, idOrName string, rule domain.SecurityRule) (*domain.SecurityRule, error)
 	// RemoveRule deletes an existing firewall rule.
 	RemoveRule(ctx context.Context, ruleID uuid.UUID) error
 

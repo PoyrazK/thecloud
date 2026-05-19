@@ -56,24 +56,29 @@ var dnsListZonesCmd = &cobra.Command{
 var dnsCreateZoneCmd = &cobra.Command{
 	Use:   "create-zone [name]",
 	Short: "Create a new DNS zone",
-	Args:  cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 && !cmd.Flags().Changed("name") {
+			return fmt.Errorf("requires at least 1 arg or --name flag")
+		}
+		return nil
+	},
 	Run: func(cmd *cobra.Command, args []string) {
-		name := args[0]
+		var name string
+		if len(args) > 0 {
+			name = args[0]
+		} else {
+			name, _ = cmd.Flags().GetString("name")
+		}
 		desc, _ := cmd.Flags().GetString("description")
-		vpcStr, _ := cmd.Flags().GetString("vpc-id")
+		vpcIDOrName, _ := cmd.Flags().GetString("vpc-id")
 
-		var vpcID *uuid.UUID
-		if vpcStr != "" {
-			uid, err := uuid.Parse(vpcStr)
-			if err != nil {
-				fmt.Printf("Error: invalid vpc-id format: %v\n", err)
-				return
-			}
-			vpcID = &uid
+		var vpcPtr *string
+		if vpcIDOrName != "" {
+			vpcPtr = &vpcIDOrName
 		}
 
 		client := createClient(opts)
-		zone, err := client.CreateDNSZone(name, desc, vpcID)
+		zone, err := client.CreateDNSZone(name, desc, vpcPtr)
 		if err != nil {
 			fmt.Printf(dnsErrorFormat, err)
 			return
@@ -204,10 +209,12 @@ var dnsDeleteRecordCmd = &cobra.Command{
 }
 
 func init() {
+	dnsCreateZoneCmd.Flags().StringP("name", "n", "", "Zone name (required if not positional)")
 	dnsCreateZoneCmd.Flags().String("description", "", "Description of the zone")
-	dnsCreateZoneCmd.Flags().String("vpc-id", "", "Associate with a VPC for private DNS")
+	dnsCreateZoneCmd.Flags().String("vpc-id", "", "VPC ID for private DNS (required)")
+	_ = dnsCreateZoneCmd.MarkFlagRequired("vpc-id")
 
-	dnsCreateRecordCmd.Flags().String("name", "", "Record name (e.g., 'www')")
+	dnsCreateRecordCmd.Flags().StringP("name", "n", "", "Record name (e.g., 'www')")
 	dnsCreateRecordCmd.Flags().String("type", "A", "Record type (A, AAAA, CNAME, MX, TXT)")
 	dnsCreateRecordCmd.Flags().String("content", "", "Record content (e.g., IP address)")
 	dnsCreateRecordCmd.Flags().Int("ttl", 3600, "Time To Live in seconds")

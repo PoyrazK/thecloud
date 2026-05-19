@@ -55,6 +55,80 @@ func (m *mockIdentityService) RotateKey(ctx context.Context, userID uuid.UUID, i
 	return r0, args.Error(1)
 }
 
+func (m *mockIdentityService) CreateServiceAccount(ctx context.Context, tenantID uuid.UUID, name, role string) (*domain.ServiceAccountWithSecret, error) {
+	args := m.Called(ctx, tenantID, name, role)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccountWithSecret)
+	return r0, args.Error(1)
+}
+
+func (m *mockIdentityService) GetServiceAccount(ctx context.Context, id uuid.UUID) (*domain.ServiceAccount, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccount)
+	return r0, args.Error(1)
+}
+
+func (m *mockIdentityService) ListServiceAccounts(ctx context.Context, tenantID uuid.UUID) ([]*domain.ServiceAccount, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.ServiceAccount)
+	return r0, args.Error(1)
+}
+
+func (m *mockIdentityService) UpdateServiceAccount(ctx context.Context, sa *domain.ServiceAccount) error {
+	args := m.Called(ctx, sa)
+	return args.Error(0)
+}
+
+func (m *mockIdentityService) DeleteServiceAccount(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *mockIdentityService) ValidateClientCredentials(ctx context.Context, clientID, clientSecret string) (string, error) {
+	args := m.Called(ctx, clientID, clientSecret)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockIdentityService) ValidateAccessToken(ctx context.Context, token string) (*domain.ServiceAccountClaims, error) {
+	args := m.Called(ctx, token)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccountClaims)
+	return r0, args.Error(1)
+}
+
+func (m *mockIdentityService) RotateServiceAccountSecret(ctx context.Context, saID uuid.UUID) (string, error) {
+	args := m.Called(ctx, saID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockIdentityService) RevokeServiceAccountSecret(ctx context.Context, saID, secretID uuid.UUID) error {
+	args := m.Called(ctx, saID, secretID)
+	return args.Error(0)
+}
+
+func (m *mockIdentityService) ListServiceAccountSecrets(ctx context.Context, saID uuid.UUID) ([]*domain.ServiceAccountSecret, error) {
+	args := m.Called(ctx, saID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.ServiceAccountSecret)
+	return r0, args.Error(1)
+}
+
+func (m *mockIdentityService) TokenTTL() time.Duration {
+	return time.Hour
+}
+
 func setupCachedIdentityTest(t *testing.T) (*mockIdentityService, *redis.Client) {
 	t.Helper()
 	mr, err := miniredis.Run()

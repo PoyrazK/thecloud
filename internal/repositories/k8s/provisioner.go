@@ -401,7 +401,7 @@ func (p *KubeadmProvisioner) getExecutor(ctx context.Context, cluster *domain.Cl
 
 	// 1. Try to find instance by IP to use ServiceExecutor (preferred for Docker/Local/Managed)
 	// This avoids needing SSH access if we have direct control via the backend.
-	instances, err := p.instSvc.ListInstances(ctx)
+	instances, err := p.instSvc.ListInstances(ctx, nil)
 	if err == nil {
 		for _, inst := range instances {
 			if normalizeInstanceIP(inst.PrivateIP) == ip {

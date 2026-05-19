@@ -55,8 +55,8 @@ func (m *MockInstanceService) PauseInstance(ctx context.Context, id string) erro
 func (m *MockInstanceService) ResumeInstance(ctx context.Context, id string) error {
 	return nil
 }
-func (m *MockInstanceService) ListInstances(ctx context.Context) ([]*domain.Instance, error) {
-	args := m.Called(ctx)
+func (m *MockInstanceService) ListInstances(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	args := m.Called(ctx, tagFilter)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -86,6 +86,20 @@ func (m *MockInstanceService) ResizeInstance(ctx context.Context, idOrName, newI
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Instance), args.Error(1)
+}
+func (m *MockInstanceService) GetTags(ctx context.Context, id uuid.UUID) (map[string]string, error) {
+	args := m.Called(ctx, id)
+	var r0 map[string]string
+	if args.Get(0) != nil {
+		r0, _ = args.Get(0).(map[string]string)
+	}
+	return r0, args.Error(1)
+}
+func (m *MockInstanceService) SetTags(ctx context.Context, id uuid.UUID, labels map[string]string) error {
+	return m.Called(ctx, id, labels).Error(0)
+}
+func (m *MockInstanceService) RemoveTag(ctx context.Context, id uuid.UUID, key string) error {
+	return m.Called(ctx, id, key).Error(0)
 }
 
 type MockClusterRepo struct{ mock.Mock }
@@ -163,8 +177,8 @@ func (m *MockSecurityGroupService) ListGroups(ctx context.Context, vpcID uuid.UU
 func (m *MockSecurityGroupService) DeleteGroup(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }
-func (m *MockSecurityGroupService) AddRule(ctx context.Context, groupID uuid.UUID, rule domain.SecurityRule) (*domain.SecurityRule, error) {
-	args := m.Called(ctx, groupID, rule)
+func (m *MockSecurityGroupService) AddRule(ctx context.Context, idOrName string, rule domain.SecurityRule) (*domain.SecurityRule, error) {
+	args := m.Called(ctx, idOrName, rule)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -373,7 +387,7 @@ kubeadm join 10.0.0.100:6443 --token abc --discovery-token-ca-cert-hash sha256:1
 	}
 
 	instSvc.On("Exec", mock.Anything, mock.Anything, mock.Anything).Return(kubeadmOutput, nil).Maybe()
-	instSvc.On("ListInstances", mock.Anything).Return(instances, nil).Maybe()
+	instSvc.On("ListInstances", mock.Anything, mock.Anything).Return(instances, nil).Maybe()
 
 	err := p.Provision(ctx, cluster)
 

@@ -104,7 +104,96 @@ func (m *mockRBACService) EvaluatePolicy(ctx context.Context, userID uuid.UUID, 
 	return args.Bool(0), args.Error(1)
 }
 
-func setupCachedRBACTest(t *testing.T) (*mockRBACService, *redis.Client, *miniredis.Miniredis) {
+func (m *mockRBACService) AuthorizeServiceAccount(ctx context.Context, saID uuid.UUID, tenantID uuid.UUID, permission domain.Permission, resource string) error {
+	args := m.Called(ctx, saID, tenantID, permission, resource)
+	return args.Error(0)
+}
+
+type mockServiceAccountRepository struct {
+	mock.Mock
+}
+
+func (m *mockServiceAccountRepository) Create(ctx context.Context, sa *domain.ServiceAccount) error {
+	args := m.Called(ctx, sa)
+	return args.Error(0)
+}
+
+func (m *mockServiceAccountRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.ServiceAccount, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccount)
+	return r0, args.Error(1)
+}
+
+func (m *mockServiceAccountRepository) GetByName(ctx context.Context, tenantID uuid.UUID, name string) (*domain.ServiceAccount, error) {
+	args := m.Called(ctx, tenantID, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccount)
+	return r0, args.Error(1)
+}
+
+func (m *mockServiceAccountRepository) ListByTenant(ctx context.Context, tenantID uuid.UUID) ([]*domain.ServiceAccount, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.ServiceAccount)
+	return r0, args.Error(1)
+}
+
+func (m *mockServiceAccountRepository) Update(ctx context.Context, sa *domain.ServiceAccount) error {
+	args := m.Called(ctx, sa)
+	return args.Error(0)
+}
+
+func (m *mockServiceAccountRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *mockServiceAccountRepository) CreateSecret(ctx context.Context, secret *domain.ServiceAccountSecret) error {
+	args := m.Called(ctx, secret)
+	return args.Error(0)
+}
+
+func (m *mockServiceAccountRepository) GetSecretByHash(ctx context.Context, secretHash string) (*domain.ServiceAccountSecret, error) {
+	args := m.Called(ctx, secretHash)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.ServiceAccountSecret)
+	return r0, args.Error(1)
+}
+
+func (m *mockServiceAccountRepository) ListSecretsByServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.ServiceAccountSecret, error) {
+	args := m.Called(ctx, saID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).([]*domain.ServiceAccountSecret)
+	return r0, args.Error(1)
+}
+
+func (m *mockServiceAccountRepository) UpdateSecretLastUsed(ctx context.Context, secretID uuid.UUID) error {
+	args := m.Called(ctx, secretID)
+	return args.Error(0)
+}
+
+func (m *mockServiceAccountRepository) DeleteSecret(ctx context.Context, secretID uuid.UUID) error {
+	args := m.Called(ctx, secretID)
+	return args.Error(0)
+}
+
+func (m *mockServiceAccountRepository) DeleteAllSecrets(ctx context.Context, saID uuid.UUID) error {
+	args := m.Called(ctx, saID)
+	return args.Error(0)
+}
+
+func setupCachedRBACTest(t *testing.T) (*mockRBACService, *mockServiceAccountRepository, *redis.Client, *miniredis.Miniredis) {
 	t.Helper()
 
 	mr, err := miniredis.Run()
@@ -112,5 +201,5 @@ func setupCachedRBACTest(t *testing.T) (*mockRBACService, *redis.Client, *minire
 		t.Fatalf("miniredis: %v", err)
 	}
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-	return new(mockRBACService), client, mr
+	return new(mockRBACService), new(mockServiceAccountRepository), client, mr
 }

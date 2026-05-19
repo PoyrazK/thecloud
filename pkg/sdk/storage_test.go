@@ -361,6 +361,55 @@ func TestClientGeneratePresignedURL(t *testing.T) {
 	assert.Equal(t, "http://example.com", url.URL)
 }
 
+func TestClientGeneratePresignedURL_WithLeadingSlash(t *testing.T) {
+	bucket := storageTestBucket
+	method := http.MethodGet
+
+	tests := []struct {
+		name     string
+		key      string
+		expected string
+	}{
+		{
+			name:     "key with leading slash",
+			key:      "/file.txt",
+			expected: "/storage/presign/" + bucket + "/file.txt",
+		},
+		{
+			name:     "key without leading slash unchanged",
+			key:      "file.txt",
+			expected: "/storage/presign/" + bucket + "/file.txt",
+		},
+		{
+			name:     "key is root slash only",
+			key:      "/",
+			expected: "/storage/presign/" + bucket + "/",
+		},
+		{
+			name:     "key with multiple leading slashes strips only first",
+			key:      "//file.txt",
+			expected: "/storage/presign/" + bucket + "//file.txt",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tc.expected, r.URL.Path)
+				w.Header().Set(storageContentType, storageApplicationJSON)
+				_ = json.NewEncoder(w).Encode(Response[PresignedURL]{Data: PresignedURL{URL: "http://example.com", Method: method}})
+			}))
+			defer server.Close()
+
+			client := NewClient(server.URL, storageAPIKey)
+			url, err := client.GeneratePresignedURL(bucket, tc.key, method, 60)
+
+			require.NoError(t, err)
+			assert.Equal(t, "http://example.com", url.URL)
+		})
+	}
+}
+
 func TestClientLifecycleRules(t *testing.T) {
 	bucket := storageTestBucket
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

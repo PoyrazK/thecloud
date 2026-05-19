@@ -3,6 +3,7 @@ package httphandlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -117,4 +118,51 @@ func (h *CronHandler) DeleteJob(c *gin.Context) {
 	}
 
 	httputil.Success(c, http.StatusOK, gin.H{"message": "Job deleted"})
+}
+
+func (h *CronHandler) GetJobRuns(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, invalidJobIDMsg))
+		return
+	}
+
+	limitStr := c.DefaultQuery("limit", "50")
+	limit, _ := strconv.Atoi(limitStr)
+
+	runs, err := h.svc.GetJobRuns(c.Request.Context(), id, limit)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, runs)
+}
+
+func (h *CronHandler) UpdateJob(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, invalidJobIDMsg))
+		return
+	}
+
+	var req struct {
+		Name          string `json:"name"`
+		Schedule      string `json:"schedule"`
+		TargetURL     string `json:"target_url"`
+		TargetMethod  string `json:"target_method"`
+		TargetPayload string `json:"target_payload"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "Invalid request body"))
+		return
+	}
+
+	job, err := h.svc.UpdateJob(c.Request.Context(), id, req.Name, req.Schedule, req.TargetURL, req.TargetMethod, req.TargetPayload)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, job)
 }

@@ -36,7 +36,7 @@ func TestStorageHandlerErrors(t *testing.T) { //nolint:gocyclo
 			method: http.MethodPut,
 			path:   "/storage/b1/key1",
 			setupMock: func(m *mockStorageService) {
-				m.On("Upload", mock.Anything, "b1", "/key1", mock.Anything, "").
+				m.On("Upload", mock.Anything, "b1", "key1", mock.Anything, "").
 					Return(nil, internalerrors.New(internalerrors.Internal, "upload failed"))
 			},
 			checkCode: http.StatusInternalServerError,
@@ -46,7 +46,7 @@ func TestStorageHandlerErrors(t *testing.T) { //nolint:gocyclo
 			method: http.MethodGet,
 			path:   "/storage/b1/key1",
 			setupMock: func(m *mockStorageService) {
-				m.On("Download", mock.Anything, "b1", "/key1").
+				m.On("Download", mock.Anything, "b1", "key1").
 					Return(nil, nil, internalerrors.New(internalerrors.Internal, "download failed"))
 			},
 			checkCode: http.StatusInternalServerError,
@@ -199,7 +199,7 @@ func TestStorageHandlerErrors(t *testing.T) { //nolint:gocyclo
 			method: http.MethodGet,
 			path:   "/storage/versions/b1/key1",
 			setupMock: func(m *mockStorageService) {
-				m.On("ListVersions", mock.Anything, "b1", "/key1").
+				m.On("ListVersions", mock.Anything, "b1", "key1").
 					Return(nil, internalerrors.New(internalerrors.Internal, "list versions failed"))
 			},
 			checkCode: http.StatusInternalServerError,

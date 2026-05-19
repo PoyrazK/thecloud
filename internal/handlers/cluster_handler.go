@@ -201,7 +201,7 @@ func (h *ClusterHandler) RepairCluster(c *gin.Context) {
 
 // ScaleClusterRequest is the payload for scaling workers.
 type ScaleClusterRequest struct {
-	Workers int `json:"workers"`
+	Workers int `json:"workers" binding:"required,min=1"`
 }
 
 // ScaleCluster godoc
@@ -422,6 +422,9 @@ func (h *ClusterHandler) SetBackupPolicy(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, nil)
 }
 
+// isValidBackupSchedule validates a cron schedule string for backup timing.
+// Returns true for valid cron expressions or empty string.
+// Validates both standard cron format and @prefix shortcuts (e.g., @daily).
 func isValidBackupSchedule(schedule string) bool {
 	if schedule == "" {
 		return true

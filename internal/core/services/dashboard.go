@@ -50,7 +50,7 @@ func (s *dashboardService) GetSummary(ctx context.Context) (*domain.ResourceSumm
 	summary := &domain.ResourceSummary{}
 
 	// Count instances
-	instances, err := s.instances.List(ctx)
+	instances, err := s.instances.List(ctx, nil)
 	if err != nil {
 		s.logger.Error("failed to list instances", slog.String("error", err.Error()))
 		return nil, err

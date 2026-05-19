@@ -131,6 +131,10 @@ func (m *mockDatabaseService) StartDatabase(ctx context.Context, id uuid.UUID) e
 	return args.Error(0)
 }
 
+func (m *mockDatabaseService) ResizeDatabase(ctx context.Context, id uuid.UUID, newSizeGB int) error {
+	return m.Called(ctx, id, newSizeGB).Error(0)
+}
+
 func setupDatabaseHandlerTest(_ *testing.T) (*mockDatabaseService, *DatabaseHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockDatabaseService)

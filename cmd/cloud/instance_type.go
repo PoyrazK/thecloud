@@ -18,14 +18,26 @@ var instanceTypeListCmd = &cobra.Command{
 	Short: "List all available instance types",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := createClient(opts)
-		types, err := client.ListInstanceTypes()
+
+		limit, _ := cmd.Flags().GetInt("limit")
+		offset, _ := cmd.Flags().GetInt("offset")
+
+		types, meta, err := listWithPagination(
+			client.ListInstanceTypes,
+			client.ListInstanceTypesWithPagination,
+			limit, offset,
+		)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
 
 		if opts.JSON {
-			printJSON(types)
+			if meta != nil {
+				printJSON(meta)
+			} else {
+				printJSON(types)
+			}
 			return
 		}
 
@@ -49,9 +61,19 @@ var instanceTypeListCmd = &cobra.Command{
 			})
 		}
 		table.Render()
+
+		if meta != nil {
+			fmt.Printf("\nShowing %d of %d total", len(types), meta.TotalCount)
+			if meta.HasMore {
+				fmt.Print(" (more available)")
+			}
+			fmt.Println()
+		}
 	},
 }
 
 func init() {
 	instanceTypeCmd.AddCommand(instanceTypeListCmd)
+	instanceTypeListCmd.Flags().Int("limit", 0, "Maximum number of results (0 = use server default)")
+	instanceTypeListCmd.Flags().Int("offset", 0, "Number of results to skip")
 }

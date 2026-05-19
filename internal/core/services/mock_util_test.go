@@ -143,6 +143,10 @@ func (m *MockCronRepo) ReapStaleClaims(ctx context.Context) (int, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(int), args.Error(1)
 }
+func (m *MockCronRepo) GetJobRuns(ctx context.Context, jobID uuid.UUID, limit int) ([]*domain.CronJobRun, error) {
+	args := m.Called(ctx, jobID, limit)
+	return args.Get(0).([]*domain.CronJobRun), args.Error(1)
+}
 
 type MockCronRepository = MockCronRepo
 
@@ -677,6 +681,20 @@ func (m *MockFunctionService) UpdateFunction(ctx context.Context, id uuid.UUID, 
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*domain.Function), args.Error(1)
+}
+func (m *MockFunctionService) GetDLQInvocations(ctx context.Context, id uuid.UUID) ([]*domain.Invocation, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Invocation), args.Error(1)
+}
+func (m *MockFunctionService) RetryDLQInvocation(ctx context.Context, functionID, invocationID uuid.UUID) (*domain.Invocation, error) {
+	args := m.Called(ctx, functionID, invocationID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Invocation), args.Error(1)
 }
 
 type MockFunctionScheduleService = MockFunctionScheduleServiceImpl

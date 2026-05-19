@@ -17,8 +17,12 @@ The Cloud provides managed database instances, allowing you to launch PostgreSQL
 To create a new PostgreSQL 16 instance:
 
 ```bash
-cloud db create --name my-postgres --engine postgres --version 16
+cloud db create --name my-postgres --engine postgres --version 16 --size 20
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--size` | Storage in GB (default 10, minimum 10GB) |
 
 Output:
 ```

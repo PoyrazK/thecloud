@@ -58,11 +58,13 @@ func (r *PostgresCronRepository) ListJobs(ctx context.Context, userID uuid.UUID)
 
 func (r *PostgresCronRepository) UpdateJob(ctx context.Context, job *domain.CronJob) error {
 	query := `
-		UPDATE cron_jobs 
-		SET status = $1, last_run_at = $2, next_run_at = $3, updated_at = NOW()
-		WHERE id = $4
+		UPDATE cron_jobs
+		SET name = $1, schedule = $2, target_url = $3, target_method = $4, target_payload = $5,
+		    status = $6, last_run_at = $7, next_run_at = $8, updated_at = NOW()
+		WHERE id = $9
 	`
-	_, err := r.db.Exec(ctx, query, job.Status, job.LastRunAt, job.NextRunAt, job.ID)
+	_, err := r.db.Exec(ctx, query, job.Name, job.Schedule, job.TargetURL, job.TargetMethod, job.TargetPayload,
+		job.Status, job.LastRunAt, job.NextRunAt, job.ID)
 	return err
 }
 
@@ -70,6 +72,15 @@ func (r *PostgresCronRepository) DeleteJob(ctx context.Context, id uuid.UUID) er
 	query := `DELETE FROM cron_jobs WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
 	return err
+}
+
+func (r *PostgresCronRepository) GetJobRuns(ctx context.Context, jobID uuid.UUID, limit int) ([]*domain.CronJobRun, error) {
+	query := `SELECT id, job_id, status, status_code, response, duration_ms, started_at FROM cron_job_runs WHERE job_id = $1 ORDER BY started_at DESC LIMIT $2`
+	rows, err := r.db.Query(ctx, query, jobID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return r.scanCronJobRuns(rows)
 }
 
 func (r *PostgresCronRepository) ClaimNextJobsToRun(ctx context.Context, lockTimeout time.Duration) ([]*domain.CronJob, error) {
@@ -269,6 +280,19 @@ func (r *PostgresCronRepository) scanCronJobsWithTenant(rows pgx.Rows) ([]*domai
 		jobs = append(jobs, job)
 	}
 	return jobs, nil
+}
+
+func (r *PostgresCronRepository) scanCronJobRuns(rows pgx.Rows) ([]*domain.CronJobRun, error) {
+	defer rows.Close()
+	var runs []*domain.CronJobRun
+	for rows.Next() {
+		var run domain.CronJobRun
+		if err := rows.Scan(&run.ID, &run.JobID, &run.Status, &run.StatusCode, &run.Response, &run.DurationMs, &run.StartedAt); err != nil {
+			return nil, err
+		}
+		runs = append(runs, &run)
+	}
+	return runs, rows.Err()
 }
 
 func (r *PostgresCronRepository) SaveJobRun(ctx context.Context, run *domain.CronJobRun) error {

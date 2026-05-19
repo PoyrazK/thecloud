@@ -137,7 +137,7 @@ func (w *ClusterWorker) processJob(workerCtx context.Context, msg *ports.Durable
 		}
 	}
 
-	ctx := appcontext.WithUserID(workerCtx, job.UserID)
+	ctx := appcontext.WithUserID(appcontext.WithTenantID(workerCtx, job.TenantID), job.UserID)
 
 	cluster, err := w.repo.GetByID(ctx, job.ClusterID)
 	if err != nil {

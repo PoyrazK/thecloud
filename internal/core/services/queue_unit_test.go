@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	apierrors "github.com/poyrazk/thecloud/internal/errors"
 	"log/slog"
 	"testing"
 
@@ -40,6 +41,88 @@ func TestQueueServiceUnit(t *testing.T) {
 		assert.NotNil(t, q)
 		assert.Equal(t, "my-queue", q.Name)
 		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("CreateQueue error types", func(t *testing.T) {
+		t.Run("duplicate returns Conflict", func(t *testing.T) {
+			mockRepo.On("GetByName", mock.Anything, "existing-queue", mock.Anything).Return(&domain.Queue{ID: uuid.New()}, nil).Once()
+
+			_, err := svc.CreateQueue(ctx, "existing-queue", nil)
+			require.Error(t, err)
+
+			var appErr apierrors.Error
+			if apierrors.As(err, &appErr) {
+				assert.Equal(t, apierrors.Conflict, appErr.Type)
+			} else {
+				t.Fatalf("expected apierrors.Error, got %T", err)
+			}
+		})
+	})
+
+	t.Run("GetQueue error types", func(t *testing.T) {
+		t.Run("not found returns NotFound", func(t *testing.T) {
+			qID := uuid.New()
+			mockRepo.On("GetByID", mock.Anything, qID, mock.Anything).Return(nil, nil).Once()
+
+			_, err := svc.GetQueue(ctx, qID)
+			require.Error(t, err)
+
+			var appErr apierrors.Error
+			if apierrors.As(err, &appErr) {
+				assert.Equal(t, apierrors.NotFound, appErr.Type)
+			} else {
+				t.Fatalf("expected apierrors.Error, got %T", err)
+			}
+		})
+	})
+
+	t.Run("DeleteQueue error types", func(t *testing.T) {
+		t.Run("not found returns NotFound", func(t *testing.T) {
+			qID := uuid.New()
+			mockRepo.On("GetByID", mock.Anything, qID, mock.Anything).Return(nil, nil).Once()
+
+			err := svc.DeleteQueue(ctx, qID)
+			require.Error(t, err)
+
+			var appErr apierrors.Error
+			if apierrors.As(err, &appErr) {
+				assert.Equal(t, apierrors.NotFound, appErr.Type)
+			} else {
+				t.Fatalf("expected apierrors.Error, got %T", err)
+			}
+		})
+	})
+
+	t.Run("SendMessage error types", func(t *testing.T) {
+		t.Run("queue not found returns NotFound", func(t *testing.T) {
+			qID := uuid.New()
+			mockRepo.On("GetByID", mock.Anything, qID, mock.Anything).Return(nil, nil).Once()
+
+			_, err := svc.SendMessage(ctx, qID, "hello")
+			require.Error(t, err)
+
+			var appErr apierrors.Error
+			if apierrors.As(err, &appErr) {
+				assert.Equal(t, apierrors.NotFound, appErr.Type)
+			} else {
+				t.Fatalf("expected apierrors.Error, got %T", err)
+			}
+		})
+
+		t.Run("message too large returns InvalidInput", func(t *testing.T) {
+			qID := uuid.New()
+			mockRepo.On("GetByID", mock.Anything, qID, mock.Anything).Return(&domain.Queue{ID: qID, MaxMessageSize: 5}, nil).Once()
+
+			_, err := svc.SendMessage(ctx, qID, "this message is too long")
+			require.Error(t, err)
+
+			var appErr apierrors.Error
+			if apierrors.As(err, &appErr) {
+				assert.Equal(t, apierrors.InvalidInput, appErr.Type)
+			} else {
+				t.Fatalf("expected apierrors.Error, got %T", err)
+			}
+		})
 	})
 
 	t.Run("SendMessage", func(t *testing.T) {

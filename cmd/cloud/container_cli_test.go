@@ -55,24 +55,30 @@ func TestCreateDeploymentCmd(t *testing.T) {
 }
 
 func TestListDeploymentsCmd(t *testing.T) {
+	type listDeploymentsResponse struct {
+		Data []map[string]interface{} `json:"data"`
+	}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path != "/containers/deployments" || r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		payload := []map[string]interface{}{
-			{
-				"id":            containerTestID,
-				"name":          containerTestName,
-				"image":         "nginx:latest",
-				"replicas":      2,
-				"current_count": 2,
-				"ports":         "80:80",
-				"status":        "running",
+		payload := map[string]interface{}{
+			"data": []map[string]interface{}{
+				{
+					"id":            containerTestID,
+					"name":          containerTestName,
+					"image":         "nginx:latest",
+					"replicas":      2,
+					"current_count": 2,
+					"ports":         "80:80",
+					"status":        "running",
+				},
 			},
 		}
-		_ = json.NewEncoder(w).Encode(payload)
+		_ = json.NewEncoder(w).Encode(listDeploymentsResponse{Data: payload["data"].([]map[string]interface{})})
 	}))
 	defer server.Close()
 

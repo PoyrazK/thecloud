@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/olekukonko/tablewriter"
 	"github.com/poyrazk/thecloud/pkg/sdk"
 	"github.com/spf13/cobra"
@@ -18,7 +19,6 @@ var sgCmd = &cobra.Command{
 const (
 	flagVPCID      = "vpc-id"
 	descVPCID      = "VPC ID"
-	errFmt         = "Error: %v\n"
 	msgRuleRemoved = "[SUCCESS] Rule %s removed successfully.\n"
 	msgSgDetached  = "[SUCCESS] Security Group %s detached from instance %s successfully.\n"
 )
@@ -58,10 +58,6 @@ var sgListCmd = &cobra.Command{
 	Short: "List security groups",
 	Run: func(cmd *cobra.Command, args []string) {
 		vpcID, _ := cmd.Flags().GetString(flagVPCID)
-		if vpcID == "" {
-			fmt.Printf("Error: --%s is required\n", flagVPCID)
-			return
-		}
 
 		client := createClient(opts)
 		groups, err := client.ListSecurityGroups(vpcID)
@@ -103,6 +99,7 @@ var sgAddRuleCmd = &cobra.Command{
 		priority, _ := cmd.Flags().GetInt("priority")
 
 		client := createClient(opts)
+		sgID := resolveSGID(args[0], client)
 		rule := sdk.SecurityRule{
 			Direction: direction,
 			Protocol:  protocol,
@@ -112,13 +109,13 @@ var sgAddRuleCmd = &cobra.Command{
 			Priority:  priority,
 		}
 
-		res, err := client.AddSecurityRule(args[0], rule)
+		res, err := client.AddSecurityRule(sgID, rule)
 		if err != nil {
 			fmt.Printf(errFmt, err)
 			return
 		}
 
-		fmt.Printf("[SUCCESS] Rule %s added successfully to security group %s\n", res.ID, args[0])
+		fmt.Printf("[SUCCESS] Rule %s added successfully to security group %s\n", res.ID, sgID)
 	},
 }
 
@@ -171,7 +168,8 @@ var sgGetCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := createClient(opts)
-		sg, err := client.GetSecurityGroup(args[0])
+		sgID := resolveSGID(args[0], client)
+		sg, err := client.GetSecurityGroup(sgID)
 		if err != nil {
 			fmt.Printf(errFmt, err)
 			return
@@ -216,7 +214,8 @@ var sgDeleteCmd = &cobra.Command{
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := createClient(opts)
-		if err := client.DeleteSecurityGroup(args[0]); err != nil {
+		sgID := resolveSGID(args[0], client)
+		if err := client.DeleteSecurityGroup(sgID); err != nil {
 			fmt.Printf(errFmt, err)
 			return
 		}
@@ -238,4 +237,21 @@ func init() {
 	sgAddRuleCmd.Flags().Int("priority", 100, "Priority")
 
 	sgCmd.AddCommand(sgCreateCmd, sgListCmd, sgGetCmd, sgDeleteCmd, sgAddRuleCmd, sgRemoveRuleCmd, sgAttachCmd, sgDetachCmd)
+}
+
+// resolveSGID resolves a security group ID or name to a full UUID.
+func resolveSGID(idOrName string, client *sdk.Client) string {
+	if _, err := uuid.Parse(idOrName); err == nil {
+		return idOrName
+	}
+	groups, err := client.ListSecurityGroups("")
+	if err != nil {
+		return idOrName
+	}
+	for _, g := range groups {
+		if g.Name == idOrName {
+			return g.ID
+		}
+	}
+	return idOrName
 }

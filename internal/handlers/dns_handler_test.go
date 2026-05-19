@@ -67,16 +67,43 @@ func TestCreateZoneHandler(t *testing.T) {
 		r := gin.New()
 		r.POST(zonesPath, handler.CreateZone)
 
-		reqBody := map[string]interface{}{
-			"vpc_id": uuid.New().String(),
+		testCases := []struct {
+			name    string
+			payload map[string]interface{}
+			code    int
+			msg     string
+		}{
+			{
+				name:    "missing name",
+				payload: map[string]interface{}{"vpc_id": uuid.New().String()},
+				code:    http.StatusBadRequest,
+				msg:     "field 'name' is required",
+			},
+			{
+				name:    "missing vpc_id",
+				payload: map[string]interface{}{"name": testZoneName},
+				code:    http.StatusBadRequest,
+				msg:     "field 'vpc_id' is required",
+			},
+			{
+				name:    "invalid vpc_id format",
+				payload: map[string]interface{}{"name": testZoneName, "vpc_id": "not-a-valid-uuid"},
+				code:    http.StatusBadRequest,
+				msg:     "field 'vpc_id' must be a valid UUID",
+			},
 		}
-		body, _ := json.Marshal(reqBody)
 
-		req, _ := http.NewRequest(http.MethodPost, zonesPath, bytes.NewBuffer(body))
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				body, _ := json.Marshal(tc.payload)
+				req, _ := http.NewRequest(http.MethodPost, zonesPath, bytes.NewBuffer(body))
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+				assert.Equal(t, tc.code, w.Code)
+				assert.Contains(t, w.Body.String(), tc.msg)
+			})
+		}
 	})
 }
 

@@ -17,13 +17,20 @@ func (c *Client) ListDNSZones() ([]domain.DNSZone, error) {
 }
 
 // CreateDNSZone creates a new DNS zone.
-func (c *Client) CreateDNSZone(name, description string, vpcID *uuid.UUID) (*domain.DNSZone, error) {
+func (c *Client) CreateDNSZone(name, description string, vpcIDOrName *string) (*domain.DNSZone, error) {
 	payload := map[string]interface{}{
 		"name":        name,
 		"description": description,
 	}
-	if vpcID != nil {
-		payload["vpc_id"] = vpcID.String()
+	if vpcIDOrName != nil {
+		id, err := c.resolveID("vpc", func() ([]interface{}, error) {
+			vpcs, err := c.ListVPCs()
+			return interfaceSlice(vpcs), err
+		}, func(v interface{}) string { return v.(VPC).ID }, func(v interface{}) string { return v.(VPC).Name }, *vpcIDOrName)
+		if err != nil {
+			return nil, err
+		}
+		payload["vpc_id"] = id
 	}
 
 	var resp struct {

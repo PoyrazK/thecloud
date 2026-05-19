@@ -19,9 +19,12 @@ type MockPolicyEvaluator struct {
 	mock.Mock
 }
 
-func (m *MockPolicyEvaluator) Evaluate(ctx context.Context, policies []*domain.Policy, action string, resource string, evalCtx map[string]interface{}) (domain.PolicyEffect, error) {
+func (m *MockPolicyEvaluator) Evaluate(ctx context.Context, policies []*domain.Policy, action string, resource string, evalCtx map[string]interface{}) (*domain.EvalResult, error) {
 	args := m.Called(ctx, policies, action, resource, evalCtx)
-	return args.Get(0).(domain.PolicyEffect), args.Error(1)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.EvalResult), args.Error(1)
 }
 
 func TestRBACService_Unit(t *testing.T) {
@@ -46,6 +49,7 @@ func TestRBACService_Unit(t *testing.T) {
 	t.Run("HasPermission_AdminRole", func(t *testing.T) {
 		mockTenantRepo.On("GetMembership", mock.Anything, tenantID, userID).Return(&domain.TenantMember{Role: domain.RoleAdmin}, nil).Once()
 		mockIAMRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{}, nil).Once()
+		mockIAMRepo.On("GetPoliciesForRole", mock.Anything, tenantID, domain.RoleAdmin).Return([]*domain.Policy{}, nil).Once()
 		mockRoleRepo.On("GetRoleByName", mock.Anything, domain.RoleAdmin).Return(nil, errors.New(errors.NotFound, "not found")).Once() // Fallback to hardcoded
 
 		allowed, err := svc.HasPermission(ctx, userID, tenantID, domain.PermissionInstanceRead, "*")
@@ -58,7 +62,7 @@ func TestRBACService_Unit(t *testing.T) {
 		mockTenantRepo.On("GetMembership", mock.Anything, tenantID, userID).Return(&domain.TenantMember{Role: domain.RoleViewer}, nil).Once()
 		mockIAMRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{policy}, nil).Once()
 		mockEval.On("Evaluate", mock.Anything, mock.Anything, string(domain.PermissionInstanceLaunch), "*", mock.Anything).
-			Return(domain.EffectAllow, nil).Once()
+			Return(&domain.EvalResult{Effect: domain.EffectAllow}, nil).Once()
 
 		allowed, err := svc.HasPermission(ctx, userID, tenantID, domain.PermissionInstanceLaunch, "*")
 		require.NoError(t, err)
@@ -68,6 +72,7 @@ func TestRBACService_Unit(t *testing.T) {
 	t.Run("Authorize_Denied", func(t *testing.T) {
 		mockTenantRepo.On("GetMembership", mock.Anything, tenantID, userID).Return(&domain.TenantMember{Role: domain.RoleViewer}, nil).Once()
 		mockIAMRepo.On("GetPoliciesForUser", mock.Anything, tenantID, userID).Return([]*domain.Policy{}, nil).Once()
+		mockIAMRepo.On("GetPoliciesForRole", mock.Anything, tenantID, domain.RoleViewer).Return([]*domain.Policy{}, nil).Once()
 		mockRoleRepo.On("GetRoleByName", mock.Anything, domain.RoleViewer).Return(&domain.Role{
 			Name:        domain.RoleViewer,
 			Permissions: []domain.Permission{domain.PermissionInstanceRead},
@@ -281,7 +286,7 @@ func TestRBACService_Unit(t *testing.T) {
 		policy := &domain.Policy{Name: "allow-read"}
 		mockUserRepo.On("GetByID", mock.Anything, uid).Return(&domain.User{ID: uid}, nil).Once()
 		mockIAMRepo.On("GetPoliciesForUser", mock.Anything, uuid.Nil, uid).Return([]*domain.Policy{policy}, nil).Once()
-		mockEval.On("Evaluate", mock.Anything, mock.Anything, "read", "resource1", mock.Anything).Return(domain.EffectAllow, nil).Once()
+		mockEval.On("Evaluate", mock.Anything, mock.Anything, "read", "resource1", mock.Anything).Return(&domain.EvalResult{Effect: domain.EffectAllow}, nil).Once()
 
 		allowed, err := svc.EvaluatePolicy(ctx, uid, "read", "resource1", nil)
 		require.NoError(t, err)

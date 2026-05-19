@@ -56,7 +56,7 @@ func TestInstanceRepositoryIntegration(t *testing.T) {
 	})
 
 	t.Run("List", func(t *testing.T) {
-		list, err := repo.List(ctx)
+		list, err := repo.List(ctx, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, list)
 	})

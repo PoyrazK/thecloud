@@ -79,4 +79,11 @@ type ComputeBackend interface {
 	RestoreSnapshot(ctx context.Context, id, name string) error
 	// DeleteSnapshot deletes a previously created snapshot.
 	DeleteSnapshot(ctx context.Context, id, name string) error
+
+	// Test support
+
+	// ResetCircuitBreaker resets the circuit breaker state. Used by E2E tests
+	// to ensure clean state between test runs. No-op for backends that don't
+	// implement circuit breaker.
+	ResetCircuitBreaker()
 }

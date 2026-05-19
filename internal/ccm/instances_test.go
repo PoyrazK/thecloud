@@ -21,7 +21,16 @@ func TestInstancesV2(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/instances/test-node":
+		case "/instances":
+			// List instances for resolveID lookup
+			instances := []sdk.Instance{
+				{ID: "inst-123", Name: "test-node", PrivateIP: "10.0.0.5", Status: "RUNNING", InstanceType: "standard-2"},
+				{ID: "inst-456", Name: "stopped-node", Status: StatusStopped},
+			}
+			if err := json.NewEncoder(w).Encode(sdk.Response[[]sdk.Instance]{Data: instances}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		case "/instances/inst-123":
 			inst := sdk.Instance{
 				ID:           "inst-123",
 				Name:         "test-node",
@@ -32,7 +41,7 @@ func TestInstancesV2(t *testing.T) {
 			if err := json.NewEncoder(w).Encode(sdk.Response[sdk.Instance]{Data: inst}); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 			}
-		case "/instances/stopped-node":
+		case "/instances/inst-456":
 			inst := sdk.Instance{
 				ID:     "inst-456",
 				Status: StatusStopped,

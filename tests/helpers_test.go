@@ -43,6 +43,8 @@ func waitForServer() error {
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == 200 {
+				// Server is up — reset circuit breakers before tests to ensure clean state
+				resetCircuitBreakers()
 				return nil
 			}
 		}
@@ -62,6 +64,19 @@ func checkDocker() error {
 		return fmt.Errorf("docker is unavailable or paused")
 	}
 	return nil
+}
+
+// resetCircuitBreakers calls the internal admin endpoint to reset the compute
+// circuit breaker. This ensures clean state for E2E tests.
+func resetCircuitBreakers() {
+	client := &http.Client{Timeout: 5 * time.Second}
+	req, _ := http.NewRequest("POST", testutil.TestBaseURL+"/internal/admin/reset-circuit-breakers", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		// Non-fatal — circuit breaker may already be fine
+		return
+	}
+	_ = resp.Body.Close()
 }
 
 var (

@@ -17,7 +17,9 @@ type InstanceRepository interface {
 	// GetByName retrieves an instance by its friendly name (typically scoped to owner).
 	GetByName(ctx context.Context, name string) (*domain.Instance, error)
 	// List returns instances authorized for the current operational context.
-	List(ctx context.Context) ([]*domain.Instance, error)
+	// tagFilter is an optional list of label constraints (e.g. ["env:prod", "team:backend"]);
+	// instances must match all listed constraints to be returned.
+	List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error)
 	// ListAll returns every instance in the system (for administrative or global tasks).
 	ListAll(ctx context.Context) ([]*domain.Instance, error)
 	// ListBySubnet returns all instances residing within a specific subnet.
@@ -63,7 +65,8 @@ type InstanceService interface {
 	// ResumeInstance resumes a paused instance back to running state.
 	ResumeInstance(ctx context.Context, idOrName string) error
 	// ListInstances returns a slice of all compute resources accessible to the caller.
-	ListInstances(ctx context.Context) ([]*domain.Instance, error)
+	// tagFilter optionally restricts results to instances matching all given label constraints.
+	ListInstances(ctx context.Context, tagFilter []string) ([]*domain.Instance, error)
 	// GetInstance retrieves detailed information about a specific compute resource.
 	GetInstance(ctx context.Context, idOrName string) (*domain.Instance, error)
 	// GetInstanceLogs retrieves recent console/system output from the instance.
@@ -80,4 +83,10 @@ type InstanceService interface {
 	UpdateInstanceMetadata(ctx context.Context, id uuid.UUID, metadata, labels map[string]string) error
 	// ResizeInstance changes the instance type (CPU/memory) of an existing instance.
 	ResizeInstance(ctx context.Context, idOrName, newInstanceType string) (*domain.Instance, error)
+	// GetTags returns the label set for an instance.
+	GetTags(ctx context.Context, id uuid.UUID) (map[string]string, error)
+	// SetTags replaces an instance's labels with the provided map (add/update).
+	SetTags(ctx context.Context, id uuid.UUID, labels map[string]string) error
+	// RemoveTag deletes a single label key from an instance.
+	RemoveTag(ctx context.Context, id uuid.UUID, key string) error
 }

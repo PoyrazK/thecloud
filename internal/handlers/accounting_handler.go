@@ -2,11 +2,13 @@
 package httphandlers
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/httputil"
 )
 
@@ -39,14 +41,20 @@ func (h *AccountingHandler) GetSummary(c *gin.Context) {
 	end := now
 
 	if startStr != "" {
-		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
-			start = t
+		t, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			httputil.Error(c, errors.New(errors.InvalidInput, fmt.Sprintf("invalid start time %q (expected RFC3339)", startStr)))
+			return
 		}
+		start = t
 	}
 	if endStr != "" {
-		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
-			end = t
+		t, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			httputil.Error(c, errors.New(errors.InvalidInput, fmt.Sprintf("invalid end time %q (expected RFC3339)", endStr)))
+			return
 		}
+		end = t
 	}
 
 	summary, err := h.svc.GetSummary(c.Request.Context(), userID, start, end)
@@ -77,14 +85,20 @@ func (h *AccountingHandler) ListUsage(c *gin.Context) {
 	end := now
 
 	if startStr != "" {
-		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
-			start = t
+		t, err := time.Parse(time.RFC3339, startStr)
+		if err != nil {
+			httputil.Error(c, errors.New(errors.InvalidInput, fmt.Sprintf("invalid start time %q (expected RFC3339)", startStr)))
+			return
 		}
+		start = t
 	}
 	if endStr != "" {
-		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
-			end = t
+		t, err := time.Parse(time.RFC3339, endStr)
+		if err != nil {
+			httputil.Error(c, errors.New(errors.InvalidInput, fmt.Sprintf("invalid end time %q (expected RFC3339)", endStr)))
+			return
 		}
+		end = t
 	}
 
 	records, err := h.svc.ListUsage(c.Request.Context(), userID, start, end)

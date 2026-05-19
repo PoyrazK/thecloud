@@ -5,8 +5,10 @@ import (
 	"context"
 
 	stdlib_errors "errors"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/poyrazk/thecloud/internal/core"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/errors"
 )
@@ -21,12 +23,20 @@ func NewTenantRepo(db DB) *TenantRepo {
 	return &TenantRepo{db: db}
 }
 
+// getDB returns the underlying DB, or a transaction from context if present.
+func (r *TenantRepo) getDB(ctx context.Context) txCapableDB {
+	if tx := core.TransactionFromContext(ctx); tx != nil {
+		return tx.(pgx.Tx)
+	}
+	return r.db
+}
+
 func (r *TenantRepo) Create(ctx context.Context, tenant *domain.Tenant) error {
 	query := `
 		INSERT INTO tenants (id, name, slug, owner_id, plan, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	_, err := r.db.Exec(ctx, query,
+	_, err := r.getDB(ctx).Exec(ctx, query,
 		tenant.ID, tenant.Name, tenant.Slug, tenant.OwnerID,
 		tenant.Plan, tenant.Status, tenant.CreatedAt, tenant.UpdatedAt,
 	)
@@ -39,7 +49,7 @@ func (r *TenantRepo) Create(ctx context.Context, tenant *domain.Tenant) error {
 func (r *TenantRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tenant, error) {
 	query := `SELECT id, name, slug, owner_id, plan, status, created_at, updated_at FROM tenants WHERE id = $1`
 	var t domain.Tenant
-	err := r.db.QueryRow(ctx, query, id).Scan(
+	err := r.getDB(ctx).QueryRow(ctx, query, id).Scan(
 		&t.ID, &t.Name, &t.Slug, &t.OwnerID, &t.Plan, &t.Status, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -54,7 +64,7 @@ func (r *TenantRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tenant,
 func (r *TenantRepo) GetBySlug(ctx context.Context, slug string) (*domain.Tenant, error) {
 	query := `SELECT id, name, slug, owner_id, plan, status, created_at, updated_at FROM tenants WHERE slug = $1`
 	var t domain.Tenant
-	err := r.db.QueryRow(ctx, query, slug).Scan(
+	err := r.getDB(ctx).QueryRow(ctx, query, slug).Scan(
 		&t.ID, &t.Name, &t.Slug, &t.OwnerID, &t.Plan, &t.Status, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -72,7 +82,7 @@ func (r *TenantRepo) Update(ctx context.Context, tenant *domain.Tenant) error {
 		SET name = $2, slug = $3, owner_id = $4, plan = $5, status = $6, updated_at = $7
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, query,
+	_, err := r.getDB(ctx).Exec(ctx, query,
 		tenant.ID, tenant.Name, tenant.Slug, tenant.OwnerID,
 		tenant.Plan, tenant.Status, tenant.UpdatedAt,
 	)
@@ -83,7 +93,7 @@ func (r *TenantRepo) Update(ctx context.Context, tenant *domain.Tenant) error {
 }
 
 func (r *TenantRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	_, err := r.db.Exec(ctx, "DELETE FROM tenants WHERE id = $1", id)
+	_, err := r.getDB(ctx).Exec(ctx, "DELETE FROM tenants WHERE id = $1", id)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete tenant", err)
 	}
@@ -92,7 +102,7 @@ func (r *TenantRepo) Delete(ctx context.Context, id uuid.UUID) error {
 
 func (r *TenantRepo) AddMember(ctx context.Context, tenantID, userID uuid.UUID, role string) error {
 	query := `INSERT INTO tenant_members (tenant_id, user_id, role, joined_at) VALUES ($1, $2, $3, NOW())`
-	_, err := r.db.Exec(ctx, query, tenantID, userID, role)
+	_, err := r.getDB(ctx).Exec(ctx, query, tenantID, userID, role)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to add tenant member", err)
 	}
@@ -100,7 +110,7 @@ func (r *TenantRepo) AddMember(ctx context.Context, tenantID, userID uuid.UUID, 
 }
 
 func (r *TenantRepo) RemoveMember(ctx context.Context, tenantID, userID uuid.UUID) error {
-	_, err := r.db.Exec(ctx, "DELETE FROM tenant_members WHERE tenant_id = $1 AND user_id = $2", tenantID, userID)
+	_, err := r.getDB(ctx).Exec(ctx, "DELETE FROM tenant_members WHERE tenant_id = $1 AND user_id = $2", tenantID, userID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to remove tenant member", err)
 	}
@@ -109,7 +119,7 @@ func (r *TenantRepo) RemoveMember(ctx context.Context, tenantID, userID uuid.UUI
 
 func (r *TenantRepo) ListMembers(ctx context.Context, tenantID uuid.UUID) ([]domain.TenantMember, error) {
 	query := `SELECT tenant_id, user_id, role, joined_at FROM tenant_members WHERE tenant_id = $1`
-	rows, err := r.db.Query(ctx, query, tenantID)
+	rows, err := r.getDB(ctx).Query(ctx, query, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list tenant members", err)
 	}
@@ -129,7 +139,7 @@ func (r *TenantRepo) ListMembers(ctx context.Context, tenantID uuid.UUID) ([]dom
 func (r *TenantRepo) GetMembership(ctx context.Context, tenantID, userID uuid.UUID) (*domain.TenantMember, error) {
 	query := `SELECT tenant_id, user_id, role, joined_at FROM tenant_members WHERE tenant_id = $1 AND user_id = $2`
 	var m domain.TenantMember
-	err := r.db.QueryRow(ctx, query, tenantID, userID).Scan(&m.TenantID, &m.UserID, &m.Role, &m.JoinedAt)
+	err := r.getDB(ctx).QueryRow(ctx, query, tenantID, userID).Scan(&m.TenantID, &m.UserID, &m.Role, &m.JoinedAt)
 	if err != nil {
 		if stdlib_errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil // No membership is not an error here
@@ -146,7 +156,7 @@ func (r *TenantRepo) ListUserTenants(ctx context.Context, userID uuid.UUID) ([]d
 		JOIN tenant_members tm ON t.id = tm.tenant_id
 		WHERE tm.user_id = $1
 	`
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.getDB(ctx).Query(ctx, query, userID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list user tenants", err)
 	}
@@ -181,7 +191,7 @@ func (r *TenantRepo) GetQuota(ctx context.Context, tenantID uuid.UUID) (*domain.
 		WHERE tq.tenant_id = $1
 	`
 	var q domain.TenantQuota
-	err := r.db.QueryRow(ctx, query, tenantID).Scan(
+	err := r.getDB(ctx).QueryRow(ctx, query, tenantID).Scan(
 		&q.TenantID,
 		&q.MaxInstances,
 		&q.MaxVPCs,
@@ -210,7 +220,7 @@ func (r *TenantRepo) UpdateQuota(ctx context.Context, quota *domain.TenantQuota)
 		ON CONFLICT (tenant_id) DO UPDATE
 		SET max_instances = $2, max_vpcs = $3, max_storage_gb = $4, max_memory_gb = $5, max_vcpus = $6
 	`
-	_, err := r.db.Exec(ctx, query,
+	_, err := r.getDB(ctx).Exec(ctx, query,
 		quota.TenantID, quota.MaxInstances, quota.MaxVPCs, quota.MaxStorageGB, quota.MaxMemoryGB, quota.MaxVCPUs,
 	)
 	if err != nil {
@@ -234,7 +244,7 @@ func (r *TenantRepo) IncrementUsage(ctx context.Context, tenantID uuid.UUID, res
 		return nil
 	}
 
-	_, err := r.db.Exec(ctx, query, amount, tenantID)
+	_, err := r.getDB(ctx).Exec(ctx, query, amount, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to increment quota usage", err)
 	}
@@ -252,7 +262,7 @@ func (r *TenantRepo) DecrementUsage(ctx context.Context, tenantID uuid.UUID, res
 		return nil
 	}
 
-	_, err := r.db.Exec(ctx, query, amount, tenantID)
+	_, err := r.getDB(ctx).Exec(ctx, query, amount, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to decrement quota usage", err)
 	}

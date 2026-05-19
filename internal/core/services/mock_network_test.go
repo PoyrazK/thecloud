@@ -33,6 +33,16 @@ func (m *MockVpcRepo) List(ctx context.Context) ([]*domain.VPC, error) {
 	args := m.Called(ctx)
 	return args.Get(0).([]*domain.VPC), args.Error(1)
 }
+func (m *MockVpcRepo) GetByIdempotencyKey(ctx context.Context, key string) (*domain.VPC, error) {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.VPC), args.Error(1)
+}
+func (m *MockVpcRepo) Update(ctx context.Context, vpc *domain.VPC) error {
+	return m.Called(ctx, vpc).Error(0)
+}
 func (m *MockVpcRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }
@@ -40,8 +50,8 @@ func (m *MockVpcRepo) Delete(ctx context.Context, id uuid.UUID) error {
 // MockVpcService
 type MockVpcService struct{ mock.Mock }
 
-func (m *MockVpcService) CreateVPC(ctx context.Context, name, cidrBlock string) (*domain.VPC, error) {
-	args := m.Called(ctx, name, cidrBlock)
+func (m *MockVpcService) CreateVPC(ctx context.Context, name, cidrBlock, idempotencyKey string) (*domain.VPC, error) {
+	args := m.Called(ctx, name, cidrBlock, idempotencyKey)
 	r0, _ := args.Get(0).(*domain.VPC)
 	return r0, args.Error(1)
 }
@@ -53,6 +63,11 @@ func (m *MockVpcService) GetVPC(ctx context.Context, idOrName string) (*domain.V
 func (m *MockVpcService) ListVPCs(ctx context.Context) ([]*domain.VPC, error) {
 	args := m.Called(ctx)
 	r0, _ := args.Get(0).([]*domain.VPC)
+	return r0, args.Error(1)
+}
+func (m *MockVpcService) UpdateVPC(ctx context.Context, idOrName, name string) (*domain.VPC, error) {
+	args := m.Called(ctx, idOrName, name)
+	r0, _ := args.Get(0).(*domain.VPC)
 	return r0, args.Error(1)
 }
 func (m *MockVpcService) DeleteVPC(ctx context.Context, idOrName string, force bool) error {
@@ -246,6 +261,13 @@ func (m *MockSecurityGroupRepo) GetByID(ctx context.Context, id uuid.UUID) (*dom
 }
 func (m *MockSecurityGroupRepo) GetByName(ctx context.Context, vpcID uuid.UUID, name string) (*domain.SecurityGroup, error) {
 	args := m.Called(ctx, vpcID, name)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.SecurityGroup), args.Error(1)
+}
+func (m *MockSecurityGroupRepo) GetByNameAcrossVPCs(ctx context.Context, name string) (*domain.SecurityGroup, error) {
+	args := m.Called(ctx, name)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

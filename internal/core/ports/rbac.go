@@ -71,4 +71,7 @@ type RBACService interface {
 
 	// IAM Policy Support
 	EvaluatePolicy(ctx context.Context, userID uuid.UUID, action string, resource string, evalCtx map[string]interface{}) (bool, error)
+
+	// AuthorizeServiceAccount checks if a service account has a specific permission on a resource.
+	AuthorizeServiceAccount(ctx context.Context, saID uuid.UUID, tenantID uuid.UUID, permission domain.Permission, resource string) error
 }

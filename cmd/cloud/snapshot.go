@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/uuid"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 )
@@ -60,19 +59,19 @@ var snapshotListCmd = &cobra.Command{
 }
 
 var snapshotCreateCmd = &cobra.Command{
-	Use:   "create [volume-id]",
+	Use:   "create [volume-id|volume-name]",
 	Short: "Create a snapshot from a volume",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		volID, err := uuid.Parse(args[0])
+		volIDOrName := args[0]
+		desc, err := cmd.Flags().GetString("desc")
 		if err != nil {
 			fmt.Printf(snapshotErrorFormat, err)
 			return
 		}
-		desc, _ := cmd.Flags().GetString("desc")
 
 		client := createClient(opts)
-		snapshot, err := client.CreateSnapshot(volID, desc)
+		snapshot, err := client.CreateSnapshot(cmd.Context(), volIDOrName, desc)
 		if err != nil {
 			fmt.Printf(snapshotErrorFormat, err)
 			return

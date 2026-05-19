@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -60,8 +61,8 @@ func (m *mockSecurityGroupService) DeleteGroup(ctx context.Context, id uuid.UUID
 	return args.Error(0)
 }
 
-func (m *mockSecurityGroupService) AddRule(ctx context.Context, groupID uuid.UUID, rule domain.SecurityRule) (*domain.SecurityRule, error) {
-	args := m.Called(ctx, groupID, rule)
+func (m *mockSecurityGroupService) AddRule(ctx context.Context, idOrName string, rule domain.SecurityRule) (*domain.SecurityRule, error) {
+	args := m.Called(ctx, idOrName, rule)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -180,7 +181,7 @@ func TestSecurityGroupHandlerAddRule(t *testing.T) {
 	groupID := uuid.New()
 	rule := domain.SecurityRule{Protocol: "tcp", PortMin: 80, PortMax: 80}
 
-	svc.On("AddRule", mock.Anything, groupID, rule).Return(&rule, nil)
+	svc.On("AddRule", mock.Anything, groupID.String(), rule).Return(&rule, nil)
 
 	body, _ := json.Marshal(rule)
 	w := httptest.NewRecorder()
@@ -393,12 +394,14 @@ func TestSecurityGroupHandlerErrorPaths(t *testing.T) {
 	})
 
 	t.Run("AddRuleInvalidID", func(t *testing.T) {
-		_, handler, _ := setupSecurityGroupHandlerTest(t)
+		svc, handler, _ := setupSecurityGroupHandlerTest(t)
+		svc.On("AddRule", mock.Anything, "invalid", mock.Anything).Return(nil, errors.New(errors.NotFound, "not found"))
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Params = gin.Params{{Key: "id", Value: "invalid"}}
+		c.Request = httptest.NewRequest("POST", "/", bytes.NewBufferString("{}"))
 		handler.AddRule(c)
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("AddRuleInvalidJSON", func(t *testing.T) {
@@ -414,7 +417,7 @@ func TestSecurityGroupHandlerErrorPaths(t *testing.T) {
 	t.Run("AddRuleServiceError", func(t *testing.T) {
 		svc, handler, _ := setupSecurityGroupHandlerTest(t)
 		groupID := uuid.New()
-		svc.On("AddRule", mock.Anything, groupID, mock.Anything).Return(nil, context.DeadlineExceeded)
+		svc.On("AddRule", mock.Anything, groupID.String(), mock.Anything).Return(nil, context.DeadlineExceeded)
 		r := domain.SecurityRule{}
 		body, _ := json.Marshal(r)
 		w := httptest.NewRecorder()

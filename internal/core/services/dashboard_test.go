@@ -46,8 +46,8 @@ func (m *mockInstanceRepo) getList(args mock.Arguments) ([]*domain.Instance, err
 	return r0, args.Error(1)
 }
 
-func (m *mockInstanceRepo) List(ctx context.Context) ([]*domain.Instance, error) {
-	return m.getList(m.Called(ctx))
+func (m *mockInstanceRepo) List(ctx context.Context, tagFilter []string) ([]*domain.Instance, error) {
+	return m.getList(m.Called(ctx, tagFilter))
 }
 func (m *mockInstanceRepo) ListAll(ctx context.Context) ([]*domain.Instance, error) {
 	return m.getList(m.Called(ctx))
@@ -166,6 +166,18 @@ func (m *mockVpcRepo) List(ctx context.Context) ([]*domain.VPC, error) {
 	r0, _ := args.Get(0).([]*domain.VPC)
 	return r0, args.Error(1)
 }
+func (m *mockVpcRepo) GetByIdempotencyKey(ctx context.Context, key string) (*domain.VPC, error) {
+	args := m.Called(ctx, key)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.VPC)
+	return r0, args.Error(1)
+}
+func (m *mockVpcRepo) Update(ctx context.Context, vpc *domain.VPC) error {
+	args := m.Called(ctx, vpc)
+	return args.Error(0)
+}
 func (m *mockVpcRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
@@ -208,6 +220,11 @@ func (m *mockRBACService) ListRoles(ctx context.Context) ([]*domain.Role, error)
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*domain.Role), args.Error(1)
+}
+
+func (m *mockRBACService) AuthorizeServiceAccount(ctx context.Context, saID, tenantID uuid.UUID, permission domain.Permission, resource string) error {
+	args := m.Called(ctx, saID, tenantID, permission, resource)
+	return args.Error(0)
 }
 
 func (m *mockRBACService) GetRoleByID(ctx context.Context, id uuid.UUID) (*domain.Role, error) {
@@ -332,7 +349,7 @@ func TestDashboardServiceGetSummary(t *testing.T) {
 			defer volumeRepo.AssertExpectations(t)
 			defer vpcRepo.AssertExpectations(t)
 
-			instanceRepo.On("List", mock.Anything).Return(tt.instances, nil)
+			instanceRepo.On("List", mock.Anything, mock.Anything).Return(tt.instances, nil)
 			volumeRepo.On("List", mock.Anything).Return(tt.volumes, nil)
 			vpcRepo.On("List", mock.Anything).Return(tt.vpcs, nil)
 
@@ -372,7 +389,7 @@ func TestDashboardServiceGetStats(t *testing.T) {
 	defer vpcRepo.AssertExpectations(t)
 	defer eventRepo.AssertExpectations(t)
 
-	instanceRepo.On("List", mock.Anything).Return([]*domain.Instance{
+	instanceRepo.On("List", mock.Anything, mock.Anything).Return([]*domain.Instance{
 		{ID: uuid.New(), Status: domain.StatusRunning},
 	}, nil)
 	volumeRepo.On("List", mock.Anything).Return([]*domain.Volume{}, nil)

@@ -90,7 +90,7 @@ func (s *imageService) RegisterImage(ctx context.Context, name, description, os,
 		TenantID:    &tenantID,
 		Status:      domain.ImageStatusPending,
 		Format:      "qcow2",
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now(),
 	}
 
@@ -244,7 +244,7 @@ func (s *imageService) ImportImage(ctx context.Context, name, imageURL, descript
 		Status:      domain.ImageStatusPending,
 		SourceURL:   imageURL,
 		Format:      formatFromURL(imageURL),
-		CreatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now(),
 	}
 

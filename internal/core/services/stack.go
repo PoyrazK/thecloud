@@ -74,7 +74,7 @@ func (s *stackService) CreateStack(ctx context.Context, name, templateStr string
 		Template:   templateStr,
 		Parameters: paramsJSON,
 		Status:     domain.StackStatusCreateInProgress,
-		CreatedAt:  time.Now(),
+		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now(),
 	}
 
@@ -233,7 +233,7 @@ func (s *stackService) createVPC(ctx context.Context, stackID uuid.UUID, logical
 	}
 	cidr, _ := props["CIDRBlock"].(string)
 
-	vpc, err := s.vpcSvc.CreateVPC(ctx, name, cidr)
+	vpc, err := s.vpcSvc.CreateVPC(ctx, name, cidr, "")
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -318,7 +318,7 @@ func (s *stackService) recordResource(ctx context.Context, stackID uuid.UUID, lo
 		PhysicalID:   physicalID,
 		ResourceType: resType,
 		Status:       status,
-		CreatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
 	})
 }
 
