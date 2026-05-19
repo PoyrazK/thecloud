@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 
 	"github.com/digitalocean/go-libvirt"
 )
@@ -290,51 +291,41 @@ func (r *RealLibvirtClient) DomainOpenConsole(ctx context.Context, dom libvirt.D
 	default:
 	}
 
-	// DomainOpenConsole returns a Stream which uses callback-based I/O.
-	// For simplicity, we use a pipe-based approach where we read/write
-	// to the console via a separate goroutine.
-	reader, writer, err := io.Pipe()
+	// Create a pipe for console I/O
+	// DomainOpenConsole writes console output to the inStream writer
+	reader, writer, err := os.Pipe()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create pipe: %w", err)
 	}
 
-	// Open the console - this returns a Stream for I/O
-	stream, err := r.conn.DomainOpenConsole(dom, devName, libvirt.ConnectOpenConsoleFlags(flags))
+	// DomainOpenConsole expects devName as OptString (libvirt's optional string type)
+	// Empty string means use first console device
+	var devNameOpt libvirt.OptString
+	if devName != "" {
+		devNameOpt = libvirt.OptString{devName}
+	}
+
+	// Pass the write end to DomainOpenConsole - console data goes to this writer
+	err = r.conn.DomainOpenConsole(dom, devNameOpt, writer, uint32(flags))
 	if err != nil {
 		reader.Close()
 		writer.Close()
 		return nil, nil, fmt.Errorf("failed to open console: %w", err)
 	}
 
-	// Create a struct that implements ReadCloser and WriteCloser using the stream
-	return &consoleReader{stream: stream}, &consoleWriter{stream: stream}, nil
+	// Return reader for reading console output, writer should not be used separately
+	return &osReader{file: reader}, writer, nil
 }
 
-// consoleReader reads from a libvirt stream.
-type consoleReader struct {
-	stream *libvirt.Stream
+// osReader wraps an os.File to implement io.ReadCloser
+type osReader struct {
+	file *os.File
 }
 
-func (c *consoleReader) Read(p []byte) (n int, err error) {
-	// Use blocking recv - libvirt streams are blocking by default
-	return c.stream.Recv(p)
+func (r *osReader) Read(p []byte) (n int, err error) {
+	return r.file.Read(p)
 }
 
-func (c *consoleReader) Close() error {
-	c.stream.Free()
-	return nil
-}
-
-// consoleWriter writes to a libvirt stream.
-type consoleWriter struct {
-	stream *libvirt.Stream
-}
-
-func (c *consoleWriter) Write(p []byte) (n int, err error) {
-	return c.stream.Send(p)
-}
-
-func (c *consoleWriter) Close() error {
-	c.stream.Free()
-	return nil
+func (r *osReader) Close() error {
+	return r.file.Close()
 }

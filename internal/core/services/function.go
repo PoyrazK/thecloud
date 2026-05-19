@@ -151,7 +151,12 @@ func (s *FunctionService) CreateFunction(ctx context.Context, name, runtime, han
 	// Register with pool manager if pool config is set
 	if f.PoolConfig != nil {
 		opts := s.buildTaskOptionsForPool(ctx, f)
-		s.poolMgr.RegisterFunction(f.ID, *f.PoolConfig, opts)
+		poolConfig := ports.PoolConfig{
+			MinSize:     f.PoolConfig.MinSize,
+			MaxSize:     f.PoolConfig.MaxSize,
+			MaxIdleTime: time.Duration(f.PoolConfig.MaxIdleSecs) * time.Second,
+		}
+		s.poolMgr.RegisterFunction(f.ID, poolConfig, opts)
 	}
 
 	if err := s.auditSvc.Log(ctx, f.UserID, "function.create", "function", f.ID.String(), map[string]interface{}{
@@ -214,7 +219,12 @@ func (s *FunctionService) UpdateFunction(ctx context.Context, id uuid.UUID, req 
 		// Re-register with new task options if pool config exists
 		if f.PoolConfig != nil {
 			opts := s.buildTaskOptionsForPool(ctx, f)
-			s.poolMgr.RegisterFunction(f.ID, *f.PoolConfig, opts)
+			poolConfig := ports.PoolConfig{
+				MinSize:     f.PoolConfig.MinSize,
+				MaxSize:     f.PoolConfig.MaxSize,
+				MaxIdleTime: time.Duration(f.PoolConfig.MaxIdleSecs) * time.Second,
+			}
+			s.poolMgr.RegisterFunction(f.ID, poolConfig, opts)
 		}
 	}
 
