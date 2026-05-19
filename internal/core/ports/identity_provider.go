@@ -57,12 +57,12 @@ type IdentityProviderService interface {
 	DeleteIdP(ctx context.Context, id uuid.UUID) error
 
 	// Federation flows
-	HandleOIDCCallback(ctx context.Context, code, state string, idpID uuid.UUID) (*domain.User, string, error)
+	HandleOIDCCallback(ctx context.Context, code, pkceVerifier string, idpID uuid.UUID) (*domain.User, string, error)
 	HandleSAMLAssertion(ctx context.Context, assertionXML []byte, idpID uuid.UUID) (*domain.User, string, error)
 
 	// Discovery
 	DiscoverOIDCConfig(ctx context.Context, discoveryURL string) (*OIDCDiscovery, error)
 
 	// Token / assertion validation
-	ValidateOIDCToken(ctx context.Context, rawIDToken string, idp *domain.IdentityProvider) (*OIDCUserInfo, error)
+	ValidateOIDCToken(ctx context.Context, rawIDToken string, idp *domain.IdentityProvider, jwksURI string) (*OIDCUserInfo, error)
 }

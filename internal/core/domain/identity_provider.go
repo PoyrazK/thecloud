@@ -41,6 +41,7 @@ type IdentityProvider struct {
 	DiscoveryURL string                `json:"discovery_url,omitempty"`
 	EntityID     string                `json:"entity_id,omitempty"`
 	SSOURL       string                `json:"sso_url,omitempty"`
+	MetadataURL  string                `json:"metadata_url,omitempty"`
 	Certificate  string                `json:"certificate,omitempty"`
 	Scopes       []string              `json:"scopes"`
 	RedirectURIs []string              `json:"redirect_uris"`

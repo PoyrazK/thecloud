@@ -764,5 +764,14 @@ func registerTenantRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		tenantGroup.POST("", handlers.Tenant.Create)
 		tenantGroup.POST("/:id/members", httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant), handlers.Tenant.InviteMember)
 		tenantGroup.POST("/:id/switch", handlers.Tenant.SwitchTenant)
+
+		// Tenant-scoped IdP management
+		tenantIdpGroup := r.Group("/:tenant_id/identity-providers")
+		tenantIdpGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant(), httputil.TenantMember(svcs.Tenant))
+		{
+			tenantIdpGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionFullAccess), handlers.IdP.Create)
+			tenantIdpGroup.GET("", handlers.IdP.List)
+			tenantIdpGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionFullAccess), handlers.IdP.Delete)
+		}
 	}
 }

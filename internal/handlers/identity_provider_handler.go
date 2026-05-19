@@ -1,12 +1,14 @@
 package httphandlers
 
 import (
+	"crypto/subtle"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/pkg/httputil"
 )
@@ -30,13 +32,28 @@ func (h *IdentityProviderHandler) OIDCCallback(c *gin.Context) {
 	}
 
 	code := c.Query("code")
-	state := c.Query("state")
+	stateParam := c.Query("state")
 	if code == "" {
 		httputil.Error(c, errors.New(errors.InvalidInput, "authorization code required"))
 		return
 	}
 
-	user, apiKey, err := h.idpSvc.HandleOIDCCallback(c.Request.Context(), code, state, idpID)
+	// Validate state parameter for CSRF protection
+	stateCookie, err := c.Cookie("oidc_state")
+	if err != nil || stateCookie == "" {
+		httputil.Error(c, errors.New(errors.Unauthorized, "missing state cookie"))
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(stateCookie), []byte(stateParam)) != 1 {
+		httputil.Error(c, errors.New(errors.Unauthorized, "state mismatch"))
+		return
+	}
+	c.SetCookie("oidc_state", "", -1, "/", "", false, true)
+
+	// Get PKCE verifier from cookie
+	pkceVerifier, _ := c.Cookie("pkce_verifier")
+
+	user, apiKey, err := h.idpSvc.HandleOIDCCallback(c.Request.Context(), code, pkceVerifier, idpID)
 	if err != nil {
 		httputil.Error(c, err)
 		return
@@ -105,15 +122,30 @@ func (h *IdentityProviderHandler) InitiateOIDCLogin(c *gin.Context) {
 		return
 	}
 
-	state := uuid.New().String()
+	// Generate state for CSRF protection
+	state, err := services.GenerateState()
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
 	c.SetCookie("oidc_state", state, 600, "/", "", false, true)
+
+	// Generate PKCE verifier and challenge
+	verifier, challenge, err := services.GeneratePKCEPair()
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	c.SetCookie("pkce_verifier", verifier, 600, "/", "", false, true)
 
 	redirectURL := discovery.AuthorizationEndpoint +
 		"?client_id=" + idp.ClientID +
 		"&response_type=code" +
 		"&scope=openid+profile+email" +
 		"&redirect_uri=" + idp.RedirectURIs[0] +
-		"&state=" + state
+		"&state=" + state +
+		"&code_challenge=" + challenge +
+		"&code_challenge_method=S256"
 
 	c.Redirect(http.StatusFound, redirectURL)
 }
