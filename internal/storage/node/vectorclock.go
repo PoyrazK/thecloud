@@ -59,45 +59,45 @@ func (vc VectorClock) prune(windowSize uint64) {
 //    0 if a == b (identical state)
 //    2 if concurrent (neither dominates the other)
 func Compare(a, b VectorClock) int {
-	allALessOrEqual := true
-	allBLessOrEqual := true
-	strictlyLess := false
+	aDomB := true  // a >= b
+	bDomA := true  // b >= a
 
 	// Check all keys in a
-	for nodeID, counterA := range a {
-		counterB, exists := b[nodeID]
-		if !exists {
-			if counterA > 0 {
-				allALessOrEqual = false
+	for k, aVal := range a {
+		bVal, bHas := b[k]
+		if !bHas {
+			// b doesn't have this node, a does
+			if aVal > 0 {
+				bDomA = false
 			}
 		} else {
-			if counterA < counterB {
-				allALessOrEqual = false
+			if aVal < bVal {
+				aDomB = false
 			}
-			if counterA > counterB {
-				allBLessOrEqual = false
-				strictlyLess = true
-			}
-		}
-	}
-
-	// Check all keys in b that aren't in a
-	for nodeID, counterB := range b {
-		if _, exists := a[nodeID]; !exists {
-			if counterB > 0 {
-				allBLessOrEqual = false
+			if aVal > bVal {
+				bDomA = false
 			}
 		}
 	}
 
-	if allALessOrEqual && allBLessOrEqual && !strictlyLess {
+	// Check keys only in b (nodes a hasn't seen)
+	for k, bVal := range b {
+		if _, aHas := a[k]; aHas {
+			continue
+		}
+		if bVal > 0 {
+			aDomB = false
+		}
+	}
+
+	if aDomB && !bDomA {
+		return 1  // a > b
+	}
+	if bDomA && !aDomB {
+		return -1 // a < b
+	}
+	if aDomB && bDomA {
 		return 0 // Equal
-	}
-	if allALessOrEqual && (strictlyLess || !allBLessOrEqual) {
-		return -1 // a < b (a happened-before b)
-	}
-	if allBLessOrEqual {
-		return 1 // a > b (a happened-after b)
 	}
 	return 2 // Concurrent
 }
