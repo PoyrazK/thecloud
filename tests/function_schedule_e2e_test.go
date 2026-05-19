@@ -1,8 +1,10 @@
 package tests
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"testing"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/pkg/testutil"
 )
 
@@ -22,9 +25,60 @@ func TestFunctionScheduleE2E(t *testing.T) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	token := registerAndLogin(t, client, fmt.Sprintf("fn-sched-tester-%d@thecloud.local", time.Now().UnixNano()%10000), "Function Schedule Tester")
 
+	var functionID string
 	var scheduleID string
 	scheduleName := fmt.Sprintf("e2e-fn-sched-%d", time.Now().UnixNano()%10000)
-	functionID := "00000000-0000-0000-0000-000000000001" // Placeholder - function must exist
+	functionName := fmt.Sprintf("e2e-fn-sched-src-%d", time.Now().UnixNano()%10000)
+
+	// 0. Create a function to attach the schedule to
+	t.Run("CreateFunction", func(t *testing.T) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		_ = writer.WriteField("name", functionName)
+		_ = writer.WriteField("runtime", "nodejs20")
+		_ = writer.WriteField("handler", "index.handler")
+
+		part, _ := writer.CreateFormFile("code", "code.zip")
+		_, _ = part.Write([]byte("fake zip content"))
+		_ = writer.Close()
+
+		req, _ := http.NewRequest("POST", testutil.TestBaseURL+"/functions", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set(testutil.TestHeaderAPIKey, token)
+		applyTenantHeader(t, req, token)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode == http.StatusForbidden {
+			t.Skip("Functions API not accessible for this user")
+		}
+
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
+
+		var res struct {
+			Data domain.Function `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
+		functionID = res.Data.ID.String()
+		assert.NotEmpty(t, functionID)
+	})
+
+	// Cleanup function after tests
+	if functionID != "" {
+		defer func() {
+			req, _ := http.NewRequest("DELETE", fmt.Sprintf("%s/functions/%s", testutil.TestBaseURL, functionID), nil)
+			req.Header.Set(testutil.TestHeaderAPIKey, token)
+			applyTenantHeader(t, req, token)
+			client.Do(req)
+		}()
+	}
+
+	if functionID == "" {
+		t.Fatal("Function ID not set - cannot continue schedule tests")
+	}
 
 	// 1. Create Function Schedule
 	t.Run("CreateFunctionSchedule", func(t *testing.T) {
@@ -39,10 +93,6 @@ func TestFunctionScheduleE2E(t *testing.T) {
 
 		if resp.StatusCode == http.StatusForbidden {
 			t.Skip("Function Schedule API not accessible for this user")
-		}
-
-		if resp.StatusCode == http.StatusBadRequest {
-			t.Skip("Function ID does not exist or schedule creation not available")
 		}
 
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -74,9 +124,9 @@ func TestFunctionScheduleE2E(t *testing.T) {
 
 		var res struct {
 			Data struct {
-				ID     string `json:"id"`
-				Name   string `json:"name"`
-				Status string `json:"status"`
+				ID      string `json:"id"`
+				Name    string `json:"name"`
+				Status  string `json:"status"`
 				Schedule string `json:"schedule"`
 			} `json:"data"`
 		}
