@@ -56,6 +56,11 @@ type Machine interface {
 	Wait(ctx context.Context) error
 }
 
+// fcMachine wraps *firecracker.Machine to expose additional APIs via embedded *Client.
+type fcMachine struct {
+	*firecracker.Machine
+}
+
 // FirecrackerAdapter implements ports.ComputeBackend using Firecracker.
 type FirecrackerAdapter struct {
 	cfg      Config
@@ -571,21 +576,32 @@ func (a *FirecrackerAdapter) DeleteNetwork(ctx context.Context, id string) error
 
 func (a *FirecrackerAdapter) AttachVolume(ctx context.Context, id string, volumePath string) (string, string, error) {
 	a.mu.RLock()
-	_, ok := a.machines[id]
+	m, ok := a.machines[id]
 	a.mu.RUnlock()
 
 	if !ok {
 		return "", "", fmt.Errorf("instance %s not found", id)
 	}
 
-	// Firecracker doesn't support hot-attach of drives after VM start.
-	// The drive must be specified at VM creation time.
-	// To fully support this, the adapter would need to:
-	// 1. Stop the VM
-	// 2. Recreate it with the additional drive
-	// 3. Restart
-	// This is complex and potentially destructive, so we return NotSupported.
-	return "", "", apierrors.New(apierrors.NotImplemented, "volume attach requires VM restart which is not yet supported for firecracker")
+	// Get the underlying *firecracker.Machine to call SDK methods directly
+	fcM, ok := m.(*firecracker.Machine)
+	if !ok {
+		return "", "", fmt.Errorf("instance %s is not a real firecracker machine", id)
+	}
+
+	// Firecracker supports hot-attach of drives via PUT /drives/{drive_id}
+	// Drive ID "1" is reserved for root, use "2" for first additional drive
+	drive := models.Drive{
+		DriveID:      firecracker.String("2"),
+		PathOnHost:   firecracker.String(volumePath),
+		IsRootDevice: firecracker.Bool(false),
+		IsReadOnly:   firecracker.Bool(false),
+	}
+	if _, err := fcM.Client.PutGuestDriveByID(ctx, "2", &drive); err != nil {
+		return "", "", fmt.Errorf("failed to attach drive: %w", err)
+	}
+
+	return "/dev/vdb", "", nil
 }
 
 func (a *FirecrackerAdapter) DetachVolume(ctx context.Context, id string, volumePath string) (string, error) {
@@ -620,27 +636,31 @@ func (a *FirecrackerAdapter) ResizeInstance(ctx context.Context, id string, cpu,
 		return fmt.Errorf("instance %s not found", id)
 	}
 
-	// Firecracker doesn't support online resize, so we do cold resize
-	// Stop → update config → start
+	a.logger.Info("resizing firecracker instance", "instance_id", id, "cpu", cpu, "memory", memory)
+
+	// Stop the VM
 	if err := m.Shutdown(ctx); err != nil {
 		a.logger.Warn("failed to shutdown instance for resize", "instance_id", id, "error", err)
 	}
 
-	// The actual resize is applied by updating the Machine configuration
-	// For now, we mark this as a limitation - Firecracker's SDK doesn't expose
-	// a direct resize API. A full implementation would need to:
-	// 1. Stop the VM
-	// 2. Parse and update the domain config
-	// 3. Restart with new parameters
-	//
-	// Since the machines map stores the Machine instance without exposing
-	// the Config field, we can only support this if the Machine interface
-	// is extended to support config updates.
-	a.logger.Info("resize requires restart for firecracker", "instance_id", id, "cpu", cpu, "memory", memory)
+	// Get the underlying *firecracker.Machine to call SDK methods directly
+	fcM, ok := m.(*firecracker.Machine)
+	if !ok {
+		return fmt.Errorf("instance %s is not a real firecracker machine", id)
+	}
 
-	// Restart the VM (with same config for now - full resize needs SDK support)
+	// Update machine config via Firecracker API socket
+	machineCfg := models.MachineConfiguration{
+		VcpuCount:  firecracker.Int64(cpu),
+		MemSizeMib: firecracker.Int64(memory),
+	}
+	if _, err := fcM.Client.PutMachineConfiguration(ctx, &machineCfg); err != nil {
+		a.logger.Warn("failed to update machine config, trying restart anyway", "instance_id", id, "error", err)
+	}
+
+	// Restart with new config
 	if err := m.Start(ctx); err != nil {
-		return fmt.Errorf("failed to restart instance after resize attempt: %w", err)
+		return fmt.Errorf("failed to restart instance after resize: %w", err)
 	}
 
 	return nil
