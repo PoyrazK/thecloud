@@ -283,9 +283,9 @@ func TestGatewayHandlerProxyJWTEmptyToken(t *testing.T) {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
 	route := &domain.GatewayRoute{
-		ID:           uuid.New(),
-		Name:         "jwt-test",
-		JWTJwksURL:   "https://auth.example.com/.well-known/jwks.json",
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
 		AllowedIPNets: []*net.IPNet{},
 	}
 	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
@@ -316,9 +316,9 @@ func TestGatewayHandlerProxyJWTMissingBearer(t *testing.T) {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
 	route := &domain.GatewayRoute{
-		ID:           uuid.New(),
-		Name:         "jwt-test",
-		JWTJwksURL:   "https://auth.example.com/.well-known/jwks.json",
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
 		AllowedIPNets: []*net.IPNet{},
 	}
 	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
@@ -593,9 +593,9 @@ func TestGatewayHandlerInjectCORSHeaders(t *testing.T) {
 			expectCORS:     false,
 		},
 		{
-			name:              "with methods and headers",
-			origin:            "http://example.com",
-			allowedOrigins:    []string{"http://example.com"},
+			name:               "with methods and headers",
+			origin:             "http://example.com",
+			allowedOrigins:     []string{"http://example.com"},
 			allowedMethods:     []string{"GET", "POST"},
 			allowedHeaders:     []string{"Authorization", "Content-Type"},
 			exposeHeaders:      []string{"X-Custom-Header"},
@@ -609,15 +609,15 @@ func TestGatewayHandlerInjectCORSHeaders(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			route := &domain.GatewayRoute{
-				ID:              uuid.New(),
-				Name:            "cors-test",
-				Compression:     "",
-				AllowedOrigins:  tc.allowedOrigins,
-				AllowedMethods:  tc.allowedMethods,
-				AllowedHeaders:  tc.allowedHeaders,
-				ExposeHeaders:   tc.exposeHeaders,
-				MaxAge:          tc.maxAge,
-				AllowedIPNets:   []*net.IPNet{},
+				ID:             uuid.New(),
+				Name:           "cors-test",
+				Compression:    "",
+				AllowedOrigins: tc.allowedOrigins,
+				AllowedMethods: tc.allowedMethods,
+				AllowedHeaders: tc.allowedHeaders,
+				ExposeHeaders:  tc.exposeHeaders,
+				MaxAge:         tc.maxAge,
+				AllowedIPNets:  []*net.IPNet{},
 			}
 			svc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
 
@@ -660,14 +660,14 @@ func TestGatewayHandlerInjectCORSHeadersPreflight(t *testing.T) {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
 	route := &domain.GatewayRoute{
-		ID:              uuid.New(),
-		Name:            "cors-preflight",
-		AllowedOrigins:  []string{"http://example.com"},
-		AllowedMethods:  []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders:  []string{"Authorization", "Content-Type"},
-		ExposeHeaders:   []string{"X-Custom-Header"},
-		MaxAge:          3600,
-		AllowedIPNets:   []*net.IPNet{},
+		ID:             uuid.New(),
+		Name:           "cors-preflight",
+		AllowedOrigins: []string{"http://example.com"},
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders: []string{"Authorization", "Content-Type"},
+		ExposeHeaders:  []string{"X-Custom-Header"},
+		MaxAge:         3600,
+		AllowedIPNets:  []*net.IPNet{},
 	}
 	svc.On("GetProxy", "OPTIONS", "/api").Return(proxy, route, map[string]string{}, true).Once()
 
@@ -849,18 +849,18 @@ func TestGatewayHandlerCreateRouteDryRun(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		body          map[string]interface{}
-		wantValid     bool
-		wantErrCount  int
-		errContains   []string
+		name         string
+		body         map[string]interface{}
+		wantValid    bool
+		wantErrCount int
+		errContains  []string
 	}{
 		{
 			name: "valid CIDR - passes",
 			body: map[string]interface{}{
-				"name":        "dry-run-test",
-				"path_prefix": "/api/v1",
-				"target_url":  "http://example.com",
+				"name":          "dry-run-test",
+				"path_prefix":   "/api/v1",
+				"target_url":    "http://example.com",
 				"allowed_cidrs": []string{"10.0.0.0/8"},
 			},
 			wantValid: true,
@@ -868,13 +868,13 @@ func TestGatewayHandlerCreateRouteDryRun(t *testing.T) {
 		{
 			name: "invalid CIDR - fails",
 			body: map[string]interface{}{
-				"name":        "dry-run-test",
-				"path_prefix": "/api/v1",
-				"target_url":  "http://example.com",
+				"name":          "dry-run-test",
+				"path_prefix":   "/api/v1",
+				"target_url":    "http://example.com",
 				"allowed_cidrs": []string{"not-a-cidr"},
 			},
-			wantValid:    false,
-			errContains:  []string{"invalid allowed CIDR"},
+			wantValid:   false,
+			errContains: []string{"invalid allowed CIDR"},
 		},
 	}
 

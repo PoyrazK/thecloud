@@ -37,19 +37,19 @@ import (
 
 // GatewayService manages API gateway routes and reverse proxies.
 type GatewayService struct {
-	repo       ports.GatewayRepository
-	rbacSvc    ports.RBACService
-	proxyMu    sync.RWMutex
-	proxies    map[uuid.UUID]*httputil.ReverseProxy
-	routes     []*domain.GatewayRoute
-	matchers   map[uuid.UUID]*routing.PatternMatcher
-	auditSvc   ports.AuditService
-	logger     *slog.Logger
-	jwksMu     sync.RWMutex
-	jwksCache  map[string]*jwksCacheEntry
-	httpClient *http.Client
+	repo               ports.GatewayRepository
+	rbacSvc            ports.RBACService
+	proxyMu            sync.RWMutex
+	proxies            map[uuid.UUID]*httputil.ReverseProxy
+	routes             []*domain.GatewayRoute
+	matchers           map[uuid.UUID]*routing.PatternMatcher
+	auditSvc           ports.AuditService
+	logger             *slog.Logger
+	jwksMu             sync.RWMutex
+	jwksCache          map[string]*jwksCacheEntry
+	httpClient         *http.Client
 	jwksCircuitBreaker *platform.CircuitBreaker
-	jwksInFlight singleflight.Group
+	jwksInFlight       singleflight.Group
 }
 
 // NewGatewayService constructs a GatewayService and loads existing routes.
@@ -137,10 +137,10 @@ func (s *GatewayService) CreateRoute(ctx context.Context, params ports.CreateRou
 		Compression:             params.Compression,
 		JWTIssuer:               params.JWTIssuer,
 		JWTJwksURL:              params.JWTJwksURL,
-		JWTAudience:            params.JWTAudience,
-		ClientCert:             params.ClientCert,
-		ClientKey:              params.ClientKey,
-		CACert:                 params.CACert,
+		JWTAudience:             params.JWTAudience,
+		ClientCert:              params.ClientCert,
+		ClientKey:               params.ClientKey,
+		CACert:                  params.CACert,
 		CreatedAt:               time.Now(),
 		UpdatedAt:               time.Now(),
 	}

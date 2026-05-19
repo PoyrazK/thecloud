@@ -56,10 +56,10 @@ type CreateRouteParams struct {
 	Compression             string
 	JWTIssuer               string
 	JWTJwksURL              string
-	JWTAudience            string
-	ClientCert             string
-	ClientKey              string
-	CACert                 string
+	JWTAudience             string
+	ClientCert              string
+	ClientKey               string
+	CACert                  string
 }
 
 // GatewayService provides business logic for managing the API gateway and ingress traffic.

@@ -55,10 +55,10 @@ type CreateRouteRequest struct {
 	Compression             string   `json:"compression"`
 	JWTIssuer               string   `json:"jwt_issuer"`
 	JWTJwksURL              string   `json:"jwt_jwks_url"`
-	JWTAudience            string   `json:"jwt_audience"`
-	ClientCert             string   `json:"client_cert"`
-	ClientKey              string   `json:"client_key"`
-	CACert                 string   `json:"ca_cert"`
+	JWTAudience             string   `json:"jwt_audience"`
+	ClientCert              string   `json:"client_cert"`
+	ClientKey               string   `json:"client_key"`
+	CACert                  string   `json:"ca_cert"`
 }
 
 // GatewayHandler handles API gateway HTTP endpoints.
@@ -144,10 +144,10 @@ func (h *GatewayHandler) CreateRoute(c *gin.Context) {
 		Compression:             req.Compression,
 		JWTIssuer:               req.JWTIssuer,
 		JWTJwksURL:              req.JWTJwksURL,
-		JWTAudience:            req.JWTAudience,
-		ClientCert:             req.ClientCert,
-		ClientKey:              req.ClientKey,
-		CACert:                 req.CACert,
+		JWTAudience:             req.JWTAudience,
+		ClientCert:              req.ClientCert,
+		ClientKey:               req.ClientKey,
+		CACert:                  req.CACert,
 	}
 
 	route, err := h.svc.CreateRoute(c.Request.Context(), params)
