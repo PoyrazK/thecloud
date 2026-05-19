@@ -63,6 +63,16 @@ var (
 		Help: "State of gateway circuit breaker (0=closed, 1=open, 2=half-open)",
 	}, []string{"route_id"})
 
+	JWKSFetchTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "thecloud_jwks_fetch_total",
+		Help: "Total number of JWKS fetch attempts",
+	}, []string{"status"}) // status: success, error, circuit_open
+
+	JWKSBreakerState = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "thecloud_jwks_breaker_state",
+		Help: "State of JWKS fetch circuit breaker (0=closed, 1=open, 2=half-open)",
+	})
+
 	// Compute metrics
 	InstancesTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "thecloud_instances_total",

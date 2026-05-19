@@ -32,6 +32,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/platform"
 	"github.com/poyrazk/thecloud/internal/routing"
+	"golang.org/x/sync/singleflight"
 )
 
 // GatewayService manages API gateway routes and reverse proxies.
@@ -48,6 +49,7 @@ type GatewayService struct {
 	jwksCache  map[string]*jwksCacheEntry
 	httpClient *http.Client
 	jwksCircuitBreaker *platform.CircuitBreaker
+	jwksInFlight singleflight.Group
 }
 
 // NewGatewayService constructs a GatewayService and loads existing routes.
@@ -67,6 +69,7 @@ func NewGatewayService(repo ports.GatewayRepository, rbacSvc ports.RBACService, 
 		Threshold:    3,
 		ResetTimeout: 30 * time.Second,
 		OnStateChange: func(name string, from, to platform.State) {
+			platform.JWKSBreakerState.Set(float64(to))
 			if s.logger != nil {
 				s.logger.Warn("JWKS circuit breaker state change", "name", name, "from", from.String(), "to", to.String())
 			}
@@ -382,51 +385,73 @@ type jwksCacheEntry struct {
 
 func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) {
 	s.jwksMu.Lock()
-	defer s.jwksMu.Unlock()
-
 	if entry, ok := s.jwksCache[url]; ok && time.Since(entry.fetchedAt) < 5*time.Minute {
+		s.jwksMu.Unlock()
 		return entry.keys, nil
 	}
+	s.jwksMu.Unlock()
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	var resp *http.Response
-	if cbErr := s.jwksCircuitBreaker.Execute(func() error {
-		resp, err = s.httpClient.Do(req)
-		return err
-	}); cbErr != nil {
-		return nil, cbErr
-	}
-	defer resp.Body.Close()
+	// Use singleflight to dedupe concurrent requests for the same URL
+	val, err, _ := s.jwksInFlight.Do(url, func() (any, error) {
+		s.jwksMu.Lock()
+		// Double-check after acquiring lock
+		if entry, ok := s.jwksCache[url]; ok && time.Since(entry.fetchedAt) < 5*time.Minute {
+			s.jwksMu.Unlock()
+			return entry.keys, nil
+		}
+		s.jwksMu.Unlock()
 
-	var jwks struct {
-		Keys []map[string]any `json:"keys"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
-		return nil, err
-	}
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		var resp *http.Response
+		if cbErr := s.jwksCircuitBreaker.Execute(func() error {
+			resp, err = s.httpClient.Do(req)
+			return err
+		}); cbErr != nil {
+			platform.JWKSFetchTotal.WithLabelValues("circuit_open").Inc()
+			return nil, cbErr
+		}
+		defer resp.Body.Close()
 
-	keys := make(map[string]*rsa.PublicKey)
-	for _, k := range jwks.Keys {
-		if kid, ok := k["kid"].(string); ok {
-			if kty, _ := k["kty"].(string); kty == "RSA" {
-				if pubKey, err := parseRSAPublicKeyFromJWK(k); err == nil {
-					keys[kid] = pubKey
+		var jwks struct {
+			Keys []map[string]any `json:"keys"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+			platform.JWKSFetchTotal.WithLabelValues("error").Inc()
+			return nil, err
+		}
+
+		keys := make(map[string]*rsa.PublicKey)
+		for _, k := range jwks.Keys {
+			if kid, ok := k["kid"].(string); ok {
+				if kty, _ := k["kty"].(string); kty == "RSA" {
+					if pubKey, err := parseRSAPublicKeyFromJWK(k); err == nil {
+						keys[kid] = pubKey
+					}
 				}
 			}
 		}
+		// If JWKS had keys but none parsed successfully, don't cache an empty result
+		if len(keys) == 0 && len(jwks.Keys) > 0 {
+			platform.JWKSFetchTotal.WithLabelValues("error").Inc()
+			return nil, fmt.Errorf("JWKS returned %d keys but none were valid RSA keys", len(jwks.Keys))
+		}
+
+		platform.JWKSFetchTotal.WithLabelValues("success").Inc()
+		s.jwksMu.Lock()
+		if s.jwksCache == nil {
+			s.jwksCache = make(map[string]*jwksCacheEntry)
+		}
+		s.jwksCache[url] = &jwksCacheEntry{keys: keys, fetchedAt: time.Now()}
+		s.jwksMu.Unlock()
+		return keys, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	// If JWKS had keys but none parsed successfully, don't cache an empty result
-	if len(keys) == 0 && len(jwks.Keys) > 0 {
-		return nil, fmt.Errorf("JWKS returned %d keys but none were valid RSA keys", len(jwks.Keys))
-	}
-	if s.jwksCache == nil {
-		s.jwksCache = make(map[string]*jwksCacheEntry)
-	}
-	s.jwksCache[url] = &jwksCacheEntry{keys: keys, fetchedAt: time.Now()}
-	return keys, nil
+	return val.(map[string]*rsa.PublicKey), nil
 }
 
 // parseRSAPublicKeyFromJWK parses an RSA public key from a JWK map.
