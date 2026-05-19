@@ -47,6 +47,11 @@ type Machine interface {
 	Wait(ctx context.Context) error
 }
 
+// fcMachine wraps *firecracker.Machine to expose additional APIs via embedded *Client.
+type fcMachine struct {
+	*firecracker.Machine
+}
+
 // FirecrackerAdapter implements ports.ComputeBackend using Firecracker.
 type FirecrackerAdapter struct {
 	cfg      Config
@@ -266,7 +271,34 @@ func (a *FirecrackerAdapter) DeleteNetwork(ctx context.Context, id string) error
 }
 
 func (a *FirecrackerAdapter) AttachVolume(ctx context.Context, id string, volumePath string) (string, string, error) {
-	return "", "", fmt.Errorf("attach volume not implemented for firecracker")
+	a.mu.RLock()
+	m, ok := a.machines[id]
+	a.mu.RUnlock()
+
+	if !ok {
+		return "", "", fmt.Errorf("instance %s not found", id)
+	}
+
+	// Get the underlying *firecracker.Machine to call SDK methods directly
+	fcM, ok := m.(*firecracker.Machine)
+	if !ok {
+		return "", "", fmt.Errorf("instance %s is not a real firecracker machine", id)
+	}
+
+	// Firecracker supports hot-attach of drives via PUT /drives/{drive_id}
+	// Drive ID "1" is reserved for root, use "2" for first additional drive
+	drive := models.Drive{
+		DriveID:      firecracker.String("2"),
+		PathOnHost:   firecracker.String(volumePath),
+		IsRootDevice: firecracker.Bool(false),
+		IsReadOnly:   firecracker.Bool(false),
+	}
+	if _, err := fcM.Client.PutGuestDriveByID(ctx, "2", &drive); err != nil {
+		return "", "", fmt.Errorf("failed to attach drive: %w", err)
+	}
+
+	return "/dev/vdb", "", nil
+>>>>>>> 11ed01b8 (feat(firecracker): implement ResizeInstance and AttachVolume)
 }
 
 func (a *FirecrackerAdapter) DetachVolume(ctx context.Context, id string, volumePath string) (string, error) {
@@ -285,7 +317,42 @@ func (a *FirecrackerAdapter) Type() string {
 }
 
 func (a *FirecrackerAdapter) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error {
-	return fmt.Errorf("resize not supported on firecracker")
+	a.mu.RLock()
+	m, ok := a.machines[id]
+	a.mu.RUnlock()
+
+	if !ok {
+		return fmt.Errorf("instance %s not found", id)
+	}
+
+	a.logger.Info("resizing firecracker instance", "instance_id", id, "cpu", cpu, "memory", memory)
+
+	// Stop the VM
+	if err := m.Shutdown(ctx); err != nil {
+		a.logger.Warn("failed to shutdown instance for resize", "instance_id", id, "error", err)
+	}
+
+	// Get the underlying *firecracker.Machine to call SDK methods directly
+	fcM, ok := m.(*firecracker.Machine)
+	if !ok {
+		return fmt.Errorf("instance %s is not a real firecracker machine", id)
+	}
+
+	// Update machine config via Firecracker API socket
+	machineCfg := models.MachineConfiguration{
+		VcpuCount:  firecracker.Int64(cpu),
+		MemSizeMib: firecracker.Int64(memory),
+	}
+	if _, err := fcM.Client.PutMachineConfiguration(ctx, &machineCfg); err != nil {
+		a.logger.Warn("failed to update machine config, trying restart anyway", "instance_id", id, "error", err)
+	}
+
+	// Restart with new config
+	if err := m.Start(ctx); err != nil {
+		return fmt.Errorf("failed to restart instance after resize: %w", err)
+	}
+
+	return nil
 }
 
 func (a *FirecrackerAdapter) CreateSnapshot(ctx context.Context, id, name string) error {
