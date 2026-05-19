@@ -209,3 +209,11 @@ func (s *RPCServer) Assemble(ctx context.Context, req *pb.AssembleRequest) (*pb.
 	}
 	return &pb.AssembleResponse{Size: size}, nil
 }
+
+func (s *RPCServer) ListKeys(ctx context.Context, req *pb.ListKeysRequest) (*pb.ListKeysResponse, error) {
+	keys, err := s.store.ListKeys(req.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ListKeysResponse{Keys: keys}, nil
+}

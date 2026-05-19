@@ -337,3 +337,33 @@ func (s *LocalStore) getObjectPath(bucket, key string) (string, error) {
 
 	return fullPath, nil
 }
+
+// ListKeys returns all keys stored in a bucket.
+func (s *LocalStore) ListKeys(bucket string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	bucketDir := filepath.Join(s.rootDir, filepath.Base(filepath.Clean(bucket)))
+
+	entries, err := os.ReadDir(bucketDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	keys := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		// Skip meta files
+		name := entry.Name()
+		if strings.HasSuffix(name, ".meta") || strings.HasSuffix(name, ".tmp") {
+			continue
+		}
+		keys = append(keys, name)
+	}
+	return keys, nil
+}
