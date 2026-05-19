@@ -96,9 +96,9 @@ func (m *mockBackend) Exec(_ context.Context, _ string, _ []string) (string, err
 func (m *mockBackend) RunTask(_ context.Context, _ ports.RunTaskOptions) (string, []string, error) {
 	return uuid.New().String(), nil, nil
 }
-func (m *mockBackend) WaitTask(_ context.Context, _ string) (int64, error)         { return 0, nil }
+func (m *mockBackend) WaitTask(_ context.Context, _ string) (int64, error)       { return 0, nil }
 func (m *mockBackend) CreateNetwork(_ context.Context, _ string) (string, error) { return "", nil }
-func (m *mockBackend) DeleteNetwork(_ context.Context, _ string) error             { return nil }
+func (m *mockBackend) DeleteNetwork(_ context.Context, _ string) error           { return nil }
 func (m *mockBackend) AttachVolume(_ context.Context, _, _ string) (string, string, error) {
 	return "", "", nil
 }
@@ -106,14 +106,14 @@ func (m *mockBackend) DetachVolume(_ context.Context, _, _ string) (string, erro
 	return "", nil
 }
 func (m *mockBackend) Ping(_ context.Context) error { return nil }
-func (m *mockBackend) Type() string                   { return "mock" }
+func (m *mockBackend) Type() string                 { return "mock" }
 func (m *mockBackend) ResizeInstance(_ context.Context, _ string, _, _ int64) error {
 	return nil
 }
 func (m *mockBackend) CreateSnapshot(_ context.Context, _, _ string) error  { return nil }
 func (m *mockBackend) RestoreSnapshot(_ context.Context, _, _ string) error { return nil }
 func (m *mockBackend) DeleteSnapshot(_ context.Context, _, _ string) error  { return nil }
-func (m *mockBackend) ResetCircuitBreaker()                                       {}
+func (m *mockBackend) ResetCircuitBreaker()                                 {}
 
 func TestPoolManager_RegisterFunction(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))

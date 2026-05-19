@@ -157,7 +157,6 @@ func (m *MockLibvirtClient) StorageVolGetPath(ctx context.Context, vol libvirt.S
 	return args.String(0), args.Error(1)
 }
 
-
 func (m *MockLibvirtClient) DomainOpenConsole(ctx context.Context, dom libvirt.Domain, devName string, flags ConsoleFlags) (io.ReadCloser, io.WriteCloser, error) {
 	args := m.Called(ctx, dom, devName, flags)
 	r0, _ := args.Get(0).(io.ReadCloser)
