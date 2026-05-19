@@ -6,9 +6,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,10 +21,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/beevik/etree"
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	apperrors "github.com/poyrazk/thecloud/internal/errors"
+	"github.com/russellhaering/goxmldsig"
 )
 
 // jwkKey represents a single JWK key.
@@ -369,6 +374,25 @@ func (s *IdentityProviderService) ValidateOIDCToken(ctx context.Context, rawIDTo
 		return nil, errors.New("token issuer mismatch")
 	}
 
+	// Validate audience
+	if claims.Audience != nil {
+		audValid := false
+		switch aud := claims.Audience.(type) {
+		case string:
+			audValid = aud == idp.ClientID
+		case []any:
+			for _, a := range aud {
+				if s, ok := a.(string); ok && s == idp.ClientID {
+					audValid = true
+					break
+				}
+			}
+		}
+		if !audValid {
+			return nil, errors.New("token audience mismatch")
+		}
+	}
+
 	// Validate expiration
 	if claims.Exp > 0 && time.Now().Unix() > claims.Exp {
 		return nil, errors.New("token expired")
@@ -435,6 +459,7 @@ func (s *IdentityProviderService) jitProvisionOrLink(ctx context.Context, idp *d
 	}
 	if err := s.fedIdentRepo.Create(ctx, fedIdent); err != nil {
 		s.logger.Warn("failed to create federated identity link", "error", err)
+		return user, "", apperrors.Wrap(apperrors.Internal, "failed to link federated identity", err)
 	}
 
 	if err := s.auditSvc.Log(ctx, user.ID, "user.federated_login", "user", user.ID.String(), map[string]interface{}{
@@ -570,7 +595,111 @@ type samlAssertion struct {
 }
 
 func (s *IdentityProviderService) parseSAMLAssertion(ctx context.Context, assertionXML []byte, idp *domain.IdentityProvider) (*samlAssertion, error) {
-	return nil, errors.New("SAML parsing not implemented - requires crewjam/saml dependency")
+	if idp.Certificate == "" {
+		return nil, errors.New("SAML IdP certificate is required for assertion validation")
+	}
+
+	// Parse the IdP's certificate
+	certBlock, _ := pem.Decode([]byte(idp.Certificate))
+	if certBlock == nil {
+		return nil, errors.New("failed to parse IdP certificate PEM")
+	}
+	idpCert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse IdP certificate: %w", err)
+	}
+
+	// Create validation context with IdP certificate
+	certStore := dsig.MemoryX509CertificateStore{
+		Roots: []*x509.Certificate{idpCert},
+	}
+	validationContext := dsig.NewDefaultValidationContext(&certStore)
+
+	// Parse XML into etree for signature validation
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(assertionXML); err != nil {
+		return nil, fmt.Errorf("failed to parse assertion XML: %w", err)
+	}
+	root := doc.Root()
+
+	// Validate the signature using goxmldsig
+	_, err = validationContext.Validate(root)
+	if err != nil {
+		return nil, fmt.Errorf("SAML signature validation failed: %w", err)
+	}
+
+	// Extract assertion from XML
+	assertion, err := extractSAMLAttributes(string(assertionXML))
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract SAML attributes: %w", err)
+	}
+
+	if assertion.Email == "" && assertion.Subject != "" {
+		assertion.Email = assertion.Subject
+	}
+
+	return &assertion, nil
+}
+
+// extractSAMLAttributes extracts user attributes from a SAML assertion XML string.
+func extractSAMLAttributes(xmlStr string) (samlAssertion, error) {
+	var assertion samlAssertion
+
+	decoder := strings.NewReader(xmlStr)
+	dec := xml.NewDecoder(decoder)
+
+	for {
+		token, err := dec.Token()
+		if err != nil {
+			break
+		}
+
+		switch se := token.(type) {
+		case xml.StartElement:
+			switch se.Name.Local {
+			case "NameID":
+				if data, err := dec.Token(); err == nil {
+					if cd, ok := data.(xml.CharData); ok {
+						assertion.Subject = strings.TrimSpace(string(cd))
+					}
+				}
+			case "Attribute":
+				var attrName string
+				for _, attr := range se.Attr {
+					if attr.Name.Local == "Name" {
+						attrName = attr.Value
+						break
+					}
+				}
+				// Read the AttributeValue content
+				for {
+					tok, err := dec.Token()
+					if err != nil {
+						break
+					}
+					if end, ok := tok.(xml.EndElement); ok && end.Name.Local == "Attribute" {
+						break
+					}
+					if cd, ok := tok.(xml.CharData); ok {
+						val := strings.TrimSpace(string(cd))
+						if val == "" {
+							continue
+						}
+						switch strings.ToLower(attrName) {
+						case "email", "emailaddress", "mail":
+							assertion.Email = val
+						case "name", "displayname", "cn", "givenname":
+							assertion.Name = val
+						case "groups", "memberof", "role", "member":
+							assertion.Groups = strings.Split(val, ";")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return assertion, nil
 }
 
 func encodeFormData(data map[string]string) *strings.Reader {
