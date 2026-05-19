@@ -541,3 +541,89 @@ func (m *MockEIPRepo) Update(ctx context.Context, eip *domain.ElasticIP) error {
 func (m *MockEIPRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }
+
+// MockTransitGatewayRepo
+type MockTransitGatewayRepo struct{ mock.Mock }
+
+func (m *MockTransitGatewayRepo) Create(ctx context.Context, tg *domain.TransitGateway) error {
+	return m.Called(ctx, tg).Error(0)
+}
+func (m *MockTransitGatewayRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.TransitGateway, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.TransitGateway), args.Error(1)
+}
+func (m *MockTransitGatewayRepo) List(ctx context.Context, tenantID uuid.UUID) ([]*domain.TransitGateway, error) {
+	args := m.Called(ctx, tenantID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.TransitGateway), args.Error(1)
+}
+func (m *MockTransitGatewayRepo) Update(ctx context.Context, tg *domain.TransitGateway) error {
+	return m.Called(ctx, tg).Error(0)
+}
+func (m *MockTransitGatewayRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
+}
+func (m *MockTransitGatewayRepo) AddAttachment(ctx context.Context, att *domain.TransitGatewayAttachment) error {
+	return m.Called(ctx, att).Error(0)
+}
+func (m *MockTransitGatewayRepo) RemoveAttachment(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
+}
+func (m *MockTransitGatewayRepo) ListAttachments(ctx context.Context, tgID uuid.UUID) ([]*domain.TransitGatewayAttachment, error) {
+	args := m.Called(ctx, tgID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.TransitGatewayAttachment), args.Error(1)
+}
+func (m *MockTransitGatewayRepo) GetAttachment(ctx context.Context, id uuid.UUID) (*domain.TransitGatewayAttachment, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.TransitGatewayAttachment), args.Error(1)
+}
+func (m *MockTransitGatewayRepo) CreateRouteTable(ctx context.Context, rt *domain.TransitGatewayRouteTable) error {
+	return m.Called(ctx, rt).Error(0)
+}
+func (m *MockTransitGatewayRepo) GetRouteTable(ctx context.Context, id uuid.UUID) (*domain.TransitGatewayRouteTable, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.TransitGatewayRouteTable), args.Error(1)
+}
+func (m *MockTransitGatewayRepo) ListRouteTables(ctx context.Context, tgID uuid.UUID) ([]*domain.TransitGatewayRouteTable, error) {
+	args := m.Called(ctx, tgID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.TransitGatewayRouteTable), args.Error(1)
+}
+func (m *MockTransitGatewayRepo) DeleteRouteTable(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
+}
+func (m *MockTransitGatewayRepo) AddRoute(ctx context.Context, rtID uuid.UUID, route *domain.TransitGatewayRoute) error {
+	return m.Called(ctx, rtID, route).Error(0)
+}
+func (m *MockTransitGatewayRepo) RemoveRoute(ctx context.Context, rtID, routeID uuid.UUID) error {
+	return m.Called(ctx, rtID, routeID).Error(0)
+}
+func (m *MockTransitGatewayRepo) ListRoutes(ctx context.Context, rtID uuid.UUID) ([]*domain.TransitGatewayRoute, error) {
+	args := m.Called(ctx, rtID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.TransitGatewayRoute), args.Error(1)
+}
+func (m *MockTransitGatewayRepo) AssociateAttachment(ctx context.Context, rtID, attID uuid.UUID) error {
+	return m.Called(ctx, rtID, attID).Error(0)
+}
+func (m *MockTransitGatewayRepo) EnablePropagation(ctx context.Context, rtID, attID uuid.UUID) error {
+	return m.Called(ctx, rtID, attID).Error(0)
+}
