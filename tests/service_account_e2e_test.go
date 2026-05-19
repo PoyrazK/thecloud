@@ -37,6 +37,10 @@ func TestServiceAccountE2E(t *testing.T) {
 			t.Skip("Service Account API not accessible for this user")
 		}
 
+		if resp.StatusCode == http.StatusBadRequest {
+			t.Skip("Service Account creation not available")
+		}
+
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var res struct {

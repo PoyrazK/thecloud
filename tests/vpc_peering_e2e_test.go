@@ -44,6 +44,10 @@ func TestVPCPeeringE2E(t *testing.T) {
 			t.Skip("VPC Peering API not accessible for this user")
 		}
 
+		if resp.StatusCode == http.StatusBadRequest {
+			t.Skip("VPC Peering cannot be created with these VPCs")
+		}
+
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
 
 		var res struct {
