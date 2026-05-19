@@ -443,71 +443,77 @@ func (c *Coordinator) processReadResults(results chan readResult) (readResult, [
 		}
 
 		foundCount++
-
-		// If latest has no VC yet, take this one
-		if latest.vectorClock == nil && res.vectorClock != nil {
-			latest = res
-			candidates = append(candidates, res)
-			continue
-		}
-
-		// Prefer results with VC over those without
-		if res.vectorClock == nil && latest.vectorClock != nil {
-			candidates = append(candidates, res)
-			continue
-		}
-
-		// Both have VCs — compare
-		if latest.vectorClock != nil && res.vectorClock != nil {
-			cmp := node.Compare(res.vectorClock, latest.vectorClock)
-			switch cmp {
-			case 1: // res > latest (dominates)
-				latest = res
-				candidates = []readResult{res}
-			case 0: // Equal — shouldn't happen with proper VC
-			case 2: // Concurrent — deterministic tiebreaker
-				if res.vectorClock.Sum() > latest.vectorClock.Sum() {
-					latest = res
-				} else if res.vectorClock.Sum() == latest.vectorClock.Sum() {
-					// Lexicographic nodeID tiebreaker
-					if res.nodeID > latest.nodeID {
-						latest = res
-					}
-				}
-				candidates = append(candidates, res)
-			case -1: // res < latest (older)
-				candidates = append(candidates, res)
-			}
-		} else if latest.vectorClock == nil && res.vectorClock == nil {
-			// Fallback to timestamp comparison (legacy path)
-			switch {
-			case res.timestamp > latest.timestamp:
-				latest = res
-				candidates = []readResult{res}
-			default:
-				candidates = append(candidates, res)
-			}
-		}
-	}
-
-	// Add stale nodes to repair list (dominated by winner)
-	for _, res := range candidates {
-		if res.nodeID == latest.nodeID {
-			continue
-		}
-		if latest.vectorClock != nil && res.vectorClock != nil {
-			if latest.vectorClock.IsNewerThan(res.vectorClock) {
-				repairNodes = append(repairNodes, res.nodeID)
-			}
-		} else if latest.vectorClock == nil && res.vectorClock == nil && latest.timestamp > 0 {
-			// Legacy fallback: if timestamps differ, older one needs repair
-			if res.timestamp < latest.timestamp {
-				repairNodes = append(repairNodes, res.nodeID)
-			}
-		}
+		c.updateLatestAndCandidates(res, &latest, &candidates, &repairNodes)
 	}
 
 	return latest, repairNodes, foundCount
+}
+
+// updateLatestAndCandidates updates latest winner and candidate list based on VC or legacy comparison.
+func (c *Coordinator) updateLatestAndCandidates(res readResult, latest *readResult, candidates *[]readResult, repairNodes *[]string) {
+	// If latest has no VC yet, take this one
+	if latest.vectorClock == nil && res.vectorClock != nil {
+		*latest = res
+		*candidates = append(*candidates, res)
+		return
+	}
+
+	// Prefer results with VC over those without
+	if res.vectorClock == nil && latest.vectorClock != nil {
+		*candidates = append(*candidates, res)
+		return
+	}
+
+	// Both have VCs — compare
+	if latest.vectorClock != nil && res.vectorClock != nil {
+		c.compareVCResults(res, latest, candidates, repairNodes)
+		return
+	}
+
+	// Both have no VC (legacy fallback)
+	c.compareLegacyResults(res, latest, candidates, repairNodes)
+}
+
+// compareVCResults compares VCs and updates latest/candidates/repairNodes.
+func (c *Coordinator) compareVCResults(res readResult, latest *readResult, candidates *[]readResult, repairNodes *[]string) {
+	cmp := node.Compare(res.vectorClock, latest.vectorClock)
+	switch cmp {
+	case 1: // res > latest (dominates)
+		*latest = res
+		*candidates = []readResult{res}
+	case 0: // Equal
+		*candidates = append(*candidates, res)
+	case 2: // Concurrent — deterministic tiebreaker
+		if res.vectorClock.Sum() > latest.vectorClock.Sum() {
+			*latest = res
+			*candidates = []readResult{res}
+		} else if res.vectorClock.Sum() == latest.vectorClock.Sum() && res.nodeID > latest.nodeID {
+			*latest = res
+			*candidates = []readResult{res}
+		} else {
+			*candidates = append(*candidates, res)
+		}
+		// Both concurrent entries may need repair if winner dominates them
+		if latest.vectorClock.IsNewerThan(res.vectorClock) {
+			*repairNodes = append(*repairNodes, res.nodeID)
+		}
+	case -1: // res < latest (older)
+		*candidates = append(*candidates, res)
+		*repairNodes = append(*repairNodes, res.nodeID)
+	}
+}
+
+// compareLegacyResults compares timestamps (legacy fallback).
+func (c *Coordinator) compareLegacyResults(res readResult, latest *readResult, candidates *[]readResult, repairNodes *[]string) {
+	if res.timestamp > latest.timestamp {
+		*latest = res
+		*candidates = []readResult{res}
+		return
+	}
+	*candidates = append(*candidates, res)
+	if latest.timestamp > 0 && res.timestamp < latest.timestamp {
+		*repairNodes = append(*repairNodes, res.nodeID)
+	}
 }
 
 func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.Reader, winnerVC node.VectorClock, nodes []string) {
