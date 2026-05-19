@@ -31,14 +31,12 @@ const (
 type ConditionKey string
 
 const (
-	// Standard AWS condition keys
-	KeySourceIP      ConditionKey = "aws:SourceIp"
-	KeyUserID        ConditionKey = "aws:UserId"
-	KeyUsername      ConditionKey = "aws:Username"
-	KeyCurrentTime   ConditionKey = "aws:CurrentTime"
-	KeyRequestedTime ConditionKey = "aws:RequestedTime"
-
-	// thecloud-specific condition keys
-	KeyTenantID  ConditionKey = "thecloud:TenantId"
-	KeyUserAgent ConditionKey = "thecloud:UserAgent"
+	// thecloud condition keys
+	KeySourceIP      ConditionKey = "thecloud:SourceIp"
+	KeyUserID        ConditionKey = "thecloud:UserId"
+	KeyUsername      ConditionKey = "thecloud:Username"
+	KeyCurrentTime   ConditionKey = "thecloud:CurrentTime"
+	KeyRequestedTime ConditionKey = "thecloud:RequestedTime"
+	KeyUserAgent     ConditionKey = "thecloud:UserAgent"
+	KeyTenantID      ConditionKey = "thecloud:TenantId"
 )
