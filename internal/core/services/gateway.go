@@ -798,7 +798,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	}
 	// lastResp may have an undrained body from a network error — drain before returning
 	if lastResp != nil && lastResp.Body != nil {
-		io.Copy(io.Discard, lastResp.Body)
+		_, _ = io.Copy(io.Discard, lastResp.Body)
 		lastResp.Body.Close()
 	}
 	return lastResp, nil //nolint:bodyclose
