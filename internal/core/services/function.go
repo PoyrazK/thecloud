@@ -268,7 +268,7 @@ func (s *FunctionService) DeleteFunction(ctx context.Context, id uuid.UUID) erro
 
 	// Async delete from file store
 	go func() {
-		delCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		delCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // #nosec G118 -- context intentionally Background here as this is fire-and-forget cleanup
 		defer cancel()
 		if err := s.fileStore.Delete(delCtx, "functions", f.CodePath); err != nil {
 			s.logger.Warn("failed to delete function code from storage", "code_path", f.CodePath, "error", err)
@@ -570,7 +570,7 @@ func (s *FunctionService) buildTaskOptions(ctx context.Context, f *domain.Functi
 // buildTaskOptionsForPool builds task options for the pool manager.
 // Unlike buildTaskOptions, this does not include the code bind mount
 // because code is mounted fresh per invocation.
-func (s *FunctionService) buildTaskOptionsForPool(ctx context.Context, f *domain.Function) ports.RunTaskOptions {
+func (s *FunctionService) buildTaskOptionsForPool(_ context.Context, f *domain.Function) ports.RunTaskOptions {
 	config := runtimes[f.Runtime]
 	pidsLimit := int64(50)
 
