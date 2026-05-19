@@ -180,10 +180,20 @@ func (m *mockSecretService) Decrypt(ctx context.Context, userID uuid.UUID, ciphe
 type mockLBService struct{ mock.Mock }
 
 func (m *mockLBService) Create(ctx context.Context, name string, vpcID uuid.UUID, port int, algo string, idempotencyKey string) (*domain.LoadBalancer, error) {
-	return nil, nil
+	args := m.Called(ctx, name, vpcID, port, algo, idempotencyKey)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.LoadBalancer)
+	return r0, args.Error(1)
 }
 func (m *mockLBService) Get(ctx context.Context, idOrName string) (*domain.LoadBalancer, error) {
-	return nil, nil
+	args := m.Called(ctx, idOrName)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(*domain.LoadBalancer)
+	return r0, args.Error(1)
 }
 func (m *mockLBService) List(ctx context.Context) ([]*domain.LoadBalancer, error) {
 	args := m.Called(ctx)

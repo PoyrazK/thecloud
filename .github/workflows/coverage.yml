@@ -35,12 +35,16 @@ jobs:
         with:
           go-version: '1.25.0'
 
+<<<<<<< HEAD
       - name: Generate TLS test certs
         run: |
           mkdir -p cmd/storage-node/testdata/tls internal/api/setup/testdata/tls
           openssl req -x509 -newkey rsa:2048 -keyout cmd/storage-node/testdata/tls/test-key.pem -out cmd/storage-node/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
           openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/ca-key.pem -out internal/api/setup/testdata/tls/ca-cert.pem -days 365 -nodes -subj "/CN=test-ca"
           openssl req -x509 -newkey rsa:2048 -keyout internal/api/setup/testdata/tls/test-key.pem -out internal/api/setup/testdata/tls/test-cert.pem -days 365 -nodes -subj "/CN=test"
+
+      - name: Clear Go build cache
+        run: go clean -cache
 
       - name: Wait for Database
         run: |
