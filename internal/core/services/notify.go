@@ -4,17 +4,24 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"math/big"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/platform"
 )
+
+var seededRandMu sync.Mutex
 
 var webhookHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
@@ -289,28 +296,130 @@ func (s *NotifyService) deliverToQueue(ctx context.Context, sub *domain.Subscrip
 }
 
 func (s *NotifyService) deliverToWebhook(ctx context.Context, sub *domain.Subscription, body string) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, sub.Endpoint, bytes.NewBufferString(body))
+	const maxAttempts = 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		start := time.Now()
+		err := s.doWebhookDelivery(ctx, sub.Endpoint, body)
+		duration := time.Since(start).Seconds()
+
+		if err == nil {
+			platform.NotifyWebhookDeliveriesTotal.WithLabelValues("success").Inc()
+			platform.NotifyWebhookDuration.Observe(duration)
+			return
+		}
+
+		lastErr = err
+
+		// Categorize error for metrics
+		result := categorizeWebhookError(err)
+		platform.NotifyWebhookDeliveriesTotal.WithLabelValues(result).Inc()
+		platform.NotifyWebhookDuration.Observe(duration)
+
+		// Only retry on retriable errors (5xx and transport errors)
+		if !isRetriable(err) {
+			s.logger.Warn("webhook delivery failed non-retriable",
+				"endpoint", sub.Endpoint,
+				"subscription_id", sub.ID,
+				"attempt", attempt,
+				"error", err)
+			return
+		}
+
+		// Don't retry on last attempt
+		if attempt == maxAttempts {
+			break
+		}
+
+		// Exponential backoff with jitter: ~1s, ~2s, ~4s
+		backoffDur := []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second}
+		backoff := backoffDur[attempt-1]
+		jitter := time.Duration(randFloat(0.0, 0.5) * float64(backoff))
+		s.logger.Warn("webhook delivery failed, retrying",
+			"endpoint", sub.Endpoint,
+			"subscription_id", sub.ID,
+			"attempt", attempt,
+			"max_attempts", maxAttempts,
+			"backoff", backoff+jitter,
+			"error", err)
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff + jitter):
+		}
+	}
+
+	s.logger.Error("webhook delivery failed after all attempts",
+		"endpoint", sub.Endpoint,
+		"subscription_id", sub.ID,
+		"error", lastErr)
+}
+
+func (s *NotifyService) doWebhookDelivery(ctx context.Context, endpoint string, body string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBufferString(body))
 	if err != nil {
-		s.logger.Warn("failed to build webhook request", "endpoint", sub.Endpoint, "error", err)
-		return
+		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := webhookHTTPClient.Do(req)
 	if err != nil {
-		s.logger.Warn("failed to deliver to webhook", "endpoint", sub.Endpoint, "error", err)
-		return
+		return fmt.Errorf("request failed: %w", err)
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}()
 
-	if resp.StatusCode >= 400 {
-		s.logger.Warn("webhook delivery failed",
-			"endpoint", sub.Endpoint,
-			"subscription_id", sub.ID,
-			"status", resp.StatusCode)
-		return
+	if resp.StatusCode >= 500 {
+		return &webhookError{statusCode: resp.StatusCode, serverError: true}
 	}
+	if resp.StatusCode >= 400 {
+		return &webhookError{statusCode: resp.StatusCode, clientError: true}
+	}
+	return nil
+}
+
+type webhookError struct {
+	statusCode  int
+	serverError bool
+	clientError bool
+}
+
+func (e *webhookError) Error() string {
+	return fmt.Sprintf("webhook status %d", e.statusCode)
+}
+
+func isRetriable(err error) bool {
+	var we *webhookError
+	if errors.As(err, &we) {
+		return we.serverError
+	}
+	return true // transport errors are retriable
+}
+
+func categorizeWebhookError(err error) string {
+	var we *webhookError
+	if errors.As(err, &we) {
+		if we.serverError {
+			return "server_error"
+		}
+		if we.clientError {
+			return "client_error"
+		}
+	}
+	return "transport_error"
+}
+
+// randFloat returns a random float in [min, max) using crypto/rand.
+func randFloat(min, max float64) float64 {
+	seededRandMu.Lock()
+	defer seededRandMu.Unlock()
+	n, err := rand.Int(rand.Reader, big.NewInt(1000))
+	if err != nil {
+		return min // fallback on error
+	}
+	return min + float64(n.Int64())/1000*(max-min)
 }

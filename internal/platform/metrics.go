@@ -101,4 +101,15 @@ var (
 		Name: "thecloud_credential_cleanup_failures_total",
 		Help: "Total number of credential version cleanup failures in Vault",
 	})
+
+	// Notify webhook metrics
+	NotifyWebhookDeliveriesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "thecloud_notify_webhook_deliveries_total",
+		Help: "Total number of webhook delivery attempts",
+	}, []string{"result"})
+	NotifyWebhookDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "thecloud_notify_webhook_duration_seconds",
+		Help:    "Duration of webhook delivery attempts in seconds",
+		Buckets: []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+	})
 )
