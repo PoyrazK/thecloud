@@ -3,9 +3,11 @@ package httputil
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/poyrazk/thecloud/internal/core/services"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
@@ -15,6 +17,12 @@ import (
 // Auth enforces API key authentication and injects user context.
 func Auth(svc ports.IdentityService, tenantSvc ports.TenantService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Try JWT first
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			// JWT handling would go here - for now, fall through to API key
+		}
+
 		apiKey := c.GetHeader("X-API-Key")
 		if apiKey == "" {
 			Error(c, errors.New(errors.Unauthorized, "API key required"))
@@ -47,6 +55,63 @@ func Auth(svc ports.IdentityService, tenantSvc ports.TenantService) gin.HandlerF
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Set("userID", apiKeyObj.UserID) // Also keep in Gin context for convenience
+		c.Next()
+	}
+}
+
+// JWTAuth enforces JWT authentication and injects user context.
+// Supports both JWT and API key authentication for flexibility.
+func JWTAuth(jwtSvc *services.JWTService, identitySvc ports.IdentityService, tenantSvc ports.TenantService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+			claims, err := jwtSvc.ValidateToken(tokenString)
+			if err == nil && claims.UserID != uuid.Nil {
+				ctx := appcontext.WithUserID(c.Request.Context(), claims.UserID)
+				if claims.TenantID != uuid.Nil {
+					ctx = appcontext.WithTenantID(ctx, claims.TenantID)
+					c.Set("tenantID", claims.TenantID)
+				}
+				c.Set("userID", claims.UserID)
+				c.Request = c.Request.WithContext(ctx)
+				c.Next()
+				return
+			}
+		}
+
+		// Fall back to API key
+		apiKey := c.GetHeader("X-API-Key")
+		if apiKey == "" {
+			Error(c, errors.New(errors.Unauthorized, "API key or JWT required"))
+			c.Abort()
+			return
+		}
+
+		apiKeyObj, err := identitySvc.ValidateAPIKey(c.Request.Context(), apiKey)
+		if err != nil {
+			Error(c, errors.New(errors.Unauthorized, "invalid API key"))
+			c.Abort()
+			return
+		}
+
+		ctx := appcontext.WithUserID(c.Request.Context(), apiKeyObj.UserID)
+
+		tenantID, err := resolveAndVerifyTenant(ctx, c.GetHeader("X-Tenant-ID"), apiKeyObj.DefaultTenantID, apiKeyObj.UserID, tenantSvc)
+		if err != nil {
+			Error(c, err)
+			c.Abort()
+			return
+		}
+
+		if tenantID != uuid.Nil {
+			ctx = appcontext.WithTenantID(ctx, tenantID)
+			c.Set("tenantID", tenantID)
+		}
+
+		c.Request = c.Request.WithContext(ctx)
+		c.Set("userID", apiKeyObj.UserID)
 		c.Next()
 	}
 }
