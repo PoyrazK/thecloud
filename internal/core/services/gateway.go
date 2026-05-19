@@ -820,6 +820,7 @@ func (rt *retryTransport) isRetryableError(err error) bool {
 	// Fallback to string matching for errors not wrapped as net.Error
 	msg := err.Error()
 	return strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "timeout") ||
 		strings.Contains(msg, "reset by peer") ||
 		strings.Contains(msg, "broken pipe") ||
 		strings.Contains(msg, "connection reset")
