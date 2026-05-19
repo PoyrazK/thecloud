@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"testing"
-	"time"
 
 	pb "github.com/poyrazk/thecloud/internal/storage/protocol"
 	"github.com/stretchr/testify/assert"
@@ -49,17 +48,16 @@ func (m *mockRetrieveServer) Send(r *pb.RetrieveResponse) error {
 
 func TestRPCServer(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, _ := NewLocalStore(tmpDir)
+	store, _ := NewLocalStore(tmpDir, testNodeID)
 	server := NewRPCServer(store, nil)
 
 	ctx := context.Background()
 
-	// 1. Store (Streaming)
-	ts := time.Now().UnixNano()
+	// 1. Store (Streaming) — no VC passed, node generates its own
 	storeMock := &mockStoreServer{
 		ctx: ctx,
 		reqs: []*pb.StoreRequest{
-			{Payload: &pb.StoreRequest_Metadata{Metadata: &pb.StoreMetadata{Bucket: "bucket1", Key: "key1", Timestamp: ts}}},
+			{Payload: &pb.StoreRequest_Metadata{Metadata: &pb.StoreMetadata{Bucket: "bucket1", Key: "key1"}}},
 			{Payload: &pb.StoreRequest_ChunkData{ChunkData: []byte("value1")}},
 		},
 	}
@@ -78,6 +76,8 @@ func TestRPCServer(t *testing.T) {
 		switch p := r.Payload.(type) {
 		case *pb.RetrieveResponse_Metadata:
 			found = p.Metadata.Found
+			// VC should be present
+			assert.NotEmpty(t, p.Metadata.VectorClock)
 		case *pb.RetrieveResponse_ChunkData:
 			data = append(data, p.ChunkData...)
 		}
@@ -99,8 +99,8 @@ func TestRPCServer(t *testing.T) {
 	assert.False(t, retrieveMock2.resps[0].GetMetadata().Found)
 
 	// 4. Assemble
-	require.NoError(t, store.Write("bucket1", "parts/1", []byte("A"), 0))
-	require.NoError(t, store.Write("bucket1", "parts/2", []byte("B"), 0))
+	require.NoError(t, store.Write("bucket1", "parts/1", []byte("A"), nil))
+	require.NoError(t, store.Write("bucket1", "parts/2", []byte("B"), nil))
 
 	asmResp, err := server.Assemble(ctx, &pb.AssembleRequest{
 		Bucket: "bucket1",
@@ -129,7 +129,7 @@ func TestRPCServerGetClusterStatus(t *testing.T) {
 
 func TestRPCServerStoreError(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, _ := NewLocalStore(tmpDir)
+	store, _ := NewLocalStore(tmpDir, testNodeID)
 	server := NewRPCServer(store, nil)
 
 	storeMock := &mockStoreServer{
@@ -140,7 +140,38 @@ func TestRPCServerStoreError(t *testing.T) {
 		},
 	}
 	err := server.Store(storeMock)
-	// In my implementation, traversal returns error to gRPC layer
 	require.NoError(t, err) // SendAndClose returns nil usually, error is in response
 	assert.False(t, storeMock.resp.Success)
+}
+
+func TestRPCServerStoreWithVC(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, _ := NewLocalStore(tmpDir, testNodeID)
+	server := NewRPCServer(store, nil)
+
+	ctx := context.Background()
+
+	// Pre-existing VC passed in metadata
+	preExistingVC := NewVectorClock()
+	preExistingVC["other-node"] = 5
+	vcBytes, _ := preExistingVC.Serialize()
+
+	storeMock := &mockStoreServer{
+		ctx: ctx,
+		reqs: []*pb.StoreRequest{
+			{Payload: &pb.StoreRequest_Metadata{
+				Metadata: &pb.StoreMetadata{Bucket: "bucket1", Key: "key1", VectorClock: vcBytes}},
+			},
+			{Payload: &pb.StoreRequest_ChunkData{ChunkData: []byte("value1")}},
+		},
+	}
+	err := server.Store(storeMock)
+	require.NoError(t, err)
+	assert.True(t, storeMock.resp.Success)
+
+	// Read back — should have merged/preExistingVC + incremented this node's counter
+	_, vc, err := store.Read("bucket1", "key1")
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), vc[testNodeID], "this node's counter should be incremented")
+	assert.Equal(t, uint64(5), vc["other-node"], "pre-existing VC entry should be preserved")
 }

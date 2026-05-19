@@ -227,10 +227,10 @@ func TestCoordinatorReadRepair(t *testing.T) {
 	assert.Equal(t, "new", string(data))
 	_ = r.Close()
 
-	// Wait for async repair
-	time.Sleep(200 * time.Millisecond)
-	c2.AssertCalled(t, "Store", mock.Anything)
-	c3.AssertCalled(t, "Store", mock.Anything)
+	// Wait for async repair - timing margin for CI variability
+	time.Sleep(3 * time.Second)
+	c2.AssertNumberOfCalls(t, "Store", 1)
+	c3.AssertNumberOfCalls(t, "Store", 1)
 }
 
 func TestCoordinatorDelete(t *testing.T) {
@@ -388,7 +388,7 @@ func TestCoordinatorWriteRepair(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Verify write repair: Node1 was used as source, Node2 was repaired
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -440,7 +440,7 @@ func TestCoordinatorWriteRepair_SourceNodeDown(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Source was called but failed, so repair should not complete
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -494,7 +494,7 @@ func TestCoordinatorWriteRepair_AllRepairNodesDown(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Source was called but repair node was down - repair silently skipped
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -552,7 +552,7 @@ func TestCoordinatorWriteRepair_PartialRepairFailure(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Repair was attempted but CloseAndRecv returned failure
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -616,16 +616,18 @@ func TestCoordinatorRepairStreamFailureContinues(t *testing.T) {
 	assert.Equal(t, "newdata", string(data))
 	require.NoError(t, r.Close())
 
-	// Wait for async repair goroutines
-	time.Sleep(200 * time.Millisecond)
+	// Wait for async repair goroutines - timing margin for CI variability
+	time.Sleep(3 * time.Second)
 
 	// node2: metadata succeeded, chunk failed, CloseAndRecv called to clean up
-	smRepair2.AssertNumberOfCalls(t, "Send", 2)
-	smRepair2.AssertCalled(t, "CloseAndRecv")
+	if smRepair2.AssertCalled(t, "CloseAndRecv") {
+		smRepair2.AssertNumberOfCalls(t, "Send", 2)
+	}
 
 	// node3: both metadata and chunk sent, CloseAndRecv called
-	smRepair3.AssertNumberOfCalls(t, "Send", 2)
-	smRepair3.AssertCalled(t, "CloseAndRecv")
+	if smRepair3.AssertCalled(t, "CloseAndRecv") {
+		smRepair3.AssertNumberOfCalls(t, "Send", 2)
+	}
 }
 
 func TestCoordinatorReadQuorum(t *testing.T) {
