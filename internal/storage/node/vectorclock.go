@@ -54,13 +54,14 @@ func (vc VectorClock) prune(windowSize uint64) {
 }
 
 // Compare compares two vector clocks and returns:
-//   -1 if a < b  (a happened-before b, b dominates a)
-//    1 if a > b  (a happened-after b, a dominates b)
-//    0 if a == b (identical state)
-//    2 if concurrent (neither dominates the other)
+//
+//	-1 if a < b  (a happened-before b, b dominates a)
+//	 1 if a > b  (a happened-after b, a dominates b)
+//	 0 if a == b (identical state)
+//	 2 if concurrent (neither dominates the other)
 func Compare(a, b VectorClock) int {
-	aDomB := true  // a >= b
-	bDomA := true  // b >= a
+	aDomB := true // a >= b
+	bDomA := true // b >= a
 
 	// Check all keys in a
 	for k, aVal := range a {
@@ -91,7 +92,7 @@ func Compare(a, b VectorClock) int {
 	}
 
 	if aDomB && !bDomA {
-		return 1  // a > b
+		return 1 // a > b
 	}
 	if bDomA && !aDomB {
 		return -1 // a < b
