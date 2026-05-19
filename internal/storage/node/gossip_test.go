@@ -406,7 +406,7 @@ func TestGossipProtocolWantPullConfigurable(t *testing.T) {
 	}
 	g := NewGossipProtocol("node1", testNode1Addr, nil, logger, cfg)
 
-	assert.Equal(t, false, g.wantPull)
+	assert.False(t, g.wantPull)
 }
 
 func TestGossipProtocolWantPullDefaultsTrue(t *testing.T) {
