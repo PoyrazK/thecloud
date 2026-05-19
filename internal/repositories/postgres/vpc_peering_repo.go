@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	vpcPeeringColumns      = "id, requester_vpc_id, accepter_vpc_id, requester_tenant_id, accepter_tenant_id, status, arn, created_at, updated_at"
-	errPeeringNotFound    = "vpc peering not found"
+	vpcPeeringColumns  = "id, requester_vpc_id, accepter_vpc_id, requester_tenant_id, accepter_tenant_id, status, arn, created_at, updated_at"
+	errPeeringNotFound = "vpc peering not found"
 )
 
 // VPCPeeringRepository provides a PostgreSQL implementation for managing VPC peering connections.

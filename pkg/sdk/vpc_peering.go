@@ -23,9 +23,9 @@ type VPCPeering struct {
 // For cross-tenant peering, provide the accepterVPCTenantID of the other tenant.
 func (c *Client) CreateVPCPeering(requesterVPCID, accepterVPCID, accepterVPCTenantID string) (*VPCPeering, error) {
 	body := map[string]string{
-		"requester_vpc_id":    requesterVPCID,
-		"accepter_vpc_id":     accepterVPCID,
-		"accepter_tenant_id":  accepterVPCTenantID,
+		"requester_vpc_id":   requesterVPCID,
+		"accepter_vpc_id":    accepterVPCID,
+		"accepter_tenant_id": accepterVPCTenantID,
 	}
 	var res Response[VPCPeering]
 	if err := c.post("/vpc-peerings", body, &res); err != nil {

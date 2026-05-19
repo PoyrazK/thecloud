@@ -109,8 +109,8 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 		ID:                peeringID,
 		RequesterVPCID:    requesterVPCID,
 		AccepterVPCID:     accepterVPCID,
-		RequesterTenantID:  tenantID,
-		AccepterTenantID:   accepterTenantID,
+		RequesterTenantID: tenantID,
+		AccepterTenantID:  accepterTenantID,
 		Status:            domain.PeeringStatusPendingAcceptance,
 		ARN:               arn,
 		CreatedAt:         time.Now().UTC(),
@@ -123,9 +123,9 @@ func (s *VPCPeeringService) CreatePeering(ctx context.Context, requesterVPCID, a
 
 	userID := appcontext.UserIDFromContext(ctx)
 	if err := s.auditSvc.Log(ctx, userID, "vpc_peering.create", "vpc_peering", peeringID.String(), map[string]interface{}{
-		"requester_vpc_id":    requesterVPCID.String(),
-		"accepter_vpc_id":     accepterVPCID.String(),
-		"accepter_tenant_id":  accepterTenantID.String(),
+		"requester_vpc_id":   requesterVPCID.String(),
+		"accepter_vpc_id":    accepterVPCID.String(),
+		"accepter_tenant_id": accepterTenantID.String(),
 	}); err != nil {
 		s.logger.Warn("failed to log audit event", "action", "vpc_peering.create", "peering_id", peeringID, "error", err)
 	}

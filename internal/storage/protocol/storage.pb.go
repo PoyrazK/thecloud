@@ -246,8 +246,8 @@ func (x *MemberState) GetHeartbeat() uint64 {
 }
 
 type GossipResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Success       bool                    `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	Members       map[string]*MemberState `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
