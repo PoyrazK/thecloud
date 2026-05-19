@@ -226,3 +226,72 @@ func TestLifecycleWorkerRun(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestLifecycleWorkerProcessRulesCapEnforcement(t *testing.T) {
+	repo := &fakeLifecycleRepo{
+		rules: []*domain.LifecycleRule{
+			{
+				ID:             uuid.New(),
+				BucketName:     "large-bucket",
+				ExpirationDays: 1,
+				UserID:         uuid.New(),
+			},
+		},
+	}
+
+	old := time.Now().UTC().Add(-48 * time.Hour)
+	// Create more objects than the cap to verify only capped number is processed
+	objects := make([]*domain.Object, maxObjectsPerRulePerTick+1000)
+	for i := range objects {
+		objects[i] = &domain.Object{Key: "key-" + string(rune(i)), CreatedAt: old}
+	}
+
+	storageSvc := &fakeLifecycleStorageService{objects: objects}
+	worker := &LifecycleWorker{
+		lifecycleRepo: repo,
+		storageSvc:    storageSvc,
+		storageRepo:   nil,
+		logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	worker.processRules(context.Background())
+
+	// Only maxObjectsPerRulePerTick objects should have been evaluated
+	deleted := storageSvc.DeletedKeys()
+	assert.Len(t, deleted, maxObjectsPerRulePerTick, "only capped number of objects should be processed")
+}
+
+func TestLifecycleWorkerProcessRulesNonUTCObjectTimestamp(t *testing.T) {
+	repo := &fakeLifecycleRepo{
+		rules: []*domain.LifecycleRule{
+			{
+				ID:             uuid.New(),
+				BucketName:     "tz-test",
+				ExpirationDays: 1,
+				UserID:         uuid.New(),
+			},
+		},
+	}
+
+	// Create an object with non-UTC timezone (UTC+5)
+	loc := time.FixedZone("UTC+5", 5*60*60)
+	old := time.Now().In(loc).Add(-48 * time.Hour)
+
+	storageSvc := &fakeLifecycleStorageService{
+		objects: []*domain.Object{
+			{Key: "tz.log", CreatedAt: old},
+		},
+	}
+	worker := &LifecycleWorker{
+		lifecycleRepo: repo,
+		storageSvc:    storageSvc,
+		storageRepo:   nil,
+		logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	worker.processRules(context.Background())
+
+	// Should still correctly identify as expired since .UTC() is called internally
+	deleted := storageSvc.DeletedKeys()
+	assert.Equal(t, []string{"tz.log"}, deleted)
+}
