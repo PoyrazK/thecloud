@@ -36,7 +36,7 @@ func newMockBackend() *mockBackend {
 	}
 }
 
-func (m *mockBackend) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+func (m *mockBackend) StartPoolInstance(_ context.Context, opts ports.RunTaskOptions) (string, []string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.startErr != nil {
@@ -50,7 +50,7 @@ func (m *mockBackend) StartPoolInstance(ctx context.Context, opts ports.RunTaskO
 	return id, nil, nil
 }
 
-func (m *mockBackend) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+func (m *mockBackend) ExecInInstance(_ context.Context, id string, cmd []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := m.instances[id]; !ok {
@@ -59,7 +59,7 @@ func (m *mockBackend) ExecInInstance(ctx context.Context, id string, cmd []strin
 	return m.execOutput, m.execErr
 }
 
-func (m *mockBackend) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+func (m *mockBackend) GetInstanceReady(_ context.Context, id string) (bool, error) {
 	return m.readyResult, m.readyErr
 }
 
@@ -207,15 +207,15 @@ func TestPoolManager_Acquire(t *testing.T) {
 	pool := mgr.Get(functionID)
 	require.NotNil(t, pool)
 	pool.mu.RLock()
-	assert.Equal(t, 0, len(pool.warm), "warm should be empty (instance taken)")
-	assert.Equal(t, 1, len(pool.busy), "busy should have 1 instance")
+	assert.Empty(t, pool.warm, "warm should be empty (instance taken)")
+	assert.Len(t, pool.busy, 1, "busy should have 1 instance")
 	pool.mu.RUnlock()
 
 	// Release should return instance to warm pool
 	release(nil)
 	pool.mu.RLock()
-	assert.Equal(t, 1, len(pool.warm), "warm should have 1 instance after release")
-	assert.Equal(t, 0, len(pool.busy), "busy should be empty after release")
+	assert.Len(t, pool.warm, 1, "warm should have 1 instance after release")
+	assert.Empty(t, pool.busy, "busy should be empty after release")
 	pool.mu.RUnlock()
 }
 
@@ -252,8 +252,8 @@ func TestPoolManager_Acquire_ConcurrentRelease(t *testing.T) {
 	pool := mgr.Get(functionID)
 	require.NotNil(t, pool)
 	pool.mu.RLock()
-	assert.Equal(t, 0, len(pool.warm), "warm should be empty")
-	assert.Equal(t, 2, len(pool.busy), "both instances should be busy")
+	assert.Empty(t, pool.warm, "warm should be empty")
+	assert.Len(t, pool.busy, 2, "both instances should be busy")
 	pool.mu.RUnlock()
 }
 

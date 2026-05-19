@@ -33,7 +33,7 @@ type FunctionPool struct {
 }
 
 // PoolManagerImpl manages per-function warm pools.
-type PoolManagerImpl struct {
+type PoolManager struct {
 	pools     map[uuid.UUID]*FunctionPool
 	mu        sync.RWMutex
 	backend   ports.ComputeBackend
@@ -42,8 +42,8 @@ type PoolManagerImpl struct {
 }
 
 // NewPoolManager creates a new pool manager.
-func NewPoolManager(backend ports.ComputeBackend, logger *slog.Logger) *PoolManagerImpl {
-	return &PoolManagerImpl{
+func NewPoolManager(backend ports.ComputeBackend, logger *slog.Logger) *PoolManager {
+	return &PoolManager{
 		pools:   make(map[uuid.UUID]*FunctionPool),
 		backend: backend,
 		logger:  logger,
