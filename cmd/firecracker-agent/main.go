@@ -9,6 +9,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -115,9 +117,78 @@ func (a *vsockAddr) Network() string {
 }
 
 var (
-	mu     sync.Mutex
-	active int
+	mu       sync.Mutex
+	active   int
+	validate = commandValidator()
 )
+
+func commandValidator() *validator {
+	return &validator{
+		allowed: map[string]bool{
+			"node":   true,
+			"python": true,
+			"ruby":   true,
+			"go":     true,
+			"java":   true,
+		},
+		dangerous: []*regexp.Regexp{
+			regexp.MustCompile(`[;&|` + "\x24" + `<>]`),
+			regexp.MustCompile(`\.\./`),
+			regexp.MustCompile(`\$\(`),
+			regexp.MustCompile(`\$\{`),
+		},
+	}
+}
+
+type validator struct {
+	allowed  map[string]bool
+	dangerous []*regexp.Regexp
+}
+
+func (v *validator) validate(cmd []string) error {
+	if len(cmd) == 0 {
+		return fmt.Errorf("empty command")
+	}
+	entrypoint := filepath.Base(cmd[0])
+	if !v.allowed[entrypoint] {
+		return fmt.Errorf("invalid entrypoint: %s", entrypoint)
+	}
+	for i := 1; i < len(cmd); i++ {
+		for _, pat := range v.dangerous {
+			if pat.MatchString(cmd[i]) {
+				return fmt.Errorf("dangerous pattern detected")
+			}
+		}
+	}
+	return nil
+}
+
+func parseCommand(line string) ([]string, error) {
+	var args []string
+	var current strings.Builder
+	inQuote := false
+	quoteChar := byte(0)
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if !inQuote && (c == '"' || c == '\'') {
+			inQuote = true
+			quoteChar = c
+		} else if inQuote && c == quoteChar {
+			inQuote = false
+		} else if !inQuote && c == ' ' {
+			if current.Len() > 0 {
+				args = append(args, current.String())
+				current.Reset()
+			}
+		} else {
+			current.WriteByte(c)
+		}
+	}
+	if current.Len() > 0 {
+		args = append(args, current.String())
+	}
+	return args, nil
+}
 
 func main() {
 	log.SetFlags(0)
@@ -169,8 +240,19 @@ func handleConnection(conn net.Conn) {
 			return
 		}
 
-		// Execute command via shell
-		cmd := exec.Command("sh", "-c", line)
+		// Validate and parse command
+		args, err := parseCommand(line)
+		if err != nil {
+			conn.Write([]byte(fmt.Sprintf("ERROR: %v\n", err)))
+			continue
+		}
+		if err := validate.validate(args); err != nil {
+			conn.Write([]byte(fmt.Sprintf("ERROR: %v\n", err)))
+			continue
+		}
+
+		// Execute command - only entrypoint with args, no shell interpretation
+		cmd := exec.Command(args[0], args[1:]...)
 		out, err := cmd.CombinedOutput()
 
 		var response string

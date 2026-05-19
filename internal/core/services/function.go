@@ -80,6 +80,7 @@ type FunctionService struct {
 	logger           *slog.Logger
 	bulkheadRegistry map[uuid.UUID]*platform.Bulkhead
 	bulkheadMu       sync.RWMutex
+	cmdValidator     *platform.CommandValidator
 }
 
 // NewFunctionService constructs a FunctionService with its dependencies.
@@ -94,6 +95,7 @@ func NewFunctionService(repo ports.FunctionRepository, rbacSvc ports.RBACService
 		poolMgr:          poolMgr,
 		logger:           logger,
 		bulkheadRegistry: make(map[uuid.UUID]*platform.Bulkhead),
+		cmdValidator:     platform.NewCommandValidator(),
 	}
 }
 
@@ -418,6 +420,11 @@ func (s *FunctionService) runPooledInvocation(ctx context.Context, f *domain.Fun
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	opts := s.buildTaskOptions(ctx, f, tmpDir, payload)
+
+	// Validate command before execution (security hardening)
+	if err := s.cmdValidator.ValidateWithRuntime(opts.Command, f.Runtime); err != nil {
+		return s.failInvocation(i, "function command validation failed", err)
+	}
 
 	// Execute in the warm instance (already running)
 	output, err := s.compute.ExecInInstance(ctx, inst.BackendID, opts.Command)
