@@ -26,7 +26,7 @@ func TestNoopDNSBackend_GetZone(t *testing.T) {
 	t.Parallel()
 	backend := NewNoopDNSBackend()
 	result, err := backend.GetZone(context.Background(), "example.com")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "example.com", result.Name)
 	assert.Equal(t, "Native", result.Kind)

@@ -400,5 +400,5 @@ func TestRouteTableRepository_ListAssociatedSubnets_Empty(t *testing.T) {
 
 	result, err := repo.ListAssociatedSubnets(context.Background(), rtID)
 	require.NoError(t, err)
-	assert.Len(t, result, 0)
+	assert.Empty(t, result)
 }
