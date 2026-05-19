@@ -525,6 +525,52 @@ func TestGatewayHandlerInjectCORSHeaders(t *testing.T) {
 	}
 }
 
+func TestGatewayHandlerInjectCORSHeadersPreflight(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:              uuid.New(),
+		Name:            "cors-preflight",
+		AllowedOrigins:  []string{"http://example.com"},
+		AllowedMethods:  []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:  []string{"Authorization", "Content-Type"},
+		ExposeHeaders:   []string{"X-Custom-Header"},
+		MaxAge:          3600,
+		AllowedIPNets:   []*net.IPNet{},
+	}
+	svc.On("GetProxy", "OPTIONS", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+	req, err := http.NewRequest("OPTIONS", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://example.com")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "http://example.com", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
+	assert.Equal(t, "GET, POST, OPTIONS", w.Header().Get("Access-Control-Allow-Methods"))
+	assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+	assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+	assert.Equal(t, "X-Custom-Header", w.Header().Get("Access-Control-Expose-Headers"))
+	assert.Equal(t, "3600", w.Header().Get("Access-Control-Max-Age"))
+	svc.AssertExpectations(t)
+}
+
 func TestGatewayHandlerProxyCompression(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockGatewayService)

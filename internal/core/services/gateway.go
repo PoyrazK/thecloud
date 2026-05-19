@@ -435,6 +435,9 @@ func parseRSAPublicKeyFromJWK(k map[string]any) (*rsa.PublicKey, error) {
 	// e is typically 65537 (0x10001) which encodes as "AQAB" in base64url
 	e := 0
 	for _, b := range eBytes {
+		if e >= 1<<30 { // exponents > 2^30 are invalid for RSA
+			return nil, fmt.Errorf("exponent too large")
+		}
 		e = e<<8 + int(b)
 	}
 
