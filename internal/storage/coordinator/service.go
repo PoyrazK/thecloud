@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/big"
 	"sync"
 	"time"
@@ -104,9 +105,16 @@ func (c *Coordinator) SyncClusterState(ctx context.Context) {
 
 	// Update Ring based on status
 	nodes := make([]domain.StorageNode, 0, len(resp.Members))
+	hasChanges := false
 	for id, m := range resp.Members {
 		if m.Status == "dead" {
 			c.ring.RemoveNode(id)
+		} else {
+			// Add new nodes to ring (only if not already present)
+			if _, ok := c.clients[id]; !ok {
+				c.ring.AddNode(id)
+				hasChanges = true
+			}
 		}
 		nodes = append(nodes, domain.StorageNode{
 			ID:       id,
@@ -119,6 +127,15 @@ func (c *Coordinator) SyncClusterState(ctx context.Context) {
 	c.mu.Lock()
 	c.lastStatus = &domain.StorageCluster{Nodes: nodes}
 	c.mu.Unlock()
+
+	// Trigger rebalance if topology changed (node death or join)
+	if hasChanges {
+		go func() {
+			if err := c.Rebalance(context.Background(), "default"); err != nil {
+				slog.Warn("rebalance failed", "error", err)
+			}
+		}()
+	}
 }
 
 func (c *Coordinator) GetClusterStatus(ctx context.Context) (*domain.StorageCluster, error) {
@@ -776,4 +793,144 @@ func (c *Coordinator) Delete(ctx context.Context, bucket, key string) error {
 
 	platform.StorageOperations.WithLabelValues("cluster_delete", bucket, "success").Inc()
 	return nil
+}
+
+// Rebalance scans all keys across live nodes and re-replicates any under-replicated keys
+// to maintain the configured replica count.
+func (c *Coordinator) Rebalance(ctx context.Context, bucket string) error {
+	// Collect keys from all live nodes
+	allKeys := make(map[string]bool)
+	nodeKeys := make(map[string]map[string]bool) // nodeID -> set of keys
+
+	for nodeID, client := range c.clients {
+		resp, err := client.ListKeys(ctx, &pb.ListKeysRequest{Bucket: bucket})
+		if err != nil {
+			continue
+		}
+		keys := make(map[string]bool)
+		for _, k := range resp.Keys {
+			keys[k] = true
+			allKeys[k] = true
+		}
+		nodeKeys[nodeID] = keys
+	}
+
+	// For each key, check replication and repair if needed
+	for key := range allKeys {
+		targetNodes := c.ring.GetNodes(bucket+"/"+key, c.replicaCount)
+		targetSet := make(map[string]bool)
+		for _, n := range targetNodes {
+			targetSet[n] = true
+		}
+
+		// Check which target nodes actually have the key
+		haveCount := 0
+		var sourceNode string
+		var sourceClient pb.StorageNodeClient
+
+		for _, nodeID := range targetNodes {
+			if _, ok := nodeKeys[nodeID]; !ok {
+				continue
+			}
+			if nodeKeys[nodeID][key] {
+				haveCount++
+				if sourceNode == "" {
+					sourceNode = nodeID
+					sourceClient = c.clients[nodeID]
+				}
+			}
+		}
+
+		// If under-replicated, copy from a good replica to a node that should have it
+		if haveCount < c.replicaCount && sourceNode != "" && sourceClient != nil {
+			// Find a target node that should have it but doesn't
+			for _, nodeID := range targetNodes {
+				if _, ok := nodeKeys[nodeID]; !ok {
+					continue
+				}
+				if !nodeKeys[nodeID][key] {
+					// This node should have the key but doesn't — repair it
+					c.repairKey(ctx, bucket, key, sourceClient, nodeID)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// repairKey copies a key from source to a specific target node.
+func (c *Coordinator) repairKey(ctx context.Context, bucket, key string, srcClient pb.StorageNodeClient, targetNodeID string) {
+	targetClient, ok := c.clients[targetNodeID]
+	if !ok {
+		return
+	}
+
+	// Retrieve from source
+	st, err := srcClient.Retrieve(ctx, &pb.RetrieveRequest{Bucket: bucket, Key: key})
+	if err != nil {
+		return
+	}
+
+	meta, err := st.Recv()
+	if err != nil || meta.GetMetadata() == nil {
+		return
+	}
+
+	// Get VC from source
+	var winnerVC node.VectorClock
+	if m := meta.GetMetadata(); m != nil {
+		if vcBytes := m.GetVectorClock(); len(vcBytes) > 0 {
+			winnerVC, _ = node.DeserializeVC(vcBytes)
+		}
+	}
+
+	// Open store stream to target
+	storeSt, err := targetClient.Store(ctx)
+	if err != nil {
+		return
+	}
+
+	var vcBytes []byte
+	if winnerVC != nil {
+		vcBytes, _ = winnerVC.Serialize()
+	}
+	err = storeSt.Send(&pb.StoreRequest{
+		Payload: &pb.StoreRequest_Metadata{
+			Metadata: &pb.StoreMetadata{
+				Bucket:      bucket,
+				Key:         key,
+				VectorClock: vcBytes,
+			},
+		},
+	})
+	if err != nil {
+		_, _ = storeSt.CloseAndRecv()
+		return
+	}
+
+	// Stream data chunks
+	for {
+		chunk, err := st.Recv()
+		if err != nil {
+			break
+		}
+		cd := chunk.GetChunkData()
+		if cd == nil {
+			continue
+		}
+		err = storeSt.Send(&pb.StoreRequest{
+			Payload: &pb.StoreRequest_ChunkData{ChunkData: cd},
+		})
+		if err != nil {
+			break
+		}
+	}
+
+	resp, _ := storeSt.CloseAndRecv()
+	if resp != nil && resp.Success {
+		platform.StorageOperations.WithLabelValues("rebalance", bucket, "success").Inc()
+	} else {
+		platform.StorageOperations.WithLabelValues("rebalance", bucket, "failure").Inc()
+	}
 }

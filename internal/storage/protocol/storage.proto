@@ -11,6 +11,7 @@ service StorageNode {
   rpc Gossip(GossipMessage) returns (GossipResponse);
   rpc GetClusterStatus(Empty) returns (ClusterStatusResponse);
   rpc Assemble(AssembleRequest) returns (AssembleResponse);
+  rpc ListKeys(ListKeysRequest) returns (ListKeysResponse);
 }
 
 message Empty {}
@@ -51,6 +52,7 @@ message StoreMetadata {
   string key = 2;
   int64 timestamp = 3;
   int64 total_size = 4;
+  bytes vector_clock = 5;
 }
 
 message StoreResponse {
@@ -75,6 +77,7 @@ message RetrieveMetadata {
   string error = 2;
   int64 timestamp = 3;
   int64 total_size = 4;
+  bytes vector_clock = 5;
 }
 
 message DeleteRequest {
@@ -96,4 +99,12 @@ message AssembleRequest {
 message AssembleResponse {
   int64 size = 1;
   string error = 2;
+}
+
+message ListKeysRequest {
+  string bucket = 1;
+}
+
+message ListKeysResponse {
+  repeated string keys = 1;
 }

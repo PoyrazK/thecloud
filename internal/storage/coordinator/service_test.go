@@ -107,6 +107,12 @@ func (m *MockStorageNodeClient) Assemble(ctx context.Context, in *pb.AssembleReq
 	return r0, args.Error(1)
 }
 
+func (m *MockStorageNodeClient) ListKeys(ctx context.Context, in *pb.ListKeysRequest, opts ...grpc.CallOption) (*pb.ListKeysResponse, error) {
+	args := m.Called(ctx, in)
+	r0, _ := args.Get(0).(*pb.ListKeysResponse)
+	return r0, args.Error(1)
+}
+
 func TestCoordinatorWriteQuorum_TCs(t *testing.T) {
 	tests := []struct {
 		name          string
