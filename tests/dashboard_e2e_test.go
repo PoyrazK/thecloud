@@ -35,10 +35,10 @@ func TestDashboardE2E(t *testing.T) {
 
 		var res struct {
 			Data struct {
-				TotalInstances int `json:"total_instances"`
+				TotalInstances   int `json:"total_instances"`
 				RunningInstances int `json:"running_instances"`
-				TotalVolumes   int `json:"total_volumes"`
-				TotalVPCs      int `json:"total_vpcs"`
+				TotalVolumes     int `json:"total_volumes"`
+				TotalVPCs        int `json:"total_vpcs"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))

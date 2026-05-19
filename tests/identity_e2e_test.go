@@ -41,9 +41,9 @@ func TestIdentityE2E(t *testing.T) {
 
 		var res struct {
 			Data struct {
-				ID        string `json:"id"`
-				Name      string `json:"name"`
-				Key       string `json:"key"`
+				ID   string `json:"id"`
+				Name string `json:"name"`
+				Key  string `json:"key"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))

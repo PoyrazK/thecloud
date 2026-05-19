@@ -43,10 +43,10 @@ func TestGlobalLBE2E(t *testing.T) {
 
 		var res struct {
 			Data struct {
-				ID       string `json:"id"`
-				Name     string `json:"name"`
-				Policy   string `json:"policy"`
-				Status   string `json:"status"`
+				ID     string `json:"id"`
+				Name   string `json:"name"`
+				Policy string `json:"policy"`
+				Status string `json:"status"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))

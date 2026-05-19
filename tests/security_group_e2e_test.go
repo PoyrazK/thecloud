@@ -32,8 +32,8 @@ func TestSecurityGroupE2E(t *testing.T) {
 	// 1. Create Security Group
 	t.Run("CreateSecurityGroup", func(t *testing.T) {
 		payload := map[string]string{
-			"vpc_id":     vpcID,
-			"name":       sgName,
+			"vpc_id":      vpcID,
+			"name":        sgName,
 			"description": "E2E test security group",
 		}
 		resp := postRequest(t, client, testutil.TestBaseURL+"/security-groups", token, payload)
@@ -125,7 +125,7 @@ func TestSecurityGroupE2E(t *testing.T) {
 
 		payload := map[string]string{
 			"instance_id": instanceID,
-			"group_id":   sgID,
+			"group_id":    sgID,
 		}
 		resp := postRequest(t, client, testutil.TestBaseURL+"/security-groups/attach", token, payload)
 		defer func() { _ = resp.Body.Close() }()
@@ -141,7 +141,7 @@ func TestSecurityGroupE2E(t *testing.T) {
 		// First attach
 		attachPayload := map[string]string{
 			"instance_id": instanceID,
-			"group_id":   sgID,
+			"group_id":    sgID,
 		}
 		attachResp := postRequest(t, client, testutil.TestBaseURL+"/security-groups/attach", token, attachPayload)
 		defer func() { _ = attachResp.Body.Close() }()
@@ -149,7 +149,7 @@ func TestSecurityGroupE2E(t *testing.T) {
 		// Then detach
 		detachPayload := map[string]string{
 			"instance_id": instanceID,
-			"group_id":   sgID,
+			"group_id":    sgID,
 		}
 		resp := postRequest(t, client, testutil.TestBaseURL+"/security-groups/detach", token, detachPayload)
 		defer func() { _ = resp.Body.Close() }()

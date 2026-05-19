@@ -83,10 +83,10 @@ func TestFunctionScheduleE2E(t *testing.T) {
 	// 1. Create Function Schedule
 	t.Run("CreateFunctionSchedule", func(t *testing.T) {
 		payload := map[string]interface{}{
-			"name":       scheduleName,
+			"name":        scheduleName,
 			"function_id": functionID,
-			"schedule":   "*/5 * * * *", // Every 5 minutes
-			"payload":    map[string]string{"key": "value"},
+			"schedule":    "*/5 * * * *", // Every 5 minutes
+			"payload":     map[string]string{"key": "value"},
 		}
 		resp := postRequest(t, client, testutil.TestBaseURL+"/function-schedules", token, payload)
 		defer func() { _ = resp.Body.Close() }()
@@ -124,9 +124,9 @@ func TestFunctionScheduleE2E(t *testing.T) {
 
 		var res struct {
 			Data struct {
-				ID      string `json:"id"`
-				Name    string `json:"name"`
-				Status  string `json:"status"`
+				ID       string `json:"id"`
+				Name     string `json:"name"`
+				Status   string `json:"status"`
 				Schedule string `json:"schedule"`
 			} `json:"data"`
 		}

@@ -41,8 +41,8 @@ func TestServiceAccountE2E(t *testing.T) {
 
 		var res struct {
 			Data struct {
-				ID     string `json:"id"`
-				Name   string `json:"name"`
+				ID       string `json:"id"`
+				Name     string `json:"name"`
 				ClientID string `json:"client_id"`
 			} `json:"data"`
 		}

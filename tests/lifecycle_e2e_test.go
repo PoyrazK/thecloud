@@ -63,7 +63,7 @@ func TestLifecycleE2E(t *testing.T) {
 	// 1. Create Lifecycle Rule
 	t.Run("CreateLifecycleRule", func(t *testing.T) {
 		payload := map[string]interface{}{
-			"prefix":           "logs/",
+			"prefix":          "logs/",
 			"expiration_days": 30,
 			"enabled":         true,
 		}

@@ -32,7 +32,7 @@ func TestSubnetE2E(t *testing.T) {
 	// 1. Create Subnet
 	t.Run("CreateSubnet", func(t *testing.T) {
 		payload := map[string]interface{}{
-			"name":        subnetName,
+			"name":       subnetName,
 			"cidr_block": "10.1.0.0/24",
 		}
 		resp := postRequest(t, client, fmt.Sprintf("%s/vpcs/%s/subnets", testutil.TestBaseURL, vpcID), token, payload)

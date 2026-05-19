@@ -36,7 +36,7 @@ func TestAccountingE2E(t *testing.T) {
 		var res struct {
 			Data struct {
 				TotalAmount float64 `json:"total_amount"`
-				Currency    string   `json:"currency"`
+				Currency    string  `json:"currency"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
@@ -55,7 +55,7 @@ func TestAccountingE2E(t *testing.T) {
 		var res struct {
 			Data struct {
 				TotalAmount float64 `json:"total_amount"`
-				Currency    string   `json:"currency"`
+				Currency    string  `json:"currency"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
