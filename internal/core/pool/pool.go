@@ -241,19 +241,19 @@ func (p *FunctionPool) waitForWarmInstance(ctx context.Context) (*ports.PoolInst
 	defer ticker.Stop()
 
 	for {
-		p.mu.RLock()
+		p.mu.Lock()
 		if len(p.warm) > 0 {
 			n := len(p.warm)
 			inst := p.warm[n-1]
 			p.warm = p.warm[:n-1]
 			inst.Status = "BUSY"
 			p.busy[inst.BackendID] = inst
-			p.mu.RUnlock()
+			p.mu.Unlock()
 			return inst, makeReleaseFn(p, inst), nil
 		}
 		// Check if any launch failed
 		starting := p.starting
-		p.mu.RUnlock()
+		p.mu.Unlock()
 
 		if starting == 0 {
 			// No launch in progress, we need to trigger one
