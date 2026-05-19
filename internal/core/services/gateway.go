@@ -407,13 +407,13 @@ func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) 
 		}
 		var resp *http.Response
 		if cbErr := s.jwksCircuitBreaker.Execute(func() error {
-			resp, err = s.httpClient.Do(req)
+			resp, err = s.httpClient.Do(req) //nolint:bodyclose
 			return err
 		}); cbErr != nil {
 			platform.JWKSFetchTotal.WithLabelValues("circuit_open").Inc()
 			return nil, cbErr
 		}
-		defer func() { //nolint:bodyclose
+		defer func() {
 			if resp != nil && resp.Body != nil {
 				resp.Body.Close()
 			}
@@ -798,7 +798,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	}
 	// lastResp may have an undrained body from a network error — drain before returning
 	if lastResp != nil && lastResp.Body != nil {
-		io.Copy(io.Discard, lastResp.Body) //nolint:errcheck
+		io.Copy(io.Discard, lastResp.Body)
 		lastResp.Body.Close()
 	}
 	return lastResp, nil //nolint:bodyclose
@@ -815,7 +815,7 @@ func (rt *retryTransport) isRetryableError(err error) bool {
 	// Use net.Error interface for robust detection of transient errors
 	var netErr net.Error
 	if stderrors.As(err, &netErr) {
-		return netErr.Temporary() || netErr.Timeout()
+		return netErr.Timeout()
 	}
 	// Fallback to string matching for errors not wrapped as net.Error
 	msg := err.Error()
@@ -848,7 +848,7 @@ func (rt *retryTransport) backoffWithJitter(attempt int) time.Duration {
 // crypto/rand is safe for concurrent use and provides cryptographic randomness.
 func (rt *retryTransport) jitter(max time.Duration) time.Duration {
 	b := make([]byte, 8)
-	_, _ = cryptoRand.Read(b) //nolint:errcheck
+	_, _ = cryptoRand.Read(b)
 	val := float64(uint64(b[0])<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 | uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7]))
 	return time.Duration(float64(max) * (val / float64(1<<64)))
 }
