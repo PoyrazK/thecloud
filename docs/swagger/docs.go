@@ -9991,12 +9991,37 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "allowed_headers": {
+                    "description": "CORS allowed headers",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "allowed_methods": {
+                    "description": "CORS allowed methods",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "allowed_origins": {
+                    "description": "CORS allowed origins (empty = all)",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "blocked_cidrs": {
                     "description": "IPs blocked from access",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "ca_cert": {
+                    "description": "PEM-encoded CA cert for backend verification",
+                    "type": "string"
                 },
                 "circuit_breaker_threshold": {
                     "description": "consecutive failures to trip open (0=disabled)",
@@ -10006,6 +10031,18 @@ const docTemplate = `{
                     "description": "ms in open before half-open",
                     "type": "integer"
                 },
+                "client_cert": {
+                    "description": "PEM-encoded client certificate for mTLS",
+                    "type": "string"
+                },
+                "client_key": {
+                    "description": "PEM-encoded private key for mTLS",
+                    "type": "string"
+                },
+                "compression": {
+                    "description": "\"gzip\", \"br\", \"deflate\" (empty = disabled)",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -10013,11 +10050,31 @@ const docTemplate = `{
                     "description": "TCP dial timeout in milliseconds",
                     "type": "integer"
                 },
+                "expose_headers": {
+                    "description": "CORS exposed headers",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "type": "string"
                 },
                 "idle_conn_timeout": {
                     "description": "Idle connection timeout in milliseconds",
+                    "type": "integer"
+                },
+                "jwt_audience": {
+                    "type": "string"
+                },
+                "jwt_issuer": {
+                    "type": "string"
+                },
+                "jwt_jwks_url": {
+                    "type": "string"
+                },
+                "max_age": {
+                    "description": "CORS max-age preflight cache",
                     "type": "integer"
                 },
                 "max_body_size": {
@@ -10080,6 +10137,13 @@ const docTemplate = `{
                 "strip_prefix": {
                     "description": "If true, removes path_prefix from request before forwarding",
                     "type": "boolean"
+                },
+                "strip_response_headers": {
+                    "description": "headers to strip from upstream responses",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "target_url": {
                     "description": "Internal destination (e.g., \"http://service-a:8080\")",
@@ -12596,11 +12660,32 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "allowed_headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "allowed_methods": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "allowed_origins": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "blocked_cidrs": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "ca_cert": {
+                    "type": "string"
                 },
                 "circuit_breaker_threshold": {
                     "type": "integer",
@@ -12610,13 +12695,40 @@ const docTemplate = `{
                     "type": "integer",
                     "minimum": 0
                 },
+                "client_cert": {
+                    "type": "string"
+                },
+                "client_key": {
+                    "type": "string"
+                },
+                "compression": {
+                    "type": "string"
+                },
                 "dial_timeout": {
                     "type": "integer",
                     "minimum": 0
                 },
+                "expose_headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "idle_conn_timeout": {
                     "type": "integer",
                     "minimum": 0
+                },
+                "jwt_audience": {
+                    "type": "string"
+                },
+                "jwt_issuer": {
+                    "type": "string"
+                },
+                "jwt_jwks_url": {
+                    "type": "string"
+                },
+                "max_age": {
+                    "type": "integer"
                 },
                 "max_body_size": {
                     "type": "integer",
@@ -12659,6 +12771,12 @@ const docTemplate = `{
                 },
                 "strip_prefix": {
                     "type": "boolean"
+                },
+                "strip_response_headers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "target_url": {
                     "type": "string"
