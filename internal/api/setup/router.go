@@ -77,6 +77,7 @@ type Handlers struct {
 	InternetGateway *httphandlers.InternetGatewayHandler
 	NATGateway    *httphandlers.NATGatewayHandler
 	Ws            *ws.Handler
+	Admin         *httphandlers.AdminHandler
 }
 
 // InitHandlers constructs HTTP handlers and websocket hub.
@@ -86,7 +87,7 @@ func InitHandlers(svcs *Services, cfg *platform.Config, logger *slog.Logger) *Ha
 		Audit:         httphandlers.NewAuditHandler(svcs.Audit),
 		Identity:      httphandlers.NewIdentityHandler(svcs.Identity),
 		Tenant:        httphandlers.NewTenantHandler(svcs.Tenant),
-		Auth:          httphandlers.NewAuthHandler(svcs.Auth, svcs.PasswordReset),
+		Auth:             httphandlers.NewAuthHandler(svcs.Auth, svcs.PasswordReset, svcs.Identity),
 		Vpc:           httphandlers.NewVpcHandler(svcs.Vpc),
 		Subnet:        httphandlers.NewSubnetHandler(svcs.Subnet),
 		Instance:      httphandlers.NewInstanceHandler(svcs.Instance),
@@ -122,7 +123,7 @@ func InitHandlers(svcs *Services, cfg *platform.Config, logger *slog.Logger) *Ha
 		SSHKey:        httphandlers.NewSSHKeyHandler(svcs.SSHKey),
 		ElasticIP:     httphandlers.NewElasticIPHandler(svcs.ElasticIP),
 		Log:           httphandlers.NewLogHandler(svcs.Log),
-		IAM:           httphandlers.NewIAMHandler(svcs.IAM),
+		IAM:              httphandlers.NewIAMHandler(svcs.IAM, svcs.Identity),
 		VPCPeering:    httphandlers.NewVPCPeeringHandler(svcs.VPCPeering),
 		RouteTable:    httphandlers.NewRouteTableHandler(svcs.RouteTable),
 		InternetGateway: httphandlers.NewInternetGatewayHandler(svcs.InternetGateway),
