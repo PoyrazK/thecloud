@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCompare(t *testing.T) {
@@ -168,19 +169,19 @@ func TestVectorClock_SortedNodeIDs(t *testing.T) {
 func TestVectorClock_Serialize(t *testing.T) {
 	vc := VectorClock{"node1": 5, "node2": 3}
 	data, err := vc.Serialize()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	vc2, err := DeserializeVC(data)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, vc, vc2)
 }
 
 func TestDeserializeVC_Empty(t *testing.T) {
 	vc, err := DeserializeVC(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, vc)
 
 	vc, err = DeserializeVC([]byte{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, vc)
 }
