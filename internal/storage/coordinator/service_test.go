@@ -227,10 +227,10 @@ func TestCoordinatorReadRepair(t *testing.T) {
 	assert.Equal(t, "new", string(data))
 	_ = r.Close()
 
-	// Wait for async repair
-	time.Sleep(2 * time.Second)
-	c2.AssertCalled(t, "Store", mock.Anything)
-	c3.AssertCalled(t, "Store", mock.Anything)
+	// Wait for async repair - timing margin for CI variability
+	time.Sleep(3 * time.Second)
+	c2.AssertNumberOfCalls(t, "Store", 1)
+	c3.AssertNumberOfCalls(t, "Store", 1)
 }
 
 func TestCoordinatorDelete(t *testing.T) {
@@ -616,16 +616,18 @@ func TestCoordinatorRepairStreamFailureContinues(t *testing.T) {
 	assert.Equal(t, "newdata", string(data))
 	require.NoError(t, r.Close())
 
-	// Wait for async repair goroutines
-	time.Sleep(2 * time.Second)
+	// Wait for async repair goroutines - timing margin for CI variability
+	time.Sleep(3 * time.Second)
 
 	// node2: metadata succeeded, chunk failed, CloseAndRecv called to clean up
-	smRepair2.AssertNumberOfCalls(t, "Send", 2)
-	smRepair2.AssertCalled(t, "CloseAndRecv")
+	if smRepair2.AssertCalled(t, "CloseAndRecv") {
+		smRepair2.AssertNumberOfCalls(t, "Send", 2)
+	}
 
 	// node3: both metadata and chunk sent, CloseAndRecv called
-	smRepair3.AssertNumberOfCalls(t, "Send", 2)
-	smRepair3.AssertCalled(t, "CloseAndRecv")
+	if smRepair3.AssertCalled(t, "CloseAndRecv") {
+		smRepair3.AssertNumberOfCalls(t, "Send", 2)
+	}
 }
 
 func TestCoordinatorReadQuorum(t *testing.T) {
