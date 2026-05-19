@@ -260,8 +260,13 @@ func (e *iamEvaluator) matchPattern(pattern, target string) bool {
 // - * matches any sequence of characters (including empty)
 // - ? matches any single character
 // - * can appear at any position in the pattern
+//
+// Note: Uses recursion with max depth bounded by min(len(pattern), len(target)).
+// For typical IAM patterns (<100 chars), stack depth is not a concern.
+// If patterns could be maliciously long, consider iterative implementation.
 func matchGlob(pattern, target string) bool {
 	if pattern == "" {
+		// Empty pattern matches only empty target
 		return target == ""
 	}
 	if pattern == "*" {

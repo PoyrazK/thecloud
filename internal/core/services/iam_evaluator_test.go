@@ -570,6 +570,13 @@ func TestIAMEvaluator_MatchPattern(t *testing.T) {
 		{"*:instance:*", "compute:instance", false},
 		{"*-*-*", "us-east-1", true},
 		{"*-*-*", "us-east", false},
+		// Escaped character tests
+		{`\*`, "*", true},
+		{`\*`, "x", false},
+		{`\?`, "?", true},
+		{`\?`, "x", false},
+		{`instance\:stop`, "instance:stop", true},
+		{`instance\:stop`, "instance:launch", false},
 	}
 
 	for _, tt := range tests {
