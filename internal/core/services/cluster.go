@@ -146,7 +146,9 @@ func (s *ClusterService) CreateCluster(ctx context.Context, params ports.CreateC
 
 	// Persist Node Group
 	if err := s.repo.AddNodeGroup(ctx, &cluster.NodeGroups[0]); err != nil {
-		// Ideally this should be in a transaction with repo.Create
+		// Rollback: delete the orphan cluster to avoid leaving a cluster
+		// without its required default nodegroup
+		_ = s.repo.Delete(ctx, cluster.ID)
 		return nil, errors.Wrap(errors.Internal, "failed to create default node group", err)
 	}
 
