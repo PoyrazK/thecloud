@@ -9,12 +9,12 @@ import (
 	"io"
 	"math/big"
 	"sync"
-
 	"time"
 
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/platform"
 	pb "github.com/poyrazk/thecloud/internal/storage/protocol"
+	"github.com/poyrazk/thecloud/internal/storage/node"
 )
 
 const (
@@ -185,15 +185,15 @@ func (c *Coordinator) Stop() {
 }
 
 // Write saves data to the cluster with replication using gRPC streaming.
+// Nodes generate their own vector clocks — coordinator does not set Timestamp.
 func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader) (int64, error) {
 	nodes := c.ring.GetNodes(bucket+"/"+key, c.replicaCount)
 	if len(nodes) == 0 {
 		return 0, fmt.Errorf("%s", errNoNodesAvailable)
 	}
 
-	ts := time.Now().UnixNano()
-
 	// 1. Initialize streams to all target nodes
+	// Nodes will generate their own VCs (VectorClock field empty in metadata)
 	type nodeStream struct {
 		id     string
 		stream pb.StorageNode_StoreClient
@@ -208,13 +208,12 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 		if err != nil {
 			continue
 		}
-		// Send metadata first
+		// Send metadata — no timestamp, no VC. Nodes generate their own.
 		err = st.Send(&pb.StoreRequest{
 			Payload: &pb.StoreRequest_Metadata{
 				Metadata: &pb.StoreMetadata{
-					Bucket:    bucket,
-					Key:       key,
-					Timestamp: ts,
+					Bucket: bucket,
+					Key:    key,
 				},
 			},
 		})
@@ -292,7 +291,9 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 	if len(failedNodes) > 0 {
 		goodNodes := make([]string, 0, len(streams))
 		for _, ns := range streams {
-			goodNodes = append(goodNodes, ns.id)
+			if !failedNodes[ns.id] {
+				goodNodes = append(goodNodes, ns.id)
+			}
 		}
 		repairNodes := make([]string, 0, len(failedNodes))
 		for id := range failedNodes {
@@ -304,7 +305,7 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 					platform.StorageOperations.WithLabelValues("write_repair", bucket, "panic").Inc()
 				}
 			}()
-			c.writeRepair(context.Background(), bucket, key, ts, repairNodes, goodNodes)
+			c.writeRepair(context.Background(), bucket, key, repairNodes, goodNodes)
 		}()
 	}
 
@@ -337,11 +338,8 @@ func (c *Coordinator) Read(ctx context.Context, bucket, key string) (io.ReadClos
 		repairCtx, cancel := context.WithTimeout(ctx, repairTimeout)
 		go func() {
 			defer cancel()
-			// Ensure the pipe reader is closed on every exit path (panic,
-			// early return inside repairNodes, etc.) so the writer side
-			// upstream can unblock.
 			defer func() { _ = pr.Close() }()
-			c.repairNodes(repairCtx, bucket, key, pr, winner.timestamp, repairNodes)
+			c.repairNodes(repairCtx, bucket, key, pr, winner.vectorClock, repairNodes)
 		}()
 
 		return &repairingReadCloser{
@@ -370,11 +368,12 @@ func (r *repairingReadCloser) Close() error {
 }
 
 type readResult struct {
-	nodeID    string
-	stream    pb.StorageNode_RetrieveClient
-	timestamp int64
-	found     bool
-	err       error
+	nodeID      string
+	stream      pb.StorageNode_RetrieveClient
+	vectorClock node.VectorClock
+	found       bool
+	err         error
+	timestamp   int64
 }
 
 func (c *Coordinator) collectReadResults(ctx context.Context, bucket, key string, nodes []string) chan readResult {
@@ -404,11 +403,16 @@ func (c *Coordinator) collectReadResults(ctx context.Context, bucket, key string
 
 			switch p := resp.Payload.(type) {
 			case *pb.RetrieveResponse_Metadata:
+				var vc node.VectorClock
+				if vcBytes := p.Metadata.GetVectorClock(); len(vcBytes) > 0 {
+					vc, _ = node.DeserializeVC(vcBytes)
+				}
 				results <- readResult{
-					nodeID:    id,
-					stream:    st,
-					found:     p.Metadata.Found,
-					timestamp: p.Metadata.Timestamp,
+					nodeID:      id,
+					stream:      st,
+					found:       p.Metadata.Found,
+					vectorClock: vc,
+					timestamp:   p.Metadata.Timestamp,
 				}
 			default:
 				results <- readResult{nodeID: id, err: fmt.Errorf("unexpected message type: %T", p)}
@@ -428,7 +432,7 @@ func (c *Coordinator) processReadResults(results chan readResult) (readResult, [
 	var latest readResult
 	foundCount := 0
 	var repairNodes []string
-	winners := make([]readResult, 0, cap(results))
+	candidates := make([]readResult, 0, cap(results))
 
 	for res := range results {
 		if res.err != nil || !res.found {
@@ -439,23 +443,76 @@ func (c *Coordinator) processReadResults(results chan readResult) (readResult, [
 		}
 
 		foundCount++
-		if res.timestamp > latest.timestamp {
+
+		// If latest has no VC yet, take this one
+		if latest.vectorClock == nil && res.vectorClock != nil {
 			latest = res
+			candidates = append(candidates, res)
+			continue
 		}
-		winners = append(winners, res)
+
+		// Prefer results with VC over those without
+		if res.vectorClock == nil && latest.vectorClock != nil {
+			candidates = append(candidates, res)
+			continue
+		}
+
+		// Both have VCs — compare
+		if latest.vectorClock != nil && res.vectorClock != nil {
+			cmp := node.Compare(res.vectorClock, latest.vectorClock)
+			switch cmp {
+			case 1: // res > latest (dominates)
+				latest = res
+				candidates = []readResult{res}
+			case 0: // Equal — shouldn't happen with proper VC
+			case 2: // Concurrent — deterministic tiebreaker
+				if res.vectorClock.Sum() > latest.vectorClock.Sum() {
+					latest = res
+				} else if res.vectorClock.Sum() == latest.vectorClock.Sum() {
+					// Lexicographic nodeID tiebreaker
+					if res.nodeID > latest.nodeID {
+						latest = res
+					}
+				}
+				candidates = append(candidates, res)
+			case -1: // res < latest (older)
+				candidates = append(candidates, res)
+			}
+		} else if latest.vectorClock == nil && res.vectorClock == nil {
+			// Fallback to timestamp comparison (legacy path)
+			// Use highest timestamp as the winner, same as candidates for repair
+			if res.timestamp > latest.timestamp {
+				latest = res
+				candidates = []readResult{res}
+			} else if res.timestamp == latest.timestamp {
+				candidates = append(candidates, res)
+			} else {
+				candidates = append(candidates, res)
+			}
+		}
 	}
 
-	// Add stale nodes to repair list
-	for _, res := range winners {
-		if res.timestamp < latest.timestamp {
-			repairNodes = append(repairNodes, res.nodeID)
+	// Add stale nodes to repair list (dominated by winner)
+	for _, res := range candidates {
+		if res.nodeID == latest.nodeID {
+			continue
+		}
+		if latest.vectorClock != nil && res.vectorClock != nil {
+			if latest.vectorClock.IsNewerThan(res.vectorClock) {
+				repairNodes = append(repairNodes, res.nodeID)
+			}
+		} else if latest.vectorClock == nil && res.vectorClock == nil && latest.timestamp > 0 {
+			// Legacy fallback: if timestamps differ, older one needs repair
+			if res.timestamp < latest.timestamp {
+				repairNodes = append(repairNodes, res.nodeID)
+			}
 		}
 	}
 
 	return latest, repairNodes, foundCount
 }
 
-func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.Reader, timestamp int64, nodes []string) {
+func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.Reader, winnerVC node.VectorClock, nodes []string) {
 	type nodeStream struct {
 		id     string
 		stream pb.StorageNode_StoreClient
@@ -470,20 +527,21 @@ func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.
 				cancel()
 				continue
 			}
+			// Send winner's VC in repair metadata
+			var vcBytes []byte
+			if winnerVC != nil {
+				vcBytes, _ = winnerVC.Serialize()
+			}
 			err = st.Send(&pb.StoreRequest{
 				Payload: &pb.StoreRequest_Metadata{
 					Metadata: &pb.StoreMetadata{
-						Bucket:    bucket,
-						Key:       key,
-						Timestamp: timestamp,
+						Bucket:      bucket,
+						Key:         key,
+						VectorClock: vcBytes,
 					},
 				},
 			})
 			if err != nil {
-				// The stream is half-open: it was created on the server side but the
-				// metadata frame failed. Drain it with CloseAndRecv before cancelling
-				// so the server-side goroutine exits cleanly instead of waiting on
-				// context cancellation.
 				_, _ = st.CloseAndRecv()
 				cancel()
 				continue
@@ -547,7 +605,7 @@ func (c *Coordinator) repairNodes(ctx context.Context, bucket, key string, r io.
 }
 
 // writeRepair reads the object from a good replica and streams it to failed nodes.
-func (c *Coordinator) writeRepair(ctx context.Context, bucket, key string, timestamp int64, repairNodes []string, goodNodes []string) {
+func (c *Coordinator) writeRepair(ctx context.Context, bucket, key string, repairNodes []string, goodNodes []string) {
 	if len(repairNodes) == 0 || len(goodNodes) == 0 {
 		return
 	}
@@ -570,6 +628,14 @@ func (c *Coordinator) writeRepair(ctx context.Context, bucket, key string, times
 		return
 	}
 
+	// Get VC from source for repair write
+	var winnerVC node.VectorClock
+	if m := meta.GetMetadata(); m != nil {
+		if vcBytes := m.GetVectorClock(); len(vcBytes) > 0 {
+			winnerVC, _ = node.DeserializeVC(vcBytes)
+		}
+	}
+
 	type nodeStream struct {
 		id     string
 		stream pb.StorageNode_StoreClient
@@ -581,12 +647,16 @@ func (c *Coordinator) writeRepair(ctx context.Context, bucket, key string, times
 			if err != nil {
 				continue
 			}
+			var vcBytes []byte
+			if winnerVC != nil {
+				vcBytes, _ = winnerVC.Serialize()
+			}
 			err = storeSt.Send(&pb.StoreRequest{
 				Payload: &pb.StoreRequest_Metadata{
 					Metadata: &pb.StoreMetadata{
-						Bucket:    bucket,
-						Key:       key,
-						Timestamp: timestamp,
+						Bucket:      bucket,
+						Key:         key,
+						VectorClock: vcBytes,
 					},
 				},
 			})
@@ -648,6 +718,10 @@ func (r *grpcStreamReader) Read(p []byte) (n int, err error) {
 		n = copy(p, r.buf)
 		r.buf = r.buf[n:]
 		return n, nil
+	}
+
+	if r.stream == nil {
+		return 0, io.EOF
 	}
 
 	resp, err := r.stream.Recv()

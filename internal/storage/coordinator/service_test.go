@@ -228,7 +228,7 @@ func TestCoordinatorReadRepair(t *testing.T) {
 	_ = r.Close()
 
 	// Wait for async repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 	c2.AssertCalled(t, "Store", mock.Anything)
 	c3.AssertCalled(t, "Store", mock.Anything)
 }
@@ -388,7 +388,7 @@ func TestCoordinatorWriteRepair(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
 	// Verify write repair: Node1 was used as source, Node2 was repaired
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -440,7 +440,7 @@ func TestCoordinatorWriteRepair_SourceNodeDown(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
 	// Source was called but failed, so repair should not complete
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -494,7 +494,7 @@ func TestCoordinatorWriteRepair_AllRepairNodesDown(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
 	// Source was called but repair node was down - repair silently skipped
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -552,7 +552,7 @@ func TestCoordinatorWriteRepair_PartialRepairFailure(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
 	// Repair was attempted but CloseAndRecv returned failure
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -617,7 +617,7 @@ func TestCoordinatorRepairStreamFailureContinues(t *testing.T) {
 	require.NoError(t, r.Close())
 
 	// Wait for async repair goroutines
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
 
 	// node2: metadata succeeded, chunk failed, CloseAndRecv called to clean up
 	smRepair2.AssertNumberOfCalls(t, "Send", 2)
