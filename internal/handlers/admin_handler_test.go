@@ -120,6 +120,18 @@ func (m *mockAdminComputeFull) DeleteSnapshot(ctx context.Context, id, name stri
 	args := m.Called(ctx, id, name)
 	return args.Error(0)
 }
+func (m *mockAdminComputeFull) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	args := m.Called(ctx, opts)
+	return args.String(0), args.Get(1).([]string), args.Error(2)
+}
+func (m *mockAdminComputeFull) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	args := m.Called(ctx, id, cmd)
+	return args.String(0), args.Error(1)
+}
+func (m *mockAdminComputeFull) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	args := m.Called(ctx, id)
+	return args.Bool(0), args.Error(1)
+}
 
 const adminPath = "/admin/reset-circuit-breakers"
 
@@ -197,7 +209,16 @@ func (c *computeNoOpReset) ResizeInstance(ctx context.Context, id string, cpu, m
 func (c *computeNoOpReset) CreateSnapshot(ctx context.Context, id, name string) error  { return nil }
 func (c *computeNoOpReset) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
 func (c *computeNoOpReset) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
-func (c *computeNoOpReset) ResetCircuitBreaker()                                       {}
+func (c *computeNoOpReset) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	return "", nil, nil
+}
+func (c *computeNoOpReset) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
+func (c *computeNoOpReset) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	return true, nil
+}
+func (c *computeNoOpReset) ResetCircuitBreaker() {}
 
 // TestAdminHandlerResetCircuitBreakers_NopImplementation verifies that when
 // ResetCircuitBreaker is a no-op (backend doesn't support reset), the handler
