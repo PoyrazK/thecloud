@@ -163,6 +163,118 @@ func (s *iamService) GetPoliciesForServiceAccount(ctx context.Context, saID uuid
 	return s.repo.GetPoliciesForServiceAccount(ctx, tenantID, saID)
 }
 
+// Group Management
+
+func (s *iamService) CreateGroup(ctx context.Context, group *domain.Group) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if group.ID == uuid.Nil {
+		group.ID = uuid.New()
+	}
+	group.TenantID = tenantID
+	if err := s.repo.CreateGroup(ctx, tenantID, group); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_GROUP_CREATE", group.ID.String(), "GROUP", map[string]interface{}{"name": group.Name}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_GROUP_CREATE", "group_id", group.ID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) GetGroupByID(ctx context.Context, id uuid.UUID) (*domain.Group, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetGroupByID(ctx, tenantID, id)
+}
+
+func (s *iamService) ListGroups(ctx context.Context) ([]*domain.Group, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.ListGroups(ctx, tenantID)
+}
+
+func (s *iamService) UpdateGroup(ctx context.Context, group *domain.Group) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.UpdateGroup(ctx, tenantID, group); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_GROUP_UPDATE", group.ID.String(), "GROUP", map[string]interface{}{"name": group.Name}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_GROUP_UPDATE", "group_id", group.ID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) DeleteGroup(ctx context.Context, id uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.DeleteGroup(ctx, tenantID, id); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_GROUP_DELETE", id.String(), "GROUP", nil); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_GROUP_DELETE", "group_id", id, "error", err)
+	}
+	return nil
+}
+
+// Group Membership
+
+func (s *iamService) AddUserToGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.AddUserToGroup(ctx, tenantID, userID, groupID); err != nil {
+		return err
+	}
+	if err := s.auditSvc.Log(ctx, userID, "iam.add_to_group", "user", userID.String(), map[string]interface{}{"group_id": groupID}); err != nil {
+		s.logger.Warn("failed to log audit event", "action", "iam.add_to_group", "user_id", userID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) RemoveUserFromGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.RemoveUserFromGroup(ctx, tenantID, userID, groupID); err != nil {
+		return err
+	}
+	if err := s.auditSvc.Log(ctx, userID, "iam.remove_from_group", "user", userID.String(), map[string]interface{}{"group_id": groupID}); err != nil {
+		s.logger.Warn("failed to log audit event", "action", "iam.remove_from_group", "user_id", userID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) GetGroupsForUser(ctx context.Context, userID uuid.UUID) ([]*domain.Group, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetGroupsForUser(ctx, tenantID, userID)
+}
+
+func (s *iamService) GetUsersInGroup(ctx context.Context, groupID uuid.UUID) ([]uuid.UUID, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetUsersInGroup(ctx, tenantID, groupID)
+}
+
+// Group Policy Assignment
+
+func (s *iamService) AttachPolicyToGroup(ctx context.Context, groupID uuid.UUID, policyID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.AttachPolicyToGroup(ctx, tenantID, groupID, policyID); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_ATTACH_GROUP", policyID.String(), "POLICY", map[string]interface{}{"group_id": groupID.String()}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_ATTACH_GROUP", "policy_id", policyID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) DetachPolicyFromGroup(ctx context.Context, groupID uuid.UUID, policyID uuid.UUID) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	if err := s.repo.DetachPolicyFromGroup(ctx, tenantID, groupID, policyID); err != nil {
+		return err
+	}
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_DETACH_GROUP", policyID.String(), "POLICY", map[string]interface{}{"group_id": groupID.String()}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_DETACH_GROUP", "policy_id", policyID, "error", err)
+	}
+	return nil
+}
+
+func (s *iamService) GetPoliciesForGroup(ctx context.Context, groupID uuid.UUID) ([]*domain.Policy, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetPoliciesForGroup(ctx, tenantID, groupID)
+}
+
 func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Principal, actions []string, resources []string, evalCtx map[string]interface{}) (*ports.SimulateResult, error) {
 	const maxSimulatePairs = 100
 	if len(actions)*len(resources) > maxSimulatePairs {
