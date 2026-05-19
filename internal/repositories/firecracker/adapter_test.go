@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
@@ -527,4 +528,3 @@ func TestFirecrackerAdapter_AttachVolume_RealMode_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
->>>>>>> 9793fd1a (test(firecracker): add E2E and unit test coverage for new capabilities)
