@@ -544,12 +544,32 @@ func TestIAMEvaluator_MatchPattern(t *testing.T) {
 		target  string
 		want    bool
 	}{
+		// Existing tests
 		{"*", "anything", true},
 		{"instance:*", "instance:launch", true},
 		{"instance:*", "instance:stop", true},
 		{"instance:*", "other:launch", false},
 		{"instance:launch", "instance:launch", true},
 		{"instance:launch", "instance:stop", false},
+		// Mid-string wildcard tests (Issue #512)
+		{"*:launch", "instance:launch", true},
+		{"*:launch", "func:launch", true},
+		{"*:launch", "instance:stop", false},
+		{"compute:*:instance", "compute:us-east-1:instance", true},
+		{"compute:*:instance", "compute:eu-west-2:instance", true},
+		{"compute:*:instance", "compute:instance", false},
+		{"compute:*:instance", "compute:region:other", false},
+		// Single character wildcard
+		{"instance:run-?", "instance:run-1", true},
+		{"instance:run-?", "instance:run-a", true},
+		{"instance:run-?", "instance:run-ab", false},
+		{"?:launch", "a:launch", true},
+		{"?:launch", "ab:launch", false},
+		// Complex patterns
+		{"*:instance:*", "compute:instance:us-east-1", true},
+		{"*:instance:*", "compute:instance", false},
+		{"*-*-*", "us-east-1", true},
+		{"*-*-*", "us-east", false},
 	}
 
 	for _, tt := range tests {
