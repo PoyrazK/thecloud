@@ -225,3 +225,57 @@ func (s *iamService) SimulatePolicy(ctx context.Context, principal ports.Princip
 
 	return result, nil
 }
+
+func (s *iamService) ListPolicyVersions(ctx context.Context, policyID uuid.UUID) ([]*domain.PolicyVersion, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.ListPolicyVersions(ctx, tenantID, policyID)
+}
+
+func (s *iamService) GetPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) (*domain.PolicyVersion, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	return s.repo.GetPolicyVersion(ctx, tenantID, policyID, versionNumber)
+}
+
+func (s *iamService) RollbackPolicyVersion(ctx context.Context, policyID uuid.UUID, versionNumber int) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	// Fetch the version to restore
+	pv, err := s.repo.GetPolicyVersion(ctx, tenantID, policyID, versionNumber)
+	if err != nil {
+		return err
+	}
+
+	// Get max version to determine new version number
+	versions, err := s.repo.ListPolicyVersions(ctx, tenantID, policyID)
+	if err != nil {
+		return err
+	}
+	maxVersion := 0
+	if len(versions) > 0 {
+		maxVersion = versions[0].VersionNumber
+	}
+
+	// Create a new version with the same content as the rollback target
+	newVersion := &domain.PolicyVersion{
+		ID:            uuid.New(),
+		PolicyID:      policyID,
+		VersionNumber: maxVersion + 1,
+		Name:          pv.Name,
+		Description:   pv.Description,
+		Statements:    pv.Statements,
+	}
+
+	// SyncPolicyCurrentState handles both inserting the version row
+	// and updating the policies table for fast lookups.
+	if err := s.repo.SyncPolicyCurrentState(ctx, tenantID, newVersion); err != nil {
+		return err
+	}
+
+	if err := s.eventSvc.RecordEvent(ctx, "IAM_POLICY_ROLLBACK", policyID.String(), "POLICY", map[string]interface{}{
+		"rolled_back_to_version": versionNumber,
+		"new_version":            newVersion.VersionNumber,
+	}); err != nil {
+		s.logger.Warn("failed to record event", "action", "IAM_POLICY_ROLLBACK", "policy_id", policyID, "error", err)
+	}
+	return nil
+}

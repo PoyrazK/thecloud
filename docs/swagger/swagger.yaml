@@ -1284,6 +1284,27 @@ definitions:
     x-enum-varnames:
     - EffectAllow
     - EffectDeny
+  domain.PolicyVersion:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      policy_id:
+        type: string
+      statements:
+        items:
+          $ref: '#/definitions/domain.Statement'
+        type: array
+      version_number:
+        type: integer
+    type: object
   domain.RecordType:
     enum:
     - A
@@ -5108,6 +5129,128 @@ paths:
       security:
       - APIKeyAuth: []
       summary: Update IAM Policy
+      tags:
+      - iam
+  /iam/policies/{id}/rollback/{version}:
+    post:
+      description: Restore a policy to a specific historical version by creating a
+        new version with the old content.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version Number to Rollback To
+        in: path
+        name: version
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Rollback Policy Version
+      tags:
+      - iam
+  /iam/policies/{id}/versions:
+    get:
+      description: List all historical versions of a specific IAM policy.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputil.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.PolicyVersion'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: List Policy Versions
+      tags:
+      - iam
+  /iam/policies/{id}/versions/{version}:
+    get:
+      description: Get a specific historical version of an IAM policy.
+      parameters:
+      - description: Policy ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Version Number
+        in: path
+        name: version
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/httputil.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.PolicyVersion'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httputil.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.Response'
+      security:
+      - APIKeyAuth: []
+      summary: Get Policy Version
       tags:
       - iam
   /iam/service-accounts:
