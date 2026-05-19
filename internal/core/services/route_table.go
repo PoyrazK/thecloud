@@ -209,7 +209,7 @@ func (s *RouteTableService) AddRoute(ctx context.Context, rtID uuid.UUID, destin
 	}
 	// For NAT routes, forward to the NAT gateway's veth interface
 	if targetType == domain.RouteTargetNAT && targetID != nil {
-		natVethName := fmt.Sprintf("nat-%s", targetID.String()[:8])
+		natVethName := natVethName(*targetID)
 		flow.Actions = fmt.Sprintf("output:%s", natVethName)
 	} else {
 		flow.Actions = "NORMAL"

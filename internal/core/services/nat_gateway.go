@@ -19,6 +19,11 @@ import (
 
 const natGatewayTracer = "nat-gateway-service"
 
+// natVethName returns the veth interface name for a NAT gateway.
+func natVethName(natID uuid.UUID) string {
+	return fmt.Sprintf("nat-%s", natID.String()[:8])
+}
+
 // NATGatewayService manages the lifecycle of NAT Gateways.
 type NATGatewayService struct {
 	repo       ports.NATGatewayRepository
@@ -142,7 +147,7 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 	}
 
 	// Setup NAT via NetworkBackend
-	natVethEnd := fmt.Sprintf("nat-%s", natID.String()[:8])
+	natVethEnd := natVethName(natID)
 	if err := s.network.SetupNATForSubnet(ctx, vpc.NetworkID, natVethEnd, subnet.CIDRBlock, eip.PublicIP); err != nil {
 		s.logger.Error("failed to setup NAT", "nat_id", natID, "error", err)
 		// Update NAT status to failed
@@ -158,6 +163,7 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 	}
 
 	// Auto-add catch-all route to main route table for outbound traffic
+	// This allows private subnet instances to reach the internet via this NAT gateway
 	if s.rtRepo != nil {
 		if mainRT, err := s.rtRepo.GetMainByVPC(ctx, vpc.ID); err == nil {
 			defaultRoute := &domain.Route{
@@ -166,7 +172,7 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 				DestinationCIDR: "0.0.0.0/0",
 				TargetType:      domain.RouteTargetNAT,
 				TargetID:        &natID,
-				TargetName:      fmt.Sprintf("nat-%s", natID.String()[:8]),
+				TargetName:      natVethName(natID),
 				CreatedAt:       time.Now().UTC(),
 			}
 			if err := s.rtRepo.AddRoute(ctx, mainRT.ID, defaultRoute); err != nil {
@@ -252,7 +258,7 @@ func (s *NATGatewayService) DeleteNATGateway(ctx context.Context, natID uuid.UUI
 	}
 
 	// Remove NAT setup
-	natVethEnd := fmt.Sprintf("nat-%s", natID.String()[:8])
+	natVethEnd := natVethName(natID)
 	if err := s.network.RemoveNATForSubnet(ctx, vpc.NetworkID, natVethEnd, subnet.CIDRBlock, eip.PublicIP); err != nil {
 		return errors.Wrap(errors.Internal, "failed to remove NAT setup", err)
 	}
