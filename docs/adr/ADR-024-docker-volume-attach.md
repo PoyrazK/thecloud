@@ -99,7 +99,8 @@ The `VolumeService` was updated to:
 - Not a true hot-attach solution (acceptable for short-term)
 
 ### Neutral
-- Libvirt/Firecracker backends return empty string for new container ID (they support true hot-attach)
+- Libvirt backend returns empty string for new container ID (supports true hot-attach via `virDomainAttachDeviceFlags`)
+- Firecracker backend returns `NotImplemented` — Firecracker does not support hot-attach; full support would require VM recreation (stop → recreate with extra drive → start)
 - The `VolumeService` now has additional dependencies (`Compute`, `InstanceRepo`)
 
 ---
