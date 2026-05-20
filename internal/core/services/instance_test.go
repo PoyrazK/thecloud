@@ -742,7 +742,7 @@ func TestInstanceServiceLaunchEnqueueFailure(t *testing.T) {
 		Repo:    postgres.NewAuditRepository(db),
 		RBACSvc: rbacSvc,
 	})
-	
+
 	// Create a task queue that fails
 	taskQueue := &InMemoryTaskQueue{ShouldFail: true}
 
@@ -809,4 +809,3 @@ func TestInstanceServiceLaunchEnqueueFailure(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, instOpts)
 }
-
