@@ -47,13 +47,17 @@ func (r *FaultyInstanceRepository) Create(ctx context.Context, instance *domain.
 }
 
 type InMemoryTaskQueue struct {
-	jobs []string
-	mu   sync.Mutex
+	jobs       []string
+	mu         sync.Mutex
+	ShouldFail bool
 }
 
 func (q *InMemoryTaskQueue) Enqueue(ctx context.Context, queueName string, payload interface{}) error {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if q.ShouldFail {
+		return fmt.Errorf("simulated enqueue failure")
+	}
 	q.jobs = append(q.jobs, fmt.Sprintf("%v", payload))
 	return nil
 }
@@ -334,7 +338,7 @@ func TestInstanceServiceLaunchDBFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "simulated database failure")
 
 	// Verify no junk in DB (using real repo to check)
-	list, err := realRepo.List(ctx)
+	list, err := realRepo.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, list)
 }
@@ -413,7 +417,7 @@ func TestInstanceServiceLaunchConcurrency(t *testing.T) {
 	}
 
 	// Verify all created
-	list, err := repo.List(ctx)
+	list, err := repo.List(ctx, nil)
 	require.NoError(t, err)
 	assert.Len(t, list, concurrency)
 
@@ -709,3 +713,100 @@ func TestLaunchInstanceWithOptions(t *testing.T) {
 		_ = compute.DeleteInstance(ctx, inst.ContainerID)
 	}
 }
+
+func TestInstanceServiceLaunchEnqueueFailure(t *testing.T) {
+	db := setupDB(t)
+	ctx := setupTestUser(t, db)
+
+	repo := postgres.NewInstanceRepository(db)
+	vpcRepo := postgres.NewVpcRepository(db)
+	subnetRepo := postgres.NewSubnetRepository(db)
+	volumeRepo := postgres.NewVolumeRepository(db)
+	itRepo := postgres.NewInstanceTypeRepository(db)
+
+	compute := noop.NewNoopComputeBackend()
+
+	defaultType := &domain.InstanceType{ID: testInstanceType, Name: "Basic 2", VCPUs: 1, MemoryMB: 128, DiskGB: 1}
+	_, _ = itRepo.Create(ctx, defaultType)
+
+	rbacSvc := new(MockRBACService)
+	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	eventSvc := services.NewEventService(services.EventServiceParams{
+		Repo:      postgres.NewEventRepository(db),
+		RBACSvc:   rbacSvc,
+		Publisher: nil,
+		Logger:    slog.Default(),
+	})
+	auditSvc := services.NewAuditService(services.AuditServiceParams{
+		Repo:    postgres.NewAuditRepository(db),
+		RBACSvc: rbacSvc,
+	})
+	
+	// Create a task queue that fails
+	taskQueue := &InMemoryTaskQueue{ShouldFail: true}
+
+	sshKeySvc, err := services.NewSSHKeyService(services.SSHKeyServiceParams{
+		Repo:    postgres.NewSSHKeyRepo(db),
+		RBACSvc: rbacSvc,
+	})
+	require.NoError(t, err)
+
+	tenantSvc := services.NewTenantService(services.TenantServiceParams{
+		Repo:     postgres.NewTenantRepo(db),
+		UserRepo: postgres.NewUserRepo(db),
+		RBACSvc:  rbacSvc,
+		Logger:   slog.Default(),
+	})
+
+	svc := services.NewInstanceService(services.InstanceServiceParams{
+		Repo:             repo,
+		VpcRepo:          vpcRepo,
+		SubnetRepo:       subnetRepo,
+		VolumeRepo:       volumeRepo,
+		InstanceTypeRepo: itRepo,
+		RBAC:             rbacSvc,
+		Compute:          compute,
+		EventSvc:         eventSvc,
+		AuditSvc:         auditSvc,
+		TaskQueue:        taskQueue,
+		Logger:           slog.Default(),
+		TenantSvc:        tenantSvc,
+		SSHKeySvc:        sshKeySvc,
+	})
+
+	// Attempt LaunchInstance
+	name := "enqueue-fail-integration"
+	_, err = svc.LaunchInstance(ctx, coreports.LaunchParams{
+		Name:         name,
+		Image:        testImage,
+		InstanceType: testInstanceType,
+	})
+
+	// Verify Failure
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to enqueue provisioning task")
+
+	// Verify instance not in DB
+	inst, err := repo.GetByName(ctx, name)
+	require.Error(t, err)
+	assert.Nil(t, inst)
+
+	// Attempt LaunchInstanceWithOptions
+	optsName := "enqueue-fail-opts-integration"
+	opts := coreports.CreateInstanceOptions{
+		Name:      optsName,
+		ImageName: testImage,
+	}
+	_, err = svc.LaunchInstanceWithOptions(ctx, opts)
+
+	// Verify Failure
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to enqueue provisioning task")
+
+	// Verify instance not in DB
+	instOpts, err := repo.GetByName(ctx, optsName)
+	require.Error(t, err)
+	assert.Nil(t, instOpts)
+}
+
