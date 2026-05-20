@@ -181,13 +181,23 @@ func (s *VolumeService) DeleteVolume(ctx context.Context, idOrName string) error
 		return errors.New(errors.InvalidInput, "cannot delete volume that is in use")
 	}
 
-	// 1. Delete Storage Volume
+	// 1. Transition to DELETING status in DB if not already deleting
+	if vol.Status != domain.VolumeStatusDeleting {
+		vol.Status = domain.VolumeStatusDeleting
+		vol.UpdatedAt = time.Now()
+		if err := s.repo.Update(ctx, vol); err != nil {
+			return err
+		}
+	}
+
+	// 2. Delete Storage Volume
 	backendName := FormatBackendVolumeName(vol.ID)
 	if err := s.storage.DeleteVolume(ctx, backendName); err != nil {
 		s.logger.Warn("failed to delete storage volume", "name", backendName, "error", err)
+		return errors.Wrap(errors.Internal, "failed to delete physical storage volume", err)
 	}
 
-	// 2. Delete from DB
+	// 3. Delete from DB
 	if err := s.repo.Delete(ctx, vol.ID); err != nil {
 		return err
 	}
@@ -221,6 +231,10 @@ func (s *VolumeService) ResizeVolume(ctx context.Context, idOrName string, newSi
 	vol, err := s.GetVolume(ctx, idOrName)
 	if err != nil {
 		return err
+	}
+
+	if vol.Status == domain.VolumeStatusDeleting {
+		return errors.New(errors.Conflict, "cannot resize a volume that is being deleted")
 	}
 
 	if newSizeGB <= vol.SizeGB {
@@ -270,6 +284,14 @@ func (s *VolumeService) AttachVolume(ctx context.Context, volumeID string, insta
 
 	if vol.Status == domain.VolumeStatusInUse {
 		return "", errors.New(errors.Conflict, "volume is already attached to an instance")
+	}
+
+	if vol.Status == domain.VolumeStatusDeleting {
+		return "", errors.New(errors.Conflict, "cannot attach a volume that is being deleted")
+	}
+
+	if vol.Status != domain.VolumeStatusAvailable {
+		return "", errors.New(errors.Conflict, "volume is not in AVAILABLE status")
 	}
 
 	instUUID, err := uuid.Parse(instanceID)
