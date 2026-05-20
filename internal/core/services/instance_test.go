@@ -727,7 +727,8 @@ func TestInstanceServiceLaunchEnqueueFailure(t *testing.T) {
 	compute := noop.NewNoopComputeBackend()
 
 	defaultType := &domain.InstanceType{ID: testInstanceType, Name: "Basic 2", VCPUs: 1, MemoryMB: 128, DiskGB: 1}
-	_, _ = itRepo.Create(ctx, defaultType)
+	_, err := itRepo.Create(ctx, defaultType)
+	require.NoError(t, err)
 
 	rbacSvc := new(MockRBACService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
