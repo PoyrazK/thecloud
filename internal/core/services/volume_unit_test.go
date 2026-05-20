@@ -163,6 +163,45 @@ func TestVolumeServiceUnit(t *testing.T) {
 				setup: func() {
 					vol := &domain.Volume{ID: volID, Status: domain.VolumeStatusAvailable, UserID: userID, SizeGB: 10}
 					mockRepo.On("GetByID", mock.Anything, volID).Return(vol, nil).Once()
+					mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(v *domain.Volume) bool {
+						return v.Status == domain.VolumeStatusDeleting
+					})).Return(nil).Once()
+					mockStorage.On("DeleteVolume", mock.Anything, mock.Anything).Return(nil).Once()
+					mockRepo.On("Delete", mock.Anything, volID).Return(nil).Once()
+					mockEventSvc.On("RecordEvent", mock.Anything, "VOLUME_DELETE", volID.String(), "VOLUME", mock.Anything).Return(nil).Once()
+					mockAuditSvc.On("Log", mock.Anything, userID, "volume.delete", "volume", volID.String(), mock.Anything).Return(nil).Once()
+				},
+				wantError: false,
+			},
+			{
+				name:     "Storage Delete Failure",
+				idOrName: volID.String(),
+				setup: func() {
+					vol := &domain.Volume{ID: volID, Status: domain.VolumeStatusAvailable, UserID: userID, SizeGB: 10}
+					mockRepo.On("GetByID", mock.Anything, volID).Return(vol, nil).Once()
+					mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(v *domain.Volume) bool {
+						return v.Status == domain.VolumeStatusDeleting
+					})).Return(nil).Once()
+					mockStorage.On("DeleteVolume", mock.Anything, mock.Anything).Return(errors.New("storage fail")).Once()
+				},
+				wantError: true,
+			},
+			{
+				name:     "Update DB Failure",
+				idOrName: volID.String(),
+				setup: func() {
+					vol := &domain.Volume{ID: volID, Status: domain.VolumeStatusAvailable, UserID: userID, SizeGB: 10}
+					mockRepo.On("GetByID", mock.Anything, volID).Return(vol, nil).Once()
+					mockRepo.On("Update", mock.Anything, mock.Anything).Return(errors.New("update fail")).Once()
+				},
+				wantError: true,
+			},
+			{
+				name:     "Already Deleting Success",
+				idOrName: volID.String(),
+				setup: func() {
+					vol := &domain.Volume{ID: volID, Status: domain.VolumeStatusDeleting, UserID: userID, SizeGB: 10}
+					mockRepo.On("GetByID", mock.Anything, volID).Return(vol, nil).Once()
 					mockStorage.On("DeleteVolume", mock.Anything, mock.Anything).Return(nil).Once()
 					mockRepo.On("Delete", mock.Anything, volID).Return(nil).Once()
 					mockEventSvc.On("RecordEvent", mock.Anything, "VOLUME_DELETE", volID.String(), "VOLUME", mock.Anything).Return(nil).Once()
@@ -295,6 +334,15 @@ func TestVolumeServiceUnit(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "must be larger")
 		})
+
+		t.Run("VolumeDeleting", func(t *testing.T) {
+			vol := &domain.Volume{ID: volID, Status: domain.VolumeStatusDeleting}
+			mockRepo.On("GetByID", mock.Anything, volID).Return(vol, nil).Once()
+
+			err := svc.ResizeVolume(ctx, volID.String(), 20)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "being deleted")
+		})
 	})
 
 	t.Run("AttachErrors", func(t *testing.T) {
@@ -306,6 +354,15 @@ func TestVolumeServiceUnit(t *testing.T) {
 			_, err := svc.AttachVolume(ctx, volID.String(), uuid.New().String(), "/mnt")
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "already attached")
+		})
+
+		t.Run("VolumeDeleting", func(t *testing.T) {
+			vol := &domain.Volume{ID: volID, Status: domain.VolumeStatusDeleting}
+			mockRepo.On("GetByID", mock.Anything, volID).Return(vol, nil).Once()
+
+			_, err := svc.AttachVolume(ctx, volID.String(), uuid.New().String(), "/mnt")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "being deleted")
 		})
 
 		t.Run("InvalidInstanceID", func(t *testing.T) {
