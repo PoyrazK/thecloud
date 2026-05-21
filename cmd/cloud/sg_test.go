@@ -53,16 +53,24 @@ func TestSGCommands(t *testing.T) {
 func TestResolveSGIDByName(t *testing.T) {
 	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/security-groups" {
-			w.WriteHeader(http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/vpcs" {
+			_ = json.NewEncoder(w).Encode(sdk.Response[[]sdk.VPC]{
+				Data: []sdk.VPC{
+					{ID: "vpc-1", Name: "my-vpc"},
+				},
+			})
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(sdk.Response[[]sdk.SecurityGroup]{
-			Data: []sdk.SecurityGroup{
-				{ID: "uuid-sg-1", Name: "my-sg", VPCID: "vpc-1", ARN: "arn:cloud:sg:1"},
-			},
-		})
+		if r.URL.Path == "/security-groups" && r.URL.Query().Get("vpc_id") == "vpc-1" {
+			_ = json.NewEncoder(w).Encode(sdk.Response[[]sdk.SecurityGroup]{
+				Data: []sdk.SecurityGroup{
+					{ID: "uuid-sg-1", Name: "my-sg", VPCID: "vpc-1", ARN: "arn:cloud:sg:1"},
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer server.Close()
 

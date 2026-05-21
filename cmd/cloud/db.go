@@ -74,11 +74,6 @@ var dbCreateCmd = &cobra.Command{
 		vpc, _ := cmd.Flags().GetString("vpc")
 		size, _ := cmd.Flags().GetInt("size")
 
-		if size < 10 {
-			fmt.Printf(errorFormat, "--size must be at least 10GB")
-			return
-		}
-
 		var vpcPtr *string
 		if vpc != "" {
 			vpcPtr = &vpc

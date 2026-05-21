@@ -52,10 +52,10 @@ var secretsListCmd = &cobra.Command{
 var secretsCreateCmd = &cobra.Command{
 	Use:   "create [name] [value]",
 	Short: "Store a new encrypted secret",
-	Args:  cobra.ExactArgs(2),
+Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		name := args[0]
-		value := args[1]
+		name, _ := cmd.Flags().GetString("name")
+		value, _ := cmd.Flags().GetString("value")
 		desc, _ := cmd.Flags().GetString("description")
 
 		client := createClient(opts)
