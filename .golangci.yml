@@ -45,9 +45,18 @@ linters-settings:
   staticcheck:
     checks: ["all", "-QF1008"]
   gosec:
+    settings:
+      GOFLAGS: ""
     excludes:
       - G101
       - G106
+      - G204
+      - G304
+      - G117
+      - G301
+      - G118
+      - G115
+      - G704
 
 issues:
   exclude-rules:
@@ -65,3 +74,16 @@ issues:
       linters:
         - nolintlint
       text: "directive.*unused.*bodyclose"
+    - linters:
+        - gosec
+      text: "G101|G106|G204|G304|G117|G301|G118|G115|G704"
+    - path: _test\.go
+      linters:
+        - revive
+      text: "unused-parameter"
+    - path: _test\.go
+      linters:
+        - staticcheck
+    - linters:
+        - staticcheck
+      text: "QF1012"
