@@ -81,38 +81,6 @@ issues:
       linters:
         - nolintlint
       text: "directive.*unused.*bodyclose"
-    - path: cmd/cloud/secrets\.go
-      linters:
-        - gosec
-      text: "G101"
-    - path: cmd/cloud/kubernetes_test\.go
-      linters:
-        - gosec
-      text: "G101"
-    - path: cmd/cloud/instance\.go
-      linters:
-        - gosec
-      text: "G204"
-    - path: cmd/cloud/iam\.go
-      linters:
-        - gosec
-      text: "G304"
-    - path: cmd/cloud/config\.go
-      linters:
-        - gosec
-      text: "G301|G304"
-    - path: internal/repositories/firecracker/adapter\.go
-      linters:
-        - gosec
-      text: "G301"
-    - path: internal/csi/driver_test\.go
-      linters:
-        - gosec
-      text: "G204"
-    - path: internal/repositories/libvirt/adapter_unit_test\.go
-      linters:
-        - gosec
-      text: "G204"
     - linters:
         - staticcheck
       text: "QF1012"
