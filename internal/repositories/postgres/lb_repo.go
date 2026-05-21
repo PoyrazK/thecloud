@@ -38,47 +38,47 @@ func (r *LBRepository) Create(ctx context.Context, lb *domain.LoadBalancer) erro
 }
 
 func (r *LBRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.LoadBalancer, error) {
-	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
-		WHERE id = $1 AND user_id = $2
+		WHERE id = $1 AND tenant_id = $2
 	`
-	return r.scanLB(r.db.QueryRow(ctx, query, id, userID))
+	return r.scanLB(r.db.QueryRow(ctx, query, id, tenantID))
 }
 
 func (r *LBRepository) GetByName(ctx context.Context, name string) (*domain.LoadBalancer, error) {
-	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
-		WHERE name = $1 AND user_id = $2
+		WHERE name = $1 AND tenant_id = $2
 	`
-	return r.scanLB(r.db.QueryRow(ctx, query, name, userID))
+	return r.scanLB(r.db.QueryRow(ctx, query, name, tenantID))
 }
 
 func (r *LBRepository) GetByIdempotencyKey(ctx context.Context, key string) (*domain.LoadBalancer, error) {
 	if key == "" {
 		return nil, errors.New(errors.NotFound, "idempotency key empty")
 	}
-	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		SELECT id, user_id, idempotency_key, name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
-		WHERE idempotency_key = $1 AND user_id = $2
+		WHERE idempotency_key = $1 AND tenant_id = $2
 	`
-	return r.scanLB(r.db.QueryRow(ctx, query, key, userID))
+	return r.scanLB(r.db.QueryRow(ctx, query, key, tenantID))
 }
 
 func (r *LBRepository) List(ctx context.Context) ([]*domain.LoadBalancer, error) {
-	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
-		WHERE user_id = $1
+		WHERE tenant_id = $1
 		ORDER BY created_at DESC
 	`
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list load balancers", err)
 	}
@@ -143,12 +143,13 @@ func (r *LBRepository) scanLBs(rows pgx.Rows) ([]*domain.LoadBalancer, error) {
 }
 
 func (r *LBRepository) Update(ctx context.Context, lb *domain.LoadBalancer) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		UPDATE load_balancers
 		SET name = $1, port = $2, algorithm = $3, ip = $4, status = $5, version = version + 1
-		WHERE id = $6 AND version = $7 AND user_id = $8
+		WHERE id = $6 AND version = $7 AND tenant_id = $8
 	`
-	cmd, err := r.db.Exec(ctx, query, lb.Name, lb.Port, lb.Algorithm, lb.IP, lb.Status, lb.ID, lb.Version, lb.UserID)
+	cmd, err := r.db.Exec(ctx, query, lb.Name, lb.Port, lb.Algorithm, lb.IP, lb.Status, lb.ID, lb.Version, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to update load balancer", err)
 	}
@@ -160,9 +161,9 @@ func (r *LBRepository) Update(ctx context.Context, lb *domain.LoadBalancer) erro
 }
 
 func (r *LBRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	userID := appcontext.UserIDFromContext(ctx)
-	query := `DELETE FROM load_balancers WHERE id = $1 AND user_id = $2`
-	cmd, err := r.db.Exec(ctx, query, id, userID)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `DELETE FROM load_balancers WHERE id = $1 AND tenant_id = $2`
+	cmd, err := r.db.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete load balancer", err)
 	}
@@ -188,8 +189,13 @@ func (r *LBRepository) AddTarget(ctx context.Context, target *domain.LBTarget) e
 }
 
 func (r *LBRepository) RemoveTarget(ctx context.Context, lbID, instanceID uuid.UUID) error {
-	query := `DELETE FROM lb_targets WHERE lb_id = $1 AND instance_id = $2`
-	cmd, err := r.db.Exec(ctx, query, lbID, instanceID)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `
+		DELETE FROM lb_targets
+		WHERE lb_id = $1 AND instance_id = $2
+		AND lb_id IN (SELECT id FROM load_balancers WHERE tenant_id = $3)
+	`
+	cmd, err := r.db.Exec(ctx, query, lbID, instanceID, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to remove load balancer target", err)
 	}
@@ -200,12 +206,13 @@ func (r *LBRepository) RemoveTarget(ctx context.Context, lbID, instanceID uuid.U
 }
 
 func (r *LBRepository) ListTargets(ctx context.Context, lbID uuid.UUID) ([]*domain.LBTarget, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, lb_id, instance_id, port, weight, health
-		FROM lb_targets
-		WHERE lb_id = $1
+		SELECT t.id, t.lb_id, t.instance_id, t.port, t.weight, t.health
+		FROM lb_targets t
+		WHERE t.lb_id = $1 AND t.lb_id IN (SELECT id FROM load_balancers WHERE tenant_id = $2)
 	`
-	rows, err := r.db.Query(ctx, query, lbID)
+	rows, err := r.db.Query(ctx, query, lbID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list load balancer targets", err)
 	}
@@ -213,12 +220,14 @@ func (r *LBRepository) ListTargets(ctx context.Context, lbID uuid.UUID) ([]*doma
 }
 
 func (r *LBRepository) UpdateTargetHealth(ctx context.Context, lbID, instanceID uuid.UUID, health string) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		UPDATE lb_targets
 		SET health = $1
 		WHERE lb_id = $2 AND instance_id = $3
+		AND lb_id IN (SELECT id FROM load_balancers WHERE tenant_id = $4)
 	`
-	_, err := r.db.Exec(ctx, query, health, lbID, instanceID)
+	_, err := r.db.Exec(ctx, query, health, lbID, instanceID, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to update target health", err)
 	}
