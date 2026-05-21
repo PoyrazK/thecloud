@@ -2,6 +2,8 @@
 package httphandlers
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/errors"
@@ -50,6 +52,12 @@ func getBucketAndKeyRequired(c *gin.Context) (bucket, key string, ok bool) {
 	key = c.Param("key")
 	if key == "" {
 		httputil.Error(c, errors.New(errors.InvalidInput, "key is required"))
+		return "", "", false
+	}
+
+	// Prevent path traversal attacks (e.g., "../../../etc/passwd")
+	if strings.Contains(key, "..") {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid key"))
 		return "", "", false
 	}
 
