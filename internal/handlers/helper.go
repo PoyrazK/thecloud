@@ -56,7 +56,7 @@ func getBucketAndKeyRequired(c *gin.Context) (bucket, key string, ok bool) {
 	}
 
 	// Prevent path traversal attacks (e.g., "../../../etc/passwd")
-	if strings.Contains(key, "..") {
+	if strings.Contains(key, "..") || strings.Contains(key, "/") || strings.Contains(key, "\\") {
 		httputil.Error(c, errors.New(errors.InvalidInput, "invalid key"))
 		return "", "", false
 	}
