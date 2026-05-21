@@ -172,12 +172,12 @@ func TestDriver_ControllerServer(t *testing.T) {
 		}
 		if r.Method == "POST" && r.URL.Path == "/volumes/83adaa62-ddb6-48ad-8a6b-b8e4816735e3/attach" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": {"device_path": "/dev/vdb"}}`))
+			_, _ = w.Write([]byte(`{"data": {"device_path": "/dev/vdb"}}`))
 			return
 		}
 		if r.Method == "POST" && r.URL.Path == "/volumes/83adaa62-ddb6-48ad-8a6b-b8e4816735e3/detach" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": "success"}`))
+			_, _ = w.Write([]byte(`{"data": "success"}`))
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -257,7 +257,7 @@ func TestDriver_ControllerServer(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": {"id": "inst-123"}}`))
+			_, _ = w.Write([]byte(`{"data": {"id": "inst-123"}}`))
 		}))
 		defer errorServer.Close()
 		errD := NewDriver("t", "1", "n", "u", sdk.NewClient(errorServer.URL, "k"), slog.Default())

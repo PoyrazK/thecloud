@@ -1423,8 +1423,8 @@ func (a *LibvirtAdapter) ExecInInstance(ctx context.Context, id string, cmd []st
 	if err != nil {
 		return "", fmt.Errorf("failed to open console: %w", err)
 	}
-	defer reader.Close()
-	defer writer.Close()
+	defer func() { _ = reader.Close() }()
+	defer func() { _ = writer.Close() }()
 
 	// Send the command followed by newline
 	cmdLine := strings.Join(cmd, " ") + "\n"

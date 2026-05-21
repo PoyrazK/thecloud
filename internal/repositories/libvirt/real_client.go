@@ -308,8 +308,8 @@ func (r *RealLibvirtClient) DomainOpenConsole(ctx context.Context, dom libvirt.D
 	// Pass the write end to DomainOpenConsole - console data goes to this writer
 	err = r.conn.DomainOpenConsole(dom, devNameOpt, writer, uint32(flags))
 	if err != nil {
-		reader.Close()
-		writer.Close()
+		_ = reader.Close()
+		_ = writer.Close()
 		return nil, nil, fmt.Errorf("failed to open console: %w", err)
 	}
 

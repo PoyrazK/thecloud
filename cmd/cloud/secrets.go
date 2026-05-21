@@ -38,14 +38,14 @@ var secretsListCmd = &cobra.Command{
 		for _, s := range secrets {
 			id := truncateID(s.ID)
 
-			table.Append([]string{
+			_ = table.Append([]string{
 				id,
 				s.Name,
 				s.Description,
 				s.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

@@ -73,7 +73,7 @@ func TestSSHExecutor(t *testing.T) {
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	ip := "127.0.0.1"
 

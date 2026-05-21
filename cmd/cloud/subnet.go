@@ -42,7 +42,7 @@ var subnetListCmd = &cobra.Command{
 		table.Header([]string{"ID", "NAME", "CIDR", "AZ", "GATEWAY", "STATUS", "CREATED AT"})
 
 		for _, s := range subnets {
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(s.ID),
 				s.Name,
 				s.CIDRBlock,
@@ -52,7 +52,7 @@ var subnetListCmd = &cobra.Command{
 				s.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

@@ -49,7 +49,7 @@ var listEventsCmd = &cobra.Command{
 				meta = meta[:47] + "..."
 			}
 
-			table.Append([]string{
+			_ = table.Append([]string{
 				val,
 				e.Action,
 				truncateID(e.ResourceID),
@@ -57,7 +57,7 @@ var listEventsCmd = &cobra.Command{
 				meta,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

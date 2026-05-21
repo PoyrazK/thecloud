@@ -46,7 +46,7 @@ var snapshotListCmd = &cobra.Command{
 			if vol == "" {
 				vol = truncateID(s.VolumeID.String())
 			}
-			table.Append([]string{
+			_ = table.Append([]string{
 				id,
 				vol,
 				fmt.Sprintf("%d GB", s.SizeGB),
@@ -54,7 +54,7 @@ var snapshotListCmd = &cobra.Command{
 				s.CreatedAt.Format("2006-01-02 15:04"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

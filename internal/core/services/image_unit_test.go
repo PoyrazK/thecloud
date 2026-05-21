@@ -155,7 +155,7 @@ func TestImageService_Unit(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.WriteHeader(http.StatusOK)
-			w.Write(payload)
+			_, _ = w.Write(payload)
 		}))
 		defer server.Close()
 
@@ -431,7 +431,7 @@ func TestImageService_Unit_ImportImage(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.WriteHeader(http.StatusOK)
-			w.Write(bytes.Repeat([]byte("x"), 1024))
+			_, _ = w.Write(bytes.Repeat([]byte("x"), 1024))
 		}))
 		defer server.Close()
 
@@ -451,7 +451,7 @@ func TestImageService_Unit_ImportImage(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.WriteHeader(http.StatusOK)
-			w.Write(bytes.Repeat([]byte("x"), 1024))
+			_, _ = w.Write(bytes.Repeat([]byte("x"), 1024))
 		}))
 		defer server.Close()
 
@@ -474,7 +474,7 @@ func TestImageService_Unit_ImportImage(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/x-iso9660-image")
 			w.WriteHeader(http.StatusOK)
-			w.Write(payload)
+			_, _ = w.Write(payload)
 		}))
 		defer server.Close()
 
@@ -496,7 +496,7 @@ func TestImageService_Unit_ImportImage(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.WriteHeader(http.StatusOK)
-			w.Write(payload)
+			_, _ = w.Write(payload)
 		}))
 		defer server.Close()
 
@@ -550,7 +550,7 @@ func TestImageService_Unit_ImportImage(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/html") // not allowed
 			w.WriteHeader(http.StatusOK)
-			w.Write(payload)
+			_, _ = w.Write(payload)
 		}))
 		defer server.Close()
 
@@ -572,7 +572,7 @@ func TestImageService_Unit_ImportImage(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.WriteHeader(http.StatusOK)
-			w.Write(payload)
+			_, _ = w.Write(payload)
 		}))
 		defer server.Close()
 

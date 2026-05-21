@@ -90,9 +90,9 @@ var listFnSchedCmd = &cobra.Command{
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"ID", "NAME", "FUNCTION", "SCHEDULE", "STATUS", "NEXT RUN"})
 		for _, s := range schedules {
-			table.Append([]string{s.ID, s.Name, s.FunctionID, s.Schedule, s.Status, s.NextRunAt})
+			_ = table.Append([]string{s.ID, s.Name, s.FunctionID, s.Schedule, s.Status, s.NextRunAt})
 		}
-		table.Render()
+		_ = table.Render()
 		return nil
 	},
 }
@@ -158,9 +158,9 @@ var fnSchedLogsCmd = &cobra.Command{
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"ID", "STATUS", "DURATION", "STARTED AT"})
 		for _, r := range runs {
-			table.Append([]string{r.ID, r.Status, fmt.Sprintf("%dms", r.DurationMs), r.StartedAt})
+			_ = table.Append([]string{r.ID, r.Status, fmt.Sprintf("%dms", r.DurationMs), r.StartedAt})
 		}
-		table.Render()
+		_ = table.Render()
 		return nil
 	},
 }

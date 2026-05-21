@@ -50,7 +50,7 @@ var instanceTypeListCmd = &cobra.Command{
 		table.Header([]string{"ID", "NAME", "VCPUS", "MEMORY", "DISK", "PRICE/HR", "CATEGORY"})
 
 		for _, t := range types {
-			table.Append([]string{
+			_ = table.Append([]string{
 				t.ID,
 				t.Name,
 				fmt.Sprintf("%d", t.VCPUs),
@@ -60,7 +60,7 @@ var instanceTypeListCmd = &cobra.Command{
 				t.Category,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 
 		if meta != nil {
 			fmt.Printf("\nShowing %d of %d total", len(types), meta.TotalCount)

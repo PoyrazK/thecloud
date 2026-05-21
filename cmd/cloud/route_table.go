@@ -48,7 +48,7 @@ var routeTableListCmd = &cobra.Command{
 			if rt.IsMain {
 				mainStr = "Yes"
 			}
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(rt.ID),
 				rt.Name,
 				truncateID(rt.VPCID),
@@ -56,7 +56,7 @@ var routeTableListCmd = &cobra.Command{
 				rt.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

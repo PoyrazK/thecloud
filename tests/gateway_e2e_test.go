@@ -31,7 +31,7 @@ func waitForRoute(t *testing.T, client *http.Client, url string, token string) *
 			return resp
 		}
 		if resp != nil {
-			resp.Body.Close()
+		_ = resp.Body.Close()
 		}
 		time.Sleep(1 * time.Second)
 	}
@@ -240,7 +240,7 @@ func TestGatewayE2E(t *testing.T) {
 			req.Header.Set(testutil.TestHeaderAPIKey, token)
 			resp, err := client.Do(req)
 			if resp != nil {
-				defer resp.Body.Close()
+				defer func() { _ = resp.Body.Close() }()
 			}
 			if err == nil && resp.StatusCode == http.StatusOK {
 				var res struct {
@@ -340,7 +340,7 @@ func TestGatewayE2E(t *testing.T) {
 				break
 			}
 			if respPost != nil {
-				respPost.Body.Close()
+				_ = respPost.Body.Close()
 			}
 			time.Sleep(1 * time.Second)
 		}
