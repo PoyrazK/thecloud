@@ -211,7 +211,7 @@ var dnsDeleteRecordCmd = &cobra.Command{
 func init() {
 	dnsCreateZoneCmd.Flags().StringP("name", "n", "", "Zone name (required if not positional)")
 	dnsCreateZoneCmd.Flags().String("description", "", "Description of the zone")
-dnsCreateZoneCmd.Flags().String("vpc-id", "", "VPC ID for private DNS (required)")
+	dnsCreateZoneCmd.Flags().String("vpc-id", "", "VPC ID for private DNS (required)")
 	_ = dnsCreateZoneCmd.MarkFlagRequired("vpc-id")
 
 	dnsCreateRecordCmd.Flags().StringP("name", "n", "", "Record name (e.g., 'www')")
