@@ -29,23 +29,23 @@ func TestGetServerSecret(t *testing.T) {
 	origTestSecrets := os.Getenv("TEST_SECRETS")
 	defer func() {
 		if origSecrets != "" {
-			os.Setenv("SECRETS_ENCRYPTION_KEY", origSecrets)
+			_ = os.Setenv("SECRETS_ENCRYPTION_KEY", origSecrets) //nolint:errcheck
 		} else {
-			os.Unsetenv("SECRETS_ENCRYPTION_KEY")
+			os.Unsetenv("SECRETS_ENCRYPTION_KEY") //nolint:errcheck
 		}
-		os.Setenv("TEST_SECRETS", origTestSecrets)
+		_ = os.Setenv("TEST_SECRETS", origTestSecrets) //nolint:errcheck
 	}()
 
 	t.Run("WithEnvVar", func(t *testing.T) {
-		os.Setenv("SECRETS_ENCRYPTION_KEY", "test-secret-key")
-		os.Unsetenv("TEST_SECRETS")
+		_ = os.Setenv("SECRETS_ENCRYPTION_KEY", "test-secret-key") //nolint:errcheck
+		os.Unsetenv("TEST_SECRETS")                                 //nolint:errcheck
 		secret := getServerSecret()
 		assert.Equal(t, "test-secret-key", secret)
 	})
 
 	t.Run("WithoutEnvVar_UsesTestFallback", func(t *testing.T) {
-		os.Unsetenv("SECRETS_ENCRYPTION_KEY")
-		os.Setenv("TEST_SECRETS", "test-only-secret")
+		os.Unsetenv("SECRETS_ENCRYPTION_KEY")                       //nolint:errcheck
+		_ = os.Setenv("TEST_SECRETS", "test-only-secret")           //nolint:errcheck
 		secret := getServerSecret()
 		assert.Equal(t, "test-only-secret", secret)
 	})

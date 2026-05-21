@@ -509,7 +509,7 @@ func TestDatabaseFailoverWorker(t *testing.T) {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		port := ln.Addr().(*net.TCPAddr).Port
-		ln.Close()
+		_ = ln.Close() //nolint:errcheck
 
 		replica := &domain.Database{
 			ID:   uuid.New(),

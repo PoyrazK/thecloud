@@ -50,9 +50,9 @@ var listCronCmd = &cobra.Command{
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"ID", "NAME", "SCHEDULE", "STATUS", "NEXT RUN"})
 		for _, j := range jobs {
-			table.Append([]string{j.ID, j.Name, j.Schedule, j.Status, j.NextRunAt})
+			_, _ = table.Append([]string{j.ID, j.Name, j.Schedule, j.Status, j.NextRunAt}) //nolint:errcheck
 		}
-		table.Render()
+		_ = table.Render() //nolint:errcheck
 	},
 }
 
@@ -125,9 +125,9 @@ var logsCronCmd = &cobra.Command{
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"ID", "STATUS", "CODE", "DURATION", "STARTED AT"})
 		for _, r := range runs {
-			table.Append([]string{truncateID(r.ID), r.Status, fmt.Sprintf("%d", r.StatusCode), fmt.Sprintf("%dms", r.DurationMs), r.StartedAt})
+			_, _ = table.Append([]string{truncateID(r.ID), r.Status, fmt.Sprintf("%d", r.StatusCode), fmt.Sprintf("%dms", r.DurationMs), r.StartedAt}) //nolint:errcheck
 		}
-		table.Render()
+		_ = table.Render() //nolint:errcheck
 	},
 }
 
