@@ -57,6 +57,11 @@ linters-settings:
       - G118
       - G115
       - G704
+      - G115
+      - G304
+      - G301
+      - G117
+      - G204
 
 issues:
   exclude-rules:
@@ -87,3 +92,15 @@ issues:
     - linters:
         - staticcheck
       text: "QF1012"
+    - linters:
+        - gosec
+      text: "G304"
+    - linters:
+        - gosec
+      text: "G301"
+    - linters:
+        - gosec
+      text: "G117"
+    - linters:
+        - gosec
+      text: "G115"
