@@ -62,10 +62,9 @@ func TestDashboardE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
-		// Data may be null for new users
-		assert.True(t, res.Data == nil || len(res.Data) >= 0)
+		// Data may be null for new users - handled gracefully
 		// Should return at most 5 events
-		if len(res.Data) > 5 {
+		if res.Data != nil && len(res.Data) > 5 {
 			t.Errorf("Expected at most 5 events, got %d", len(res.Data))
 		}
 	})
@@ -89,6 +88,6 @@ func TestDashboardE2E(t *testing.T) {
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
 		// Dashboard stats data is always present for existing users
-		assert.True(t, res.Data.Summary.TotalInstances >= 0)
+		assert.GreaterOrEqual(t, res.Data.Summary.TotalInstances, 0)
 	})
 }

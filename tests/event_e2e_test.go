@@ -41,8 +41,7 @@ func TestEventE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
-		// Data may be null for new users
-		assert.True(t, res.Data == nil || len(res.Data) >= 0)
+		// Data may be null for new users - handled gracefully
 	})
 
 	// 2. List Events with limit
@@ -61,10 +60,9 @@ func TestEventE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
-		// Data may be null for new users
-		assert.True(t, res.Data == nil || len(res.Data) >= 0)
+		// Data may be null for new users - handled gracefully
 		// Should return at most 10 events
-		if len(res.Data) > 10 {
+		if res.Data != nil && len(res.Data) > 10 {
 			t.Errorf("Expected at most 10 events, got %d", len(res.Data))
 		}
 	})
