@@ -38,7 +38,7 @@ func vsockListen(cid, port int) (net.Listener, error) {
 
 	// Bind to the specific CID and port
 	addr := &unix.SockaddrVM{
-		CID:  uint32(cid), // #nosec G115 -- cid is always small positive constant
+		CID:  uint32(cid),  // #nosec G115 -- cid is always small positive constant
 		Port: uint32(port), // #nosec G115 -- port is always small positive constant
 	}
 	if err := unix.Bind(fd, addr); err != nil {

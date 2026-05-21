@@ -38,14 +38,14 @@ func TestGetServerSecret(t *testing.T) {
 
 	t.Run("WithEnvVar", func(t *testing.T) {
 		_ = os.Setenv("SECRETS_ENCRYPTION_KEY", "test-secret-key") //nolint:errcheck
-		os.Unsetenv("TEST_SECRETS")                                 //nolint:errcheck
+		os.Unsetenv("TEST_SECRETS")                                //nolint:errcheck
 		secret := getServerSecret()
 		assert.Equal(t, "test-secret-key", secret)
 	})
 
 	t.Run("WithoutEnvVar_UsesTestFallback", func(t *testing.T) {
-		os.Unsetenv("SECRETS_ENCRYPTION_KEY")                       //nolint:errcheck
-		_ = os.Setenv("TEST_SECRETS", "test-only-secret")           //nolint:errcheck
+		os.Unsetenv("SECRETS_ENCRYPTION_KEY")             //nolint:errcheck
+		_ = os.Setenv("TEST_SECRETS", "test-only-secret") //nolint:errcheck
 		secret := getServerSecret()
 		assert.Equal(t, "test-only-secret", secret)
 	})

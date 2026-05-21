@@ -31,7 +31,7 @@ func waitForRoute(t *testing.T, client *http.Client, url string, token string) *
 			return resp
 		}
 		if resp != nil {
-		_ = resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		time.Sleep(1 * time.Second)
 	}

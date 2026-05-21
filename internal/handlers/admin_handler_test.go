@@ -202,7 +202,7 @@ func (c *computeNoOpReset) DetachVolume(_ context.Context, _, _ string) (string,
 	return "", nil
 }
 func (c *computeNoOpReset) Ping(_ context.Context) error { return nil }
-func (c *computeNoOpReset) Type() string                   { return "" }
+func (c *computeNoOpReset) Type() string                 { return "" }
 func (c *computeNoOpReset) ResizeInstance(_ context.Context, _ string, _, _ int64) error {
 	return nil
 }
