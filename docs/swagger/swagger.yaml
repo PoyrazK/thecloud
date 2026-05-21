@@ -1861,82 +1861,78 @@ definitions:
         items:
           $ref: '#/definitions/domain.TransitGatewayAttachment'
         type: array
-      createdAt:
+      created_at:
         type: string
       id:
         type: string
       name:
         type: string
-      ownerTenantID:
+      owner_tenant_id:
         type: string
-      routeTables:
+      route_tables:
         items:
           $ref: '#/definitions/domain.TransitGatewayRouteTable'
         type: array
       status:
         $ref: '#/definitions/domain.TransitGatewayStatus'
-      updatedAt:
+      updated_at:
         type: string
     type: object
   domain.TransitGatewayAttachment:
     properties:
-      attachmentType:
-        description: '"vpc"'
+      attachment_type:
         type: string
-      createdAt:
+      created_at:
         type: string
       id:
         type: string
       status:
-        description: '"pending" | "attached" | "detaching"'
         type: string
-      tenantID:
+      tenant_id:
         type: string
-      transitGatewayID:
+      transit_gateway_id:
         type: string
-      vpcid:
+      vpc_id:
         type: string
     type: object
   domain.TransitGatewayRoute:
     properties:
-      createdAt:
+      created_at:
         type: string
-      destinationCIDR:
+      destination_cidr:
         type: string
       id:
         type: string
-      targetID:
-        description: attachment ID for propagated routes
+      target_id:
         type: string
-      targetName:
+      target_name:
         type: string
-      targetType:
+      target_type:
         $ref: '#/definitions/domain.TransitGatewayTargetType'
-      transitGatewayRTID:
+      transit_gateway_rt_id:
         type: string
     type: object
   domain.TransitGatewayRouteTable:
     properties:
       associations:
-        description: attachment IDs associated
         items:
           type: string
         type: array
-      createdAt:
+      created_at:
         type: string
-      defaultRouteTable:
+      default_route_table:
         type: boolean
       id:
         type: string
       name:
         type: string
-      propagationEnabled:
+      propagation_enabled:
         type: boolean
       routes:
         items:
           $ref: '#/definitions/domain.TransitGatewayRoute'
         type: array
-      transitGatewayID:
+      transit_gateway_id:
         type: string
     type: object
   domain.TransitGatewayStatus:

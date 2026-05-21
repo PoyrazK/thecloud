@@ -12365,7 +12365,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.TransitGatewayAttachment"
                     }
                 },
-                "createdAt": {
+                "created_at": {
                     "type": "string"
                 },
                 "id": {
@@ -12374,10 +12374,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "ownerTenantID": {
+                "owner_tenant_id": {
                     "type": "string"
                 },
-                "routeTables": {
+                "route_tables": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.TransitGatewayRouteTable"
@@ -12386,7 +12386,7 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/domain.TransitGatewayStatus"
                 },
-                "updatedAt": {
+                "updated_at": {
                     "type": "string"
                 }
             }
@@ -12394,27 +12394,25 @@ const docTemplate = `{
         "domain.TransitGatewayAttachment": {
             "type": "object",
             "properties": {
-                "attachmentType": {
-                    "description": "\"vpc\"",
+                "attachment_type": {
                     "type": "string"
                 },
-                "createdAt": {
+                "created_at": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
                 "status": {
-                    "description": "\"pending\" | \"attached\" | \"detaching\"",
                     "type": "string"
                 },
-                "tenantID": {
+                "tenant_id": {
                     "type": "string"
                 },
-                "transitGatewayID": {
+                "transit_gateway_id": {
                     "type": "string"
                 },
-                "vpcid": {
+                "vpc_id": {
                     "type": "string"
                 }
             }
@@ -12422,26 +12420,25 @@ const docTemplate = `{
         "domain.TransitGatewayRoute": {
             "type": "object",
             "properties": {
-                "createdAt": {
+                "created_at": {
                     "type": "string"
                 },
-                "destinationCIDR": {
+                "destination_cidr": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "targetID": {
-                    "description": "attachment ID for propagated routes",
+                "target_id": {
                     "type": "string"
                 },
-                "targetName": {
+                "target_name": {
                     "type": "string"
                 },
-                "targetType": {
+                "target_type": {
                     "$ref": "#/definitions/domain.TransitGatewayTargetType"
                 },
-                "transitGatewayRTID": {
+                "transit_gateway_rt_id": {
                     "type": "string"
                 }
             }
@@ -12450,16 +12447,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "associations": {
-                    "description": "attachment IDs associated",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
-                "createdAt": {
+                "created_at": {
                     "type": "string"
                 },
-                "defaultRouteTable": {
+                "default_route_table": {
                     "type": "boolean"
                 },
                 "id": {
@@ -12468,7 +12464,7 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "propagationEnabled": {
+                "propagation_enabled": {
                     "type": "boolean"
                 },
                 "routes": {
@@ -12477,7 +12473,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.TransitGatewayRoute"
                     }
                 },
-                "transitGatewayID": {
+                "transit_gateway_id": {
                     "type": "string"
                 }
             }
