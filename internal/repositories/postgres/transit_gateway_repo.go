@@ -131,14 +131,18 @@ func (r *TransitGatewayRepository) List(ctx context.Context, tenantID uuid.UUID)
 
 // Update updates a Transit Gateway record.
 func (r *TransitGatewayRepository) Update(ctx context.Context, tg *domain.TransitGateway) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
 		UPDATE transit_gateways
 		SET name = $1, status = $2, updated_at = NOW()
-		WHERE id = $3
+		WHERE id = $3 AND owner_tenant_id = $4
 	`
-	_, err := r.db.Exec(ctx, query, tg.Name, tg.Status, tg.ID)
+	res, err := r.db.Exec(ctx, query, tg.Name, tg.Status, tg.ID, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to update transit gateway", err)
+	}
+	if res.RowsAffected() == 0 {
+		return errors.New(errors.NotFound, "transit gateway not found")
 	}
 	return nil
 }
@@ -304,7 +308,7 @@ func (r *TransitGatewayRepository) AddRoute(ctx context.Context, rtID uuid.UUID,
 		INSERT INTO transit_gateway_routes (id, transit_gateway_rt_id, destination_cidr, target_type, target_id, target_name, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := r.db.Exec(ctx, query, route.ID, route.TransitGatewayRTID, route.DestinationCIDR, route.TargetType, route.TargetID, route.TargetName, route.CreatedAt)
+	_, err := r.db.Exec(ctx, query, route.ID, rtID, route.DestinationCIDR, route.TargetType, route.TargetID, route.TargetName, route.CreatedAt)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to add route", err)
 	}

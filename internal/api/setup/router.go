@@ -490,7 +490,7 @@ func registerNetworkRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 		tgwGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcRead), handlers.TransitGateway.Get)
 		tgwGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.TransitGateway.Delete)
 		tgwGroup.POST("/:id/attach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.AttachVPC)
-		tgwGroup.POST("/attachments/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVpcDelete), handlers.TransitGateway.DetachVPC)
+		tgwGroup.POST("/attachments/:id/detach", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.DetachVPC)
 		tgwGroup.POST("/route-tables/:id/associate", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.AssociateRouteTable)
 		tgwGroup.POST("/route-tables/:id/propagation", httputil.Permission(svcs.RBAC, domain.PermissionVpcUpdate), handlers.TransitGateway.EnableRoutePropagation)
 	}

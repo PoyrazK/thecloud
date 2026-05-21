@@ -108,7 +108,7 @@ func (s *TransitGatewayService) CreateTransitGateway(ctx context.Context, name s
 	// Mark as available
 	tg.Status = domain.TransitGatewayStatusAvailable
 	if err := s.repo.Update(ctx, tg); err != nil {
-		s.logger.Warn("failed to update transit gateway status to available", "error", err)
+		return nil, errors.Wrap(errors.Internal, "failed to persist transit gateway status to available", err)
 	}
 
 	if err := s.auditSvc.Log(ctx, userID, "transit_gateway.create", "transit_gateway", tgID.String(), map[string]interface{}{
@@ -215,7 +215,10 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 	}
 
 	// Check for existing attachment
-	existing, _ := s.repo.ListAttachments(ctx, tgID)
+	existing, err := s.repo.ListAttachments(ctx, tgID)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to list existing attachments", err)
+	}
 	for _, att := range existing {
 		if att.VPCID == vpcID {
 			return nil, errors.New(errors.Conflict, "VPC is already attached to this transit gateway")
@@ -238,7 +241,10 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 
 	// Propagate VPC subnet routes to TGW route tables
 	if err := s.propagateSubnetRoutes(ctx, tg, vpc, attID); err != nil {
-		s.logger.Error("failed to propagate subnet routes for attachment", "att_id", attID, "error", err)
+		if remErr := s.repo.RemoveAttachment(ctx, attID); remErr != nil {
+			s.logger.Error("failed to rollback attachment after route propagation failure", "att_id", attID, "error", remErr)
+		}
+		return nil, errors.Wrap(errors.Internal, "failed to propagate subnet routes for attachment", err)
 	}
 
 	if err := s.auditSvc.Log(ctx, userID, "transit_gateway.attach_vpc", "transit_gateway", tgID.String(), map[string]interface{}{
@@ -285,9 +291,16 @@ func (s *TransitGatewayService) DetachVPC(ctx context.Context, attID uuid.UUID) 
 // detachVPC removes the attachment and cleans up OVS flows.
 func (s *TransitGatewayService) detachVPC(ctx context.Context, att *domain.TransitGatewayAttachment) error {
 	// Remove propagated routes from TGW route tables
-	rts, _ := s.repo.ListRouteTables(ctx, att.TransitGatewayID)
+	rts, err := s.repo.ListRouteTables(ctx, att.TransitGatewayID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to list route tables during detachment", err)
+	}
 	for _, rt := range rts {
-		routes, _ := s.repo.ListRoutes(ctx, rt.ID)
+		routes, err := s.repo.ListRoutes(ctx, rt.ID)
+		if err != nil {
+			s.logger.Warn("failed to list routes during detachment", "rt_id", rt.ID, "error", err)
+			continue
+		}
 		for _, r := range routes {
 			if r.TargetType == domain.TransitGatewayTargetAttachment && r.TargetID != nil && *r.TargetID == att.ID {
 				if err := s.repo.RemoveRoute(ctx, rt.ID, r.ID); err != nil {
@@ -309,12 +322,12 @@ func (s *TransitGatewayService) detachVPC(ctx context.Context, att *domain.Trans
 func (s *TransitGatewayService) propagateSubnetRoutes(ctx context.Context, tg *domain.TransitGateway, vpc *domain.VPC, attID uuid.UUID) error {
 	subnets, err := s.subnetRepo.ListByVPC(ctx, vpc.ID)
 	if err != nil {
-		return fmt.Errorf("failed to list subnets for route propagation: %w", err)
+		return errors.Wrap(errors.Internal, "failed to list subnets for route propagation", err)
 	}
 
 	rts, err := s.repo.ListRouteTables(ctx, tg.ID)
 	if err != nil {
-		return fmt.Errorf("failed to list TGW route tables: %w", err)
+		return errors.Wrap(errors.Internal, "failed to list TGW route tables", err)
 	}
 
 	for _, rt := range rts {

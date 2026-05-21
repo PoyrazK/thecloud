@@ -151,7 +151,11 @@ func (h *TransitGatewayHandler) AttachVPC(c *gin.Context) {
 		return
 	}
 
-	vpcID, _ := uuid.Parse(req.VPCID)
+	vpcID, err := uuid.Parse(req.VPCID)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid VPC ID"))
+		return
+	}
 	att, err := h.svc.AttachVPC(c.Request.Context(), tgID, vpcID)
 	if err != nil {
 		httputil.Error(c, err)
@@ -207,7 +211,11 @@ func (h *TransitGatewayHandler) AssociateRouteTable(c *gin.Context) {
 		return
 	}
 
-	attID, _ := uuid.Parse(req.AttachmentID)
+	attID, err := uuid.Parse(req.AttachmentID)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid attachment ID"))
+		return
+	}
 	if err := h.svc.AssociateRouteTable(c.Request.Context(), rtID, attID); err != nil {
 		httputil.Error(c, err)
 		return
@@ -238,7 +246,11 @@ func (h *TransitGatewayHandler) EnableRoutePropagation(c *gin.Context) {
 		return
 	}
 
-	attID, _ := uuid.Parse(req.AttachmentID)
+	attID, err := uuid.Parse(req.AttachmentID)
+	if err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, "invalid attachment ID"))
+		return
+	}
 	if err := h.svc.EnableRoutePropagation(c.Request.Context(), rtID, attID); err != nil {
 		httputil.Error(c, err)
 		return
