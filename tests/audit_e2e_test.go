@@ -41,8 +41,7 @@ func TestAuditE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
-		// Data may be null for new users (API returns {"data": null})
-		assert.True(t, res.Data == nil || len(res.Data) >= 0)
+		// Data may be null for new users (API returns {"data": null}) - handled gracefully
 	})
 
 	// 2. List Audit Logs with limit

@@ -56,7 +56,8 @@ func TestLifecycleE2E(t *testing.T) {
 	// Cleanup bucket after tests
 	if bucketCreated && bucketName != "" {
 		defer func() {
-			deleteRequest(t, client, fmt.Sprintf("%s%s/%s", testutil.TestBaseURL, testutil.TestRouteStorageBuckets, bucketName), token)
+			resp := deleteRequest(t, client, fmt.Sprintf("%s%s/%s", testutil.TestBaseURL, testutil.TestRouteStorageBuckets, bucketName), token)
+			_ = resp.Body.Close()
 		}()
 	}
 

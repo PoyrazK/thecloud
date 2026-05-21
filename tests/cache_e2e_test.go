@@ -154,7 +154,7 @@ func TestCacheE2E(t *testing.T) {
 		if res.MaxMemoryBytes == 0 {
 			t.Skip("Cache stats not available yet")
 		}
-		assert.True(t, res.MaxMemoryBytes > 0)
+		assert.Positive(t, res.MaxMemoryBytes)
 	})
 
 	// 6. Resize Cache

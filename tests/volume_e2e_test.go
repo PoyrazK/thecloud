@@ -177,7 +177,7 @@ func deleteVPC(t *testing.T, client *http.Client, token, vpcID string) {
 }
 
 // volCreateTestInstance creates a test instance for volume tests and returns the instance ID.
-func volCreateTestInstance(t *testing.T, client *http.Client, token, vpcID string) string {
+func volCreateTestInstance(t *testing.T, client *http.Client, token, _ string) string {
 	t.Helper()
 	payload := map[string]string{
 		"name":  fmt.Sprintf("e2e-inst-%d", time.Now().UnixNano()%1000),

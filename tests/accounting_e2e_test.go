@@ -41,7 +41,7 @@ func TestAccountingE2E(t *testing.T) {
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
 		// Billing data is always present for existing users
-		assert.True(t, res.Data.TotalAmount >= 0)
+		assert.GreaterOrEqual(t, res.Data.TotalAmount, float64(0))
 	})
 
 	// 2. Get Billing Summary with time range
@@ -64,7 +64,7 @@ func TestAccountingE2E(t *testing.T) {
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
 		// Billing data is always present for existing users
-		assert.True(t, res.Data.TotalAmount >= 0)
+		assert.GreaterOrEqual(t, res.Data.TotalAmount, float64(0))
 	})
 
 	// 3. List Usage
@@ -85,8 +85,7 @@ func TestAccountingE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
-		// Data may be null for new users (API returns {"data": null})
-		assert.True(t, res.Data == nil || len(res.Data) >= 0)
+		// Data may be null for new users (API returns {"data": null}) - handled gracefully
 	})
 
 	// 4. List Usage with time range
@@ -107,7 +106,6 @@ func TestAccountingE2E(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
-		// Data may be null for new users
-		assert.True(t, res.Data == nil || len(res.Data) >= 0)
+		// Data may be null for new users - handled gracefully
 	})
 }

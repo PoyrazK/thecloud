@@ -43,7 +43,7 @@ func TestDashboardE2E(t *testing.T) {
 		}
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
 		// Dashboard data is always present for existing users
-		assert.True(t, res.Data.TotalInstances >= 0)
+		assert.GreaterOrEqual(t, res.Data.TotalInstances, 0)
 	})
 
 	// 2. Get Recent Events

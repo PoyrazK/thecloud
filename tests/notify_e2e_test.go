@@ -166,9 +166,7 @@ func TestNotifyE2E(t *testing.T) {
 		var res struct {
 			Message string `json:"message"`
 		}
-		if json.NewDecoder(resp.Body).Decode(&res) == nil {
-			// Message field may be empty even on success
-		}
+		_ = json.NewDecoder(resp.Body).Decode(&res)
 	})
 
 	// 7. Unsubscribe

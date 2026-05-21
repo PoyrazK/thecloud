@@ -73,7 +73,7 @@ func TestFunctionScheduleE2E(t *testing.T) {
 			req, _ := http.NewRequest("DELETE", fmt.Sprintf("%s/functions/%s", testutil.TestBaseURL, functionID), nil)
 			req.Header.Set(testutil.TestHeaderAPIKey, token)
 			applyTenantHeader(t, req, token)
-			client.Do(req)
+			_, _ = client.Do(req)
 		}()
 	}
 

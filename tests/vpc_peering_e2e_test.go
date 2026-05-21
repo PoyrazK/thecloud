@@ -235,6 +235,7 @@ func TestVPCPeeringE2E(t *testing.T) {
 		assert.NotEmpty(t, listRes.Data)
 
 		// Cleanup
-		deleteRequest(t, client, fmt.Sprintf("%s/vpc-peerings/%s", testutil.TestBaseURL, createRes.Data.ID), token)
+		resp := deleteRequest(t, client, fmt.Sprintf("%s/vpc-peerings/%s", testutil.TestBaseURL, createRes.Data.ID), token)
+		_ = resp.Body.Close()
 	})
 }
