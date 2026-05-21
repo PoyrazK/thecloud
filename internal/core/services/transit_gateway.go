@@ -22,7 +22,6 @@ type TransitGatewayService struct {
 	repo       ports.TransitGatewayRepository
 	vpcRepo    ports.VpcRepository
 	subnetRepo ports.SubnetRepository
-	rtRepo     ports.RouteTableRepository
 	network    ports.NetworkBackend
 	rbacSvc    ports.RBACService
 	auditSvc   ports.AuditService
@@ -34,7 +33,6 @@ type TransitGatewayServiceParams struct {
 	Repo       ports.TransitGatewayRepository
 	VpcRepo    ports.VpcRepository
 	SubnetRepo ports.SubnetRepository
-	RTRepo     ports.RouteTableRepository
 	Network    ports.NetworkBackend
 	RBACSvc    ports.RBACService
 	AuditSvc   ports.AuditService
@@ -51,7 +49,6 @@ func NewTransitGatewayService(params TransitGatewayServiceParams) *TransitGatewa
 		repo:       params.Repo,
 		vpcRepo:    params.VpcRepo,
 		subnetRepo: params.SubnetRepo,
-		rtRepo:     params.RTRepo,
 		network:    params.Network,
 		rbacSvc:    params.RBACSvc,
 		auditSvc:   params.AuditSvc,
@@ -158,7 +155,10 @@ func (s *TransitGatewayService) DeleteTransitGateway(ctx context.Context, id uui
 	_ = tg
 
 	// Get attachments to clean up OVS flows
-	attachments, _ := s.repo.ListAttachments(ctx, id)
+	attachments, err := s.repo.ListAttachments(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to list attachments during TGW deletion", "tg_id", id, "error", err)
+	}
 	for _, att := range attachments {
 		if err := s.detachVPC(ctx, att); err != nil {
 			s.logger.Error("failed to detach VPC during TGW deletion", "attachment_id", att.ID, "error", err)
@@ -166,7 +166,10 @@ func (s *TransitGatewayService) DeleteTransitGateway(ctx context.Context, id uui
 	}
 
 	// Delete route tables
-	rts, _ := s.repo.ListRouteTables(ctx, id)
+	rts, err := s.repo.ListRouteTables(ctx, id)
+	if err != nil {
+		s.logger.Error("failed to list route tables during TGW deletion", "tg_id", id, "error", err)
+	}
 	for _, rt := range rts {
 		if err := s.repo.DeleteRouteTable(ctx, rt.ID); err != nil {
 			s.logger.Warn("failed to delete route table during TGW deletion", "rt_id", rt.ID, "error", err)

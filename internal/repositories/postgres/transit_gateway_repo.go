@@ -249,13 +249,15 @@ func (r *TransitGatewayRepository) CreateRouteTable(ctx context.Context, rt *dom
 
 // GetRouteTable retrieves a TGW route table by ID.
 func (r *TransitGatewayRepository) GetRouteTable(ctx context.Context, id uuid.UUID) (*domain.TransitGatewayRouteTable, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT ` + tgwRTColumns + `
-		FROM transit_gateway_route_tables
-		WHERE id = $1
+		SELECT rt.id, rt.transit_gateway_id, rt.name, rt.default_route_table, rt.propagation_enabled, rt.created_at
+		FROM transit_gateway_route_tables rt
+		JOIN transit_gateways tgw ON rt.transit_gateway_id = tgw.id
+		WHERE rt.id = $1 AND tgw.owner_tenant_id = $2
 	`
 	var rt domain.TransitGatewayRouteTable
-	err := r.db.QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id, tenantID).Scan(
 		&rt.ID, &rt.TransitGatewayID, &rt.Name, &rt.DefaultRouteTable, &rt.PropagationEnabled, &rt.CreatedAt,
 	)
 	if err != nil {
@@ -294,10 +296,19 @@ func (r *TransitGatewayRepository) ListRouteTables(ctx context.Context, tgID uui
 
 // DeleteRouteTable removes a TGW route table.
 func (r *TransitGatewayRepository) DeleteRouteTable(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM transit_gateway_route_tables WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `
+		DELETE FROM transit_gateway_route_tables
+		WHERE id = $1 AND transit_gateway_id IN (
+			SELECT id FROM transit_gateways WHERE owner_tenant_id = $2
+		)
+	`
+	res, err := r.db.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to delete route table", err)
+	}
+	if res.RowsAffected() == 0 {
+		return errors.New(errors.NotFound, errRTNotFound)
 	}
 	return nil
 }
@@ -317,10 +328,22 @@ func (r *TransitGatewayRepository) AddRoute(ctx context.Context, rtID uuid.UUID,
 
 // RemoveRoute deletes a route from a TGW route table.
 func (r *TransitGatewayRepository) RemoveRoute(ctx context.Context, rtID, routeID uuid.UUID) error {
-	query := `DELETE FROM transit_gateway_routes WHERE id = $1 AND transit_gateway_rt_id = $2`
-	_, err := r.db.Exec(ctx, query, routeID, rtID)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `
+		DELETE FROM transit_gateway_routes
+		WHERE id = $1 AND transit_gateway_rt_id = $2
+		AND transit_gateway_rt_id IN (
+			SELECT rt.id FROM transit_gateway_route_tables rt
+			JOIN transit_gateways tgw ON rt.transit_gateway_id = tgw.id
+			WHERE tgw.owner_tenant_id = $3
+		)
+	`
+	res, err := r.db.Exec(ctx, query, routeID, rtID, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to remove route", err)
+	}
+	if res.RowsAffected() == 0 {
+		return errors.New(errors.NotFound, "route not found")
 	}
 	return nil
 }

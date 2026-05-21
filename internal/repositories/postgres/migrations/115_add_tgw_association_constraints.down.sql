@@ -1,0 +1,2 @@
+ALTER TABLE transit_gateway_rt_associations
+DROP CONSTRAINT IF EXISTS chk_same_transit_gateway;
