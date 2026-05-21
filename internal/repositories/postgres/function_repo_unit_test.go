@@ -67,10 +67,10 @@ func TestFunctionRepositoryGetByID(t *testing.T) {
 	ctx := appcontext.WithTenantID(context.Background(), tenantID)
 	now := time.Now()
 
-	mock.ExpectQuery("SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, env_vars, created_at, updated_at FROM functions WHERE id = \\$1 AND tenant_id = \\$2").
+	mock.ExpectQuery("SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, env_vars, pool_config, created_at, updated_at FROM functions WHERE id = \\$1 AND tenant_id = \\$2").
 		WithArgs(id, tenantID).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "name", "runtime", "handler", "code_path", "timeout_seconds", "memory_mb", "cpus", "status", "max_concurrent_invocations", "max_queue_depth", "max_retries", "env_vars", "created_at", "updated_at"}).
-			AddRow(id, uuid.New(), tenantID, testFuncName, testFuncRuntime, testFuncHandler, testFuncPath, 30, 128, 0.5, "ready", 0, 0, 0, []byte("{}"), now, now))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "name", "runtime", "handler", "code_path", "timeout_seconds", "memory_mb", "cpus", "status", "max_concurrent_invocations", "max_queue_depth", "max_retries", "env_vars", "pool_config", "created_at", "updated_at"}).
+			AddRow(id, uuid.New(), tenantID, testFuncName, testFuncRuntime, testFuncHandler, testFuncPath, 30, 128, 0.5, "ready", 0, 0, 0, []byte("{}"), []byte("{}"), now, now))
 
 	f, err := repo.GetByID(ctx, id)
 	require.NoError(t, err)
@@ -91,10 +91,10 @@ func TestFunctionRepositoryList(t *testing.T) {
 	ctx := appcontext.WithTenantID(context.Background(), tenantID)
 	now := time.Now()
 
-	mock.ExpectQuery("SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, env_vars, created_at, updated_at FROM functions WHERE tenant_id = \\$1").
+	mock.ExpectQuery("SELECT id, user_id, tenant_id, name, runtime, handler, code_path, timeout_seconds, memory_mb, cpus, status, max_concurrent_invocations, max_queue_depth, max_retries, env_vars, pool_config, created_at, updated_at FROM functions WHERE tenant_id = \\$1").
 		WithArgs(tenantID).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "name", "runtime", "handler", "code_path", "timeout_seconds", "memory_mb", "cpus", "status", "max_concurrent_invocations", "max_queue_depth", "max_retries", "env_vars", "created_at", "updated_at"}).
-			AddRow(uuid.New(), userID, tenantID, testFuncName, testFuncRuntime, testFuncHandler, testFuncPath, 30, 128, 0.5, "ready", 0, 0, 0, []byte("{}"), now, now))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "name", "runtime", "handler", "code_path", "timeout_seconds", "memory_mb", "cpus", "status", "max_concurrent_invocations", "max_queue_depth", "max_retries", "env_vars", "pool_config", "created_at", "updated_at"}).
+			AddRow(uuid.New(), userID, tenantID, testFuncName, testFuncRuntime, testFuncHandler, testFuncPath, 30, 128, 0.5, "ready", 0, 0, 0, []byte("{}"), []byte("{}"), now, now))
 
 	functions, err := repo.List(ctx, userID)
 	require.NoError(t, err)
