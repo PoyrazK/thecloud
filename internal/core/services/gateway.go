@@ -677,7 +677,7 @@ type retryTransport struct {
 	// fastFailThreshold prevents retry storms when upstream is unreachable.
 	// When >0, consecutive connection errors exceeding this count trips the
 	// circuit breaker immediately (bypassing normal failure counting).
-	fastFailThreshold      int
+	fastFailThreshold     int
 	consecutiveConnErrors atomic.Int32
 }
 
