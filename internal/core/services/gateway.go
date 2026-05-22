@@ -677,7 +677,7 @@ type retryTransport struct {
 	// fastFailThreshold prevents retry storms when upstream is unreachable.
 	// When >0, consecutive connection errors exceeding this count trips the
 	// circuit breaker immediately (bypassing normal failure counting).
-	fastFailThreshold     int32
+	fastFailThreshold     int
 	consecutiveConnErrors atomic.Int32
 }
 
@@ -703,7 +703,7 @@ func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logge
 		retryTimeout:      time.Duration(route.RetryTimeout) * time.Millisecond,
 		logger:            logger,
 		routeID:           route.ID.String(),
-		fastFailThreshold: int32(route.CircuitBreakerThreshold),
+		fastFailThreshold: route.CircuitBreakerThreshold,
 	}
 	if route.CircuitBreakerThreshold > 0 {
 		rt.cb = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
@@ -816,7 +816,8 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		// Fast-fail: if we hit too many consecutive connection errors, trip the
 		// circuit breaker immediately to prevent retry storms.
 		if rt.cb != nil && rt.fastFailThreshold > 0 {
-			if rt.consecutiveConnErrors.Add(1) >= rt.fastFailThreshold {
+			//lint:ignore G115 int->int32 conversion safe since threshold fits in int32 range
+			if rt.consecutiveConnErrors.Add(1) >= int32(rt.fastFailThreshold) {
 				platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "fast_fail").Inc()
 				// Trip the circuit breaker open immediately
 				rt.cb.RecordFailure()
