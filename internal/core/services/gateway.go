@@ -698,11 +698,11 @@ func (e *retryableStatusError) Error() string {
 // newRetryTransport wraps a base http.Transport with per-route retry and circuit breaker behavior.
 func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logger *slog.Logger) *retryTransport {
 	rt := &retryTransport{
-		base:         base,
-		maxRetries:   route.MaxRetries,
-		retryTimeout: time.Duration(route.RetryTimeout) * time.Millisecond,
-		logger:       logger,
-		routeID:      route.ID.String(),
+		base:              base,
+		maxRetries:        route.MaxRetries,
+		retryTimeout:      time.Duration(route.RetryTimeout) * time.Millisecond,
+		logger:            logger,
+		routeID:           route.ID.String(),
 		fastFailThreshold: int32(route.CircuitBreakerThreshold), //nolint:gosec
 	}
 	if route.CircuitBreakerThreshold > 0 {
