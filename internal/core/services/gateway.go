@@ -502,8 +502,12 @@ func (s *GatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayR
 	}
 
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		// Only allow RSA signature algorithms to prevent algorithm confusion attacks
+		switch t.Method.Alg() {
+		case "RS256", "RS384", "RS512":
+			// OK
+		default:
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Method.Alg())
 		}
 		kid, _ := t.Header["kid"].(string)
 		if kid == "" {

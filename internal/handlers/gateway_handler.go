@@ -2,6 +2,7 @@
 package httphandlers
 
 import (
+	"bufio"
 	"compress/gzip"
 	"crypto/rand"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -371,6 +373,13 @@ func (rw *responseWrapper) WriteHeader(status int) {
 	rw.ResponseWriter.WriteHeader(status)
 }
 
+// gzipWriterPool reuses gzip writers to reduce allocations under high throughput.
+var gzipWriterPool = sync.Pool{
+	New: func() any {
+		return new(gzip.Writer)
+	},
+}
+
 type compressWriter struct {
 	http.ResponseWriter
 	status      int
@@ -393,16 +402,23 @@ func (cw *compressWriter) WriteHeader(status int) {
 
 func (cw *compressWriter) Write(p []byte) (int, error) {
 	if cw.gz == nil {
-		cw.gz = gzip.NewWriter(cw.ResponseWriter)
+		cw.gz = gzipWriterPool.Get().(*gzip.Writer)
+		cw.gz.Reset(cw.ResponseWriter)
 	}
 	return cw.gz.Write(p)
 }
 
 func (cw *compressWriter) Close() error {
 	if cw.gz != nil {
-		return cw.gz.Close()
+		gzipWriterPool.Put(cw.gz)
+		cw.gz = nil
 	}
 	return nil
+}
+
+// Hijack implements http.Hijacker to support websocket and streaming scenarios.
+func (cw *compressWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return cw.ResponseWriter.(http.Hijacker).Hijack()
 }
 
 func (h *GatewayHandler) validateDryRun(c *gin.Context, req CreateRouteRequest) {
