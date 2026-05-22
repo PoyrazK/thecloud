@@ -333,6 +333,7 @@ func (s *TransitGatewayService) propagateSubnetRoutes(ctx context.Context, tg *d
 		return errors.Wrap(errors.Internal, "failed to list TGW route tables", err)
 	}
 
+	var failedRoutes []string
 	for _, rt := range rts {
 		for _, sn := range subnets {
 			route := &domain.TransitGatewayRoute{
@@ -345,10 +346,14 @@ func (s *TransitGatewayService) propagateSubnetRoutes(ctx context.Context, tg *d
 			}
 			if err := s.repo.AddRoute(ctx, rt.ID, route); err != nil {
 				s.logger.Warn("failed to propagate subnet route", "rt_id", rt.ID, "subnet", sn.CIDRBlock, "error", err)
+				failedRoutes = append(failedRoutes, sn.CIDRBlock)
 			}
 		}
 	}
 
+	if len(failedRoutes) > 0 {
+		return errors.Wrap(errors.Internal, fmt.Sprintf("failed to propagate %d routes: %v", len(failedRoutes), failedRoutes), nil)
+	}
 	return nil
 }
 

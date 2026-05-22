@@ -19,7 +19,6 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 	mockRepo := new(MockTransitGatewayRepo)
 	mockVpcRepo := new(MockVpcRepo)
 	mockSubnetRepo := new(MockSubnetRepo)
-	mockRTRepo := new(MockRTRepo)
 	mockNetwork := new(MockNetworkBackend)
 	mockRBACSvc := new(MockRBACService)
 	mockAuditSvc := new(MockAuditService)
@@ -27,7 +26,6 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 		Repo:       mockRepo,
 		VpcRepo:    mockVpcRepo,
 		SubnetRepo: mockSubnetRepo,
-		RTRepo:     mockRTRepo,
 		Network:    mockNetwork,
 		RBACSvc:    mockRBACSvc,
 		AuditSvc:   mockAuditSvc,
