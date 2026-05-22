@@ -661,17 +661,17 @@ func calculateMatchScore(route *domain.GatewayRoute, _ string) int {
 
 // retryTransport wraps an http.Transport with circuit breaker and retry logic.
 type retryTransport struct {
-	base                    http.RoundTripper
-	cb                      *platform.CircuitBreaker // nil if circuit breaker is disabled
-	maxRetries              int
-	retryTimeout            time.Duration
-	logger                  *slog.Logger
-	routeID                 string
+	base         http.RoundTripper
+	cb           *platform.CircuitBreaker // nil if circuit breaker is disabled
+	maxRetries   int
+	retryTimeout time.Duration
+	logger       *slog.Logger
+	routeID      string
 	// fastFailThreshold prevents retry storms when upstream is unreachable.
 	// When >0, consecutive connection errors exceeding this count trips the
 	// circuit breaker immediately (bypassing normal failure counting).
-	fastFailThreshold      int
-	consecutiveConnErrors   int
+	fastFailThreshold     int
+	consecutiveConnErrors int
 }
 
 // retryableStatusError wraps a response returned when retries are exhausted
@@ -691,12 +691,12 @@ func (e *retryableStatusError) Error() string {
 // newRetryTransport wraps a base http.Transport with per-route retry and circuit breaker behavior.
 func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logger *slog.Logger) *retryTransport {
 	rt := &retryTransport{
-		base:               base,
-		maxRetries:         route.MaxRetries,
-		retryTimeout:       time.Duration(route.RetryTimeout) * time.Millisecond,
-		logger:             logger,
-		routeID:            route.ID.String(),
-		fastFailThreshold:  route.CircuitBreakerThreshold,
+		base:              base,
+		maxRetries:        route.MaxRetries,
+		retryTimeout:      time.Duration(route.RetryTimeout) * time.Millisecond,
+		logger:            logger,
+		routeID:           route.ID.String(),
+		fastFailThreshold: route.CircuitBreakerThreshold,
 	}
 	if route.CircuitBreakerThreshold > 0 {
 		rt.cb = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
