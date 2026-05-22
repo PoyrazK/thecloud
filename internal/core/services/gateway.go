@@ -677,7 +677,7 @@ type retryTransport struct {
 	// fastFailThreshold prevents retry storms when upstream is unreachable.
 	// When >0, consecutive connection errors exceeding this count trips the
 	// circuit breaker immediately (bypassing normal failure counting).
-	fastFailThreshold     int
+	fastFailThreshold     int32
 	consecutiveConnErrors atomic.Int32
 }
 
@@ -703,7 +703,7 @@ func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logge
 		retryTimeout:      time.Duration(route.RetryTimeout) * time.Millisecond,
 		logger:            logger,
 		routeID:           route.ID.String(),
-		fastFailThreshold: route.CircuitBreakerThreshold,
+		fastFailThreshold: int32(route.CircuitBreakerThreshold),
 	}
 	if route.CircuitBreakerThreshold > 0 {
 		rt.cb = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
@@ -816,7 +816,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		// Fast-fail: if we hit too many consecutive connection errors, trip the
 		// circuit breaker immediately to prevent retry storms.
 		if rt.cb != nil && rt.fastFailThreshold > 0 {
-			if rt.consecutiveConnErrors.Add(1) >= int32(rt.fastFailThreshold) {
+			if rt.consecutiveConnErrors.Add(1) >= rt.fastFailThreshold {
 				platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "fast_fail").Inc()
 				// Trip the circuit breaker open immediately
 				rt.cb.RecordFailure()
@@ -868,8 +868,8 @@ func (rt *retryTransport) isRetryableError(err error) bool {
 	// Use net.Error interface for robust detection of transient errors
 	var netErr net.Error
 	if stderrors.As(err, &netErr) {
-		// Use both Temporary() and Timeout() - connection refused has Temporary()=true
-		return netErr.Temporary() || netErr.Timeout()
+		// Use Timeout() - Temporary() is deprecated per Go docs as unreliable
+		return netErr.Timeout()
 	}
 	// Fallback to string matching for errors not wrapped as net.Error
 	msg := err.Error()
