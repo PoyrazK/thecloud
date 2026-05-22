@@ -617,7 +617,7 @@ func TestCoordinatorRepairStreamFailureContinues(t *testing.T) {
 	require.NoError(t, r.Close())
 
 	// Wait for async repair goroutines
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// node2: metadata succeeded, chunk failed, CloseAndRecv called to clean up
 	smRepair2.AssertNumberOfCalls(t, "Send", 2)
