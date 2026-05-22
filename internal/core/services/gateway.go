@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -419,6 +420,12 @@ func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) 
 			}
 		}()
 
+		// Only cache successful JWKS responses
+		if resp.StatusCode != http.StatusOK {
+			platform.JWKSFetchTotal.WithLabelValues("error").Inc()
+			return nil, fmt.Errorf("JWKS fetch returned status %d", resp.StatusCode)
+		}
+
 		var jwks struct {
 			Keys []map[string]any `json:"keys"`
 		}
@@ -670,8 +677,8 @@ type retryTransport struct {
 	// fastFailThreshold prevents retry storms when upstream is unreachable.
 	// When >0, consecutive connection errors exceeding this count trips the
 	// circuit breaker immediately (bypassing normal failure counting).
-	fastFailThreshold     int
-	consecutiveConnErrors int
+	fastFailThreshold      int
+	consecutiveConnErrors atomic.Int32
 }
 
 // retryableStatusError wraps a response returned when retries are exhausted
@@ -779,7 +786,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		resp, err := rt.base.RoundTrip(req)
 		if err == nil {
 			// Reset consecutive error counter on success
-			rt.consecutiveConnErrors = 0
+			rt.consecutiveConnErrors.Store(0)
 			if !rt.isRetryableStatus(resp.StatusCode) {
 				// Drain body before returning so connection can be reused
 				if resp.Body != nil {
@@ -802,15 +809,14 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 				resp.Body.Close()
 			}
 			// Reset consecutive errors on non-retryable error (upstream responded)
-			rt.consecutiveConnErrors = 0
+			rt.consecutiveConnErrors.Store(0)
 			return nil, err
 		}
 
 		// Fast-fail: if we hit too many consecutive connection errors, trip the
 		// circuit breaker immediately to prevent retry storms.
 		if rt.cb != nil && rt.fastFailThreshold > 0 {
-			rt.consecutiveConnErrors++
-			if rt.consecutiveConnErrors >= rt.fastFailThreshold {
+			if rt.consecutiveConnErrors.Add(1) >= int32(rt.fastFailThreshold) {
 				platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "fast_fail").Inc()
 				// Trip the circuit breaker open immediately
 				rt.cb.RecordFailure()
