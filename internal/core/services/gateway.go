@@ -703,7 +703,7 @@ func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logge
 		retryTimeout: time.Duration(route.RetryTimeout) * time.Millisecond,
 		logger:       logger,
 		routeID:      route.ID.String(),
-		//nolint:gosec,G115 // int->int32 conversion safe for small threshold values
+		//nolint:G115 // int->int32 conversion safe for small threshold values
 		fastFailThreshold: int32(route.CircuitBreakerThreshold),
 	}
 	if route.CircuitBreakerThreshold > 0 {
@@ -817,7 +817,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		// Fast-fail: if we hit too many consecutive connection errors, trip the
 		// circuit breaker immediately to prevent retry storms.
 		if rt.cb != nil && rt.fastFailThreshold > 0 {
-			//nolint:gosec,G115 // int->int32 safe: threshold is small positive int
+			//nolint:G115 // int->int32 safe: threshold is small positive int
 			if rt.consecutiveConnErrors.Add(1) >= rt.fastFailThreshold {
 				platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "fast_fail").Inc()
 				// Trip the circuit breaker open immediately
