@@ -36,3 +36,16 @@ We decided to refactor the entire storage data path to support end-to-end stream
 -   **Performance**: Improved throughput due to overlapping I/O and encryption operations.
 -   **Complexity**: Implementation of chunked AEAD framing and streaming coordination is more complex than simple buffering.
 -   **Compatibility**: Existing stored objects (encrypted with the old AES-CTR scheme) will need to be migrated or handled via a legacy fallback path (currently not implemented, assuming fresh deployment or manual migration).
+
+### Legacy AES-CTR Fallback Status (2026-05-19)
+
+**Investigation findings:**
+- The original AES-CTR implementation (`fc0f7b2d`) was replaced by AES-GCM in a later commit
+- The legacy AES-CTR encryption/decryption code was not preserved when the migration occurred
+- Without the original implementation details, a compatibility fallback cannot be reliably implemented
+- Attempting to reverse-engineer the legacy format would be error-prone and could corrupt data
+
+**Current recommendation:**
+- For existing deployments with AES-CTR encrypted data: manual migration required
+- For new deployments: only AES-GCM format is supported
+- Any future storage encryption changes must preserve the previous implementation for backward compatibility

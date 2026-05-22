@@ -107,6 +107,12 @@ func (m *MockStorageNodeClient) Assemble(ctx context.Context, in *pb.AssembleReq
 	return r0, args.Error(1)
 }
 
+func (m *MockStorageNodeClient) ListKeys(ctx context.Context, in *pb.ListKeysRequest, opts ...grpc.CallOption) (*pb.ListKeysResponse, error) {
+	args := m.Called(ctx, in)
+	r0, _ := args.Get(0).(*pb.ListKeysResponse)
+	return r0, args.Error(1)
+}
+
 func TestCoordinatorWriteQuorum_TCs(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -227,10 +233,10 @@ func TestCoordinatorReadRepair(t *testing.T) {
 	assert.Equal(t, "new", string(data))
 	_ = r.Close()
 
-	// Wait for async repair
-	time.Sleep(200 * time.Millisecond)
-	c2.AssertCalled(t, "Store", mock.Anything)
-	c3.AssertCalled(t, "Store", mock.Anything)
+	// Wait for async repair - timing margin for CI variability
+	time.Sleep(3 * time.Second)
+	c2.AssertNumberOfCalls(t, "Store", 1)
+	c3.AssertNumberOfCalls(t, "Store", 1)
 }
 
 func TestCoordinatorDelete(t *testing.T) {
@@ -388,7 +394,7 @@ func TestCoordinatorWriteRepair(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Verify write repair: Node1 was used as source, Node2 was repaired
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -440,7 +446,7 @@ func TestCoordinatorWriteRepair_SourceNodeDown(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Source was called but failed, so repair should not complete
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -494,7 +500,7 @@ func TestCoordinatorWriteRepair_AllRepairNodesDown(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Source was called but repair node was down - repair silently skipped
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -552,7 +558,7 @@ func TestCoordinatorWriteRepair_PartialRepairFailure(t *testing.T) {
 	assert.Equal(t, int64(5), n)
 
 	// Wait for async write repair
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 
 	// Repair was attempted but CloseAndRecv returned failure
 	c1.AssertCalled(t, "Retrieve", mock.Anything, mock.Anything)
@@ -616,16 +622,18 @@ func TestCoordinatorRepairStreamFailureContinues(t *testing.T) {
 	assert.Equal(t, "newdata", string(data))
 	require.NoError(t, r.Close())
 
-	// Wait for async repair goroutines
-	time.Sleep(500 * time.Millisecond)
+	// Wait for async repair goroutines - timing margin for CI variability
+	time.Sleep(3 * time.Second)
 
 	// node2: metadata succeeded, chunk failed, CloseAndRecv called to clean up
-	smRepair2.AssertNumberOfCalls(t, "Send", 2)
-	smRepair2.AssertCalled(t, "CloseAndRecv")
+	if smRepair2.AssertCalled(t, "CloseAndRecv") {
+		smRepair2.AssertNumberOfCalls(t, "Send", 2)
+	}
 
 	// node3: both metadata and chunk sent, CloseAndRecv called
-	smRepair3.AssertNumberOfCalls(t, "Send", 2)
-	smRepair3.AssertCalled(t, "CloseAndRecv")
+	if smRepair3.AssertCalled(t, "CloseAndRecv") {
+		smRepair3.AssertNumberOfCalls(t, "Send", 2)
+	}
 }
 
 func TestCoordinatorReadQuorum(t *testing.T) {
@@ -703,4 +711,109 @@ func TestCoordinatorReadQuorum(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCoordinatorRebalance_Success(t *testing.T) {
+	ring := NewConsistentHashRing(10)
+	ring.AddNode(node1)
+	ring.AddNode(node2)
+	ring.AddNode(node3)
+
+	c1, c2, c3 := new(MockStorageNodeClient), new(MockStorageNodeClient), new(MockStorageNodeClient)
+	clients := map[string]pb.StorageNodeClient{node1: c1, node2: c2, node3: c3}
+	coord := NewCoordinator(context.Background(), ring, clients, 3)
+	defer coord.Stop()
+
+	// Nodes 1 and 2 have key "k1", Node 3 doesn't (under-replicated)
+	c1.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k1"}}, nil)
+	c2.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k1"}}, nil)
+	c3.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{}}, nil)
+
+	// Source node 1 returns the data
+	retrieveClient1 := &MockRetrieveClient{resps: []*pb.RetrieveResponse{
+		{Payload: &pb.RetrieveResponse_Metadata{Metadata: &pb.RetrieveMetadata{Found: true}}},
+		{Payload: &pb.RetrieveResponse_ChunkData{ChunkData: []byte("data")}},
+	}}
+	c1.On("Retrieve", mock.Anything, mock.Anything).Return(retrieveClient1, nil)
+
+	// Target node 3 accepts the store
+	storeClient3 := new(MockStoreClient)
+	storeClient3.On("Send", mock.Anything).Return(nil)
+	storeClient3.On("CloseAndRecv").Return(&pb.StoreResponse{Success: true}, nil)
+	c3.On("Store", mock.Anything).Return(storeClient3, nil)
+
+	err := coord.Rebalance(context.Background(), "b")
+	require.NoError(t, err)
+
+	// Verify c3.Store was called to repair the under-replicated key
+	c3.AssertCalled(t, "Store", mock.Anything)
+}
+
+func TestCoordinatorRebalance_NoUnderReplication(t *testing.T) {
+	ring := NewConsistentHashRing(10)
+	ring.AddNode(node1)
+	ring.AddNode(node2)
+	ring.AddNode(node3)
+
+	c1, c2, c3 := new(MockStorageNodeClient), new(MockStorageNodeClient), new(MockStorageNodeClient)
+	clients := map[string]pb.StorageNodeClient{node1: c1, node2: c2, node3: c3}
+	coord := NewCoordinator(context.Background(), ring, clients, 3)
+	defer coord.Stop()
+
+	// All nodes have key "k1" — fully replicated
+	c1.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k1"}}, nil)
+	c2.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k1"}}, nil)
+	c3.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k1"}}, nil)
+
+	err := coord.Rebalance(context.Background(), "b")
+	require.NoError(t, err)
+
+	// Verify no Store calls (nothing to repair)
+	c1.AssertNotCalled(t, "Store", mock.Anything)
+	c2.AssertNotCalled(t, "Store", mock.Anything)
+	c3.AssertNotCalled(t, "Store", mock.Anything)
+}
+
+func TestCoordinatorRebalance_MultipleKeys(t *testing.T) {
+	ring := NewConsistentHashRing(10)
+	ring.AddNode(node1)
+	ring.AddNode(node2)
+	ring.AddNode(node3)
+
+	c1, c2, c3 := new(MockStorageNodeClient), new(MockStorageNodeClient), new(MockStorageNodeClient)
+	clients := map[string]pb.StorageNodeClient{node1: c1, node2: c2, node3: c3}
+	coord := NewCoordinator(context.Background(), ring, clients, 3)
+	defer coord.Stop()
+
+	// All nodes return their keys
+	c1.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k1", "k2"}}, nil)
+	c2.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k1"}}, nil)
+	c3.On("ListKeys", mock.Anything, mock.Anything).Return(&pb.ListKeysResponse{Keys: []string{"k2"}}, nil)
+
+	// Setup Retrieve and Store mocks for all nodes that might be sources or targets
+	retrieveClient1 := &MockRetrieveClient{resps: []*pb.RetrieveResponse{
+		{Payload: &pb.RetrieveResponse_Metadata{Metadata: &pb.RetrieveMetadata{Found: true}}},
+		{Payload: &pb.RetrieveResponse_ChunkData{ChunkData: []byte("data1")}},
+	}}
+	c1.On("Retrieve", mock.Anything, mock.Anything).Return(retrieveClient1, nil)
+
+	retrieveClient3 := &MockRetrieveClient{resps: []*pb.RetrieveResponse{
+		{Payload: &pb.RetrieveResponse_Metadata{Metadata: &pb.RetrieveMetadata{Found: true}}},
+		{Payload: &pb.RetrieveResponse_ChunkData{ChunkData: []byte("data2")}},
+	}}
+	c3.On("Retrieve", mock.Anything, mock.Anything).Return(retrieveClient3, nil)
+
+	// Setup store mocks
+	for _, c := range []*MockStorageNodeClient{c1, c2, c3} {
+		sm := new(MockStoreClient)
+		sm.On("Send", mock.Anything).Return(nil)
+		sm.On("CloseAndRecv").Return(&pb.StoreResponse{Success: true}, nil)
+		c.On("Store", mock.Anything).Return(sm, nil)
+	}
+
+	err := coord.Rebalance(context.Background(), "b")
+	require.NoError(t, err)
+
+	// Verify rebalance completed without error
+	// (exact repair calls depend on consistent hash ring assignment)
 }

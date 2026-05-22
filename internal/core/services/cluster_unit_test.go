@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -72,6 +73,31 @@ func TestClusterService_Unit(t *testing.T) {
 		assert.NotNil(t, cluster)
 		assert.Equal(t, "test-cluster", cluster.Name)
 		assert.Equal(t, 3, cluster.WorkerCount)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("CreateCluster_AddNodeGroupFails_Rollback", func(t *testing.T) {
+		svc, mockRepo, _, mockVpcSvc, _, mockSecretSvc, _, _ := newTestClusterSvc()
+
+		vpcID := uuid.New()
+
+		mockVpcSvc.On("GetVPC", mock.Anything, vpcID.String()).Return(&domain.VPC{ID: vpcID}, nil).Once()
+		mockSecretSvc.On("Encrypt", mock.Anything, mock.Anything, mock.Anything).Return("encrypted-key", nil).Once()
+		mockRepo.On("Create", mock.Anything, mock.Anything).Return(nil).Once()
+		mockRepo.On("AddNodeGroup", mock.Anything, mock.Anything).Return(errors.New("database error")).Once()
+		mockRepo.On("Delete", mock.Anything, mock.Anything).Return(nil).Once()
+
+		params := ports.CreateClusterParams{
+			UserID:  uuid.New(),
+			Name:    "test-cluster-rollback",
+			VpcID:   vpcID,
+			Workers: 1,
+		}
+
+		cluster, err := svc.CreateCluster(ctx, params)
+		require.Error(t, err)
+		assert.Nil(t, cluster)
+		assert.Contains(t, err.Error(), "failed to create default node group")
 		mockRepo.AssertExpectations(t)
 	})
 

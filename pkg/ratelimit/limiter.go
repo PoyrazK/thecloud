@@ -14,12 +14,14 @@ import (
 
 // IPRateLimiter manages rate limiters for different IPs/clients
 type IPRateLimiter struct {
-	ips    map[string]*rate.Limiter
-	routes map[uuid.UUID]map[string]*rate.Limiter // per-route limiters
-	mu     sync.RWMutex
-	rate   rate.Limit
-	burst  int
-	logger *slog.Logger
+	ips      map[string]*rate.Limiter
+	routes   map[uuid.UUID]map[string]*rate.Limiter // per-route limiters
+	mu       sync.RWMutex
+	rate     rate.Limit
+	burst    int
+	logger   *slog.Logger
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 // NewIPRateLimiter creates a new rate limiter manager
@@ -30,6 +32,7 @@ func NewIPRateLimiter(r rate.Limit, b int, logger *slog.Logger) *IPRateLimiter {
 		rate:   r,
 		burst:  b,
 		logger: logger,
+		stopCh: make(chan struct{}),
 	}
 
 	// Periodic cleanup of old entries
@@ -94,14 +97,24 @@ func (i *IPRateLimiter) TestSetLimiter(routeID uuid.UUID, key string, limiter *r
 // timestamps for high-traffic production deployments.
 func (i *IPRateLimiter) cleanupLoop() {
 	for {
-		time.Sleep(10 * time.Minute)
-		i.mu.Lock()
-		// Start fresh every cleanup cycle for simplicity
-		// A production robust implementation would track last access time
-		i.ips = make(map[string]*rate.Limiter)
-		i.routes = make(map[uuid.UUID]map[string]*rate.Limiter)
-		i.mu.Unlock()
+		select {
+		case <-time.After(10 * time.Minute):
+			i.mu.Lock()
+			// Start fresh every cleanup cycle for simplicity
+			// A production robust implementation would track last access time
+			i.ips = make(map[string]*rate.Limiter)
+			i.routes = make(map[uuid.UUID]map[string]*rate.Limiter)
+			i.mu.Unlock()
+		case <-i.stopCh:
+			i.logger.Info("rate limiter cleanup loop stopping")
+			return
+		}
 	}
+}
+
+// Shutdown signals the cleanup loop to stop gracefully
+func (i *IPRateLimiter) Shutdown() {
+	i.stopOnce.Do(func() { close(i.stopCh) })
 }
 
 // Middleware creates a Gin middleware for rate limiting

@@ -39,9 +39,15 @@ func (s *RPCServer) Store(stream pb.StorageNode_StoreServer) error {
 		return stream.SendAndClose(&pb.StoreResponse{Success: false, Error: "metadata expected as first message"})
 	}
 
+	// Deserialize VC if present, nil means node generates its own
+	var vc VectorClock
+	if vcBytes := meta.GetVectorClock(); len(vcBytes) > 0 {
+		vc, _ = DeserializeVC(vcBytes)
+	}
+
 	// 2. Stream data to store
 	reader := &grpcStoreReader{stream: stream}
-	_, err = s.store.WriteStream(meta.Bucket, meta.Key, reader, meta.Timestamp)
+	_, err = s.store.WriteStream(meta.Bucket, meta.Key, reader, vc)
 	if err != nil {
 		return stream.SendAndClose(&pb.StoreResponse{Success: false, Error: err.Error()})
 	}
@@ -84,7 +90,7 @@ func (r *grpcStoreReader) Read(p []byte) (n int, err error) {
 }
 
 func (s *RPCServer) Retrieve(req *pb.RetrieveRequest, stream pb.StorageNode_RetrieveServer) error {
-	rc, timestamp, err := s.store.ReadStream(req.Bucket, req.Key)
+	rc, vc, err := s.store.ReadStream(req.Bucket, req.Key)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return stream.Send(&pb.RetrieveResponse{
@@ -97,12 +103,18 @@ func (s *RPCServer) Retrieve(req *pb.RetrieveRequest, stream pb.StorageNode_Retr
 	}
 	defer func() { _ = rc.Close() }()
 
+	// Serialize VC for transport
+	var vcBytes []byte
+	if vc != nil {
+		vcBytes, _ = vc.Serialize()
+	}
+
 	// Send metadata first
 	err = stream.Send(&pb.RetrieveResponse{
 		Payload: &pb.RetrieveResponse_Metadata{
 			Metadata: &pb.RetrieveMetadata{
-				Found:     true,
-				Timestamp: timestamp,
+				Found:       true,
+				VectorClock: vcBytes,
 			},
 		},
 	})
@@ -196,4 +208,12 @@ func (s *RPCServer) Assemble(ctx context.Context, req *pb.AssembleRequest) (*pb.
 		return &pb.AssembleResponse{Error: err.Error()}, err
 	}
 	return &pb.AssembleResponse{Size: size}, nil
+}
+
+func (s *RPCServer) ListKeys(ctx context.Context, req *pb.ListKeysRequest) (*pb.ListKeysResponse, error) {
+	keys, err := s.store.ListKeys(req.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.ListKeysResponse{Keys: keys}, nil
 }

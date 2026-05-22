@@ -32,8 +32,8 @@ func (w *MetricsCollectorWorker) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	w.logger.Info("metrics collector worker started")
 
-	// Initial run
-	go w.collectMetrics(ctx)
+	// Initial run — call synchronously before the ticker loop
+	w.collectMetrics(ctx)
 
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()

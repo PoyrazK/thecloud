@@ -19,12 +19,18 @@ import (
 
 const natGatewayTracer = "nat-gateway-service"
 
+// natVethName returns the veth interface name for a NAT gateway.
+func natVethName(natID uuid.UUID) string {
+	return fmt.Sprintf("nat-%s", natID.String()[:8])
+}
+
 // NATGatewayService manages the lifecycle of NAT Gateways.
 type NATGatewayService struct {
 	repo       ports.NATGatewayRepository
 	eipRepo    ports.ElasticIPRepository
 	subnetRepo ports.SubnetRepository
 	vpcRepo    ports.VpcRepository
+	rtRepo     ports.RouteTableRepository
 	rbacSvc    ports.RBACService
 	network    ports.NetworkBackend
 	auditSvc   ports.AuditService
@@ -37,6 +43,7 @@ type NATGatewayServiceParams struct {
 	EIPRepo    ports.ElasticIPRepository
 	SubnetRepo ports.SubnetRepository
 	VpcRepo    ports.VpcRepository
+	RTRepo     ports.RouteTableRepository
 	RBACSvc    ports.RBACService
 	Network    ports.NetworkBackend
 	AuditSvc   ports.AuditService
@@ -54,6 +61,7 @@ func NewNATGatewayService(params NATGatewayServiceParams) *NATGatewayService {
 		eipRepo:    params.EIPRepo,
 		subnetRepo: params.SubnetRepo,
 		vpcRepo:    params.VpcRepo,
+		rtRepo:     params.RTRepo,
 		rbacSvc:    params.RBACSvc,
 		network:    params.Network,
 		auditSvc:   params.AuditSvc,
@@ -139,7 +147,7 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 	}
 
 	// Setup NAT via NetworkBackend
-	natVethEnd := fmt.Sprintf("nat-%s", natID.String()[:8])
+	natVethEnd := natVethName(natID)
 	if err := s.network.SetupNATForSubnet(ctx, vpc.NetworkID, natVethEnd, subnet.CIDRBlock, eip.PublicIP); err != nil {
 		s.logger.Error("failed to setup NAT", "nat_id", natID, "error", err)
 		// Update NAT status to failed
@@ -152,6 +160,42 @@ func (s *NATGatewayService) CreateNATGateway(ctx context.Context, subnetID, eipI
 	nat.Status = domain.NATGatewayStatusActive
 	if err := s.repo.Update(ctx, nat); err != nil {
 		s.logger.Warn("failed to update NAT gateway status to active", "error", err)
+	}
+
+	// Auto-add catch-all route to main route table for outbound traffic
+	// This allows private subnet instances to reach the internet via this NAT gateway
+	if s.rtRepo != nil {
+		if mainRT, err := s.rtRepo.GetMainByVPC(ctx, vpc.ID); err == nil {
+			// Check if a default route already exists to avoid duplicates
+			existingRoutes, _ := s.rtRepo.ListRoutes(ctx, mainRT.ID)
+			skipAdd := false
+			for _, r := range existingRoutes {
+				if r.RouteTableID == mainRT.ID && r.DestinationCIDR == "0.0.0.0/0" {
+					skipAdd = true
+					break
+				}
+			}
+			if skipAdd {
+				s.logger.Info("default route already exists for VPC, skipping auto-add", "nat_id", natID, "rt_id", mainRT.ID)
+			} else {
+				defaultRoute := &domain.Route{
+					ID:              uuid.New(),
+					RouteTableID:    mainRT.ID,
+					DestinationCIDR: "0.0.0.0/0",
+					TargetType:      domain.RouteTargetNAT,
+					TargetID:        &natID,
+					TargetName:      natVethName(natID),
+					CreatedAt:       time.Now().UTC(),
+				}
+				if err := s.rtRepo.AddRoute(ctx, mainRT.ID, defaultRoute); err != nil {
+					s.logger.Warn("failed to auto-add default route for NAT gateway", "nat_id", natID, "error", err)
+				} else {
+					s.logger.Info("auto-added default route for NAT gateway", "nat_id", natID, "rt_id", mainRT.ID)
+				}
+			}
+		} else {
+			s.logger.Warn("failed to get main route table for NAT gateway route", "nat_id", natID, "error", err)
+		}
 	}
 
 	if err := s.auditSvc.Log(ctx, userID, "nat_gateway.create", "nat_gateway", natID.String(), map[string]interface{}{
@@ -227,7 +271,7 @@ func (s *NATGatewayService) DeleteNATGateway(ctx context.Context, natID uuid.UUI
 	}
 
 	// Remove NAT setup
-	natVethEnd := fmt.Sprintf("nat-%s", natID.String()[:8])
+	natVethEnd := natVethName(natID)
 	if err := s.network.RemoveNATForSubnet(ctx, vpc.NetworkID, natVethEnd, subnet.CIDRBlock, eip.PublicIP); err != nil {
 		return errors.Wrap(errors.Internal, "failed to remove NAT setup", err)
 	}
@@ -241,6 +285,23 @@ func (s *NATGatewayService) DeleteNATGateway(ctx context.Context, natID uuid.UUI
 		if err := s.eipRepo.Update(ctx, eip); err != nil {
 			s.logger.Warn("failed to release EIP during NAT gateway deletion",
 				"eip_id", eip.ID, "nat_id", natID, "error", err)
+		}
+	}
+
+	// Remove auto-added catch-all route from main route table
+	if s.rtRepo != nil {
+		if mainRT, err := s.rtRepo.GetMainByVPC(ctx, nat.VPCID); err == nil {
+			routes, _ := s.rtRepo.ListRoutes(ctx, mainRT.ID)
+			for _, r := range routes {
+				if r.DestinationCIDR == "0.0.0.0/0" && r.TargetType == domain.RouteTargetNAT && r.TargetID != nil && *r.TargetID == natID {
+					if err := s.rtRepo.RemoveRoute(ctx, mainRT.ID, r.ID); err != nil {
+						s.logger.Warn("failed to remove auto-added route during NAT deletion", "route_id", r.ID, "nat_id", natID, "error", err)
+					} else {
+						s.logger.Info("removed auto-added catch-all route for NAT gateway", "route_id", r.ID, "nat_id", natID)
+					}
+					break
+				}
+			}
 		}
 	}
 
