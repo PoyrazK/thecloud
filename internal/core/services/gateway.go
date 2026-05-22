@@ -677,7 +677,7 @@ type retryTransport struct {
 	// fastFailThreshold prevents retry storms when upstream is unreachable.
 	// When >0, consecutive connection errors exceeding this count trips the
 	// circuit breaker immediately (bypassing normal failure counting).
-	fastFailThreshold     int
+	fastFailThreshold     int32
 	consecutiveConnErrors atomic.Int32
 }
 
@@ -698,12 +698,13 @@ func (e *retryableStatusError) Error() string {
 // newRetryTransport wraps a base http.Transport with per-route retry and circuit breaker behavior.
 func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logger *slog.Logger) *retryTransport {
 	rt := &retryTransport{
-		base:              base,
-		maxRetries:        route.MaxRetries,
-		retryTimeout:      time.Duration(route.RetryTimeout) * time.Millisecond,
-		logger:            logger,
-		routeID:           route.ID.String(),
-		fastFailThreshold: route.CircuitBreakerThreshold,
+		base:         base,
+		maxRetries:   route.MaxRetries,
+		retryTimeout: time.Duration(route.RetryTimeout) * time.Millisecond,
+		logger:       logger,
+		routeID:      route.ID.String(),
+		//nolint:gosec,G115 // int->int32 conversion safe for small threshold values
+		fastFailThreshold: int32(route.CircuitBreakerThreshold),
 	}
 	if route.CircuitBreakerThreshold > 0 {
 		rt.cb = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
@@ -816,8 +817,8 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		// Fast-fail: if we hit too many consecutive connection errors, trip the
 		// circuit breaker immediately to prevent retry storms.
 		if rt.cb != nil && rt.fastFailThreshold > 0 {
-			//lint:ignore G115 int->int32 conversion safe since threshold fits in int32 range
-			if rt.consecutiveConnErrors.Add(1) >= int32(rt.fastFailThreshold) {
+			//nolint:gosec,G115 // int->int32 safe: threshold is small positive int
+			if rt.consecutiveConnErrors.Add(1) >= rt.fastFailThreshold {
 				platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "fast_fail").Inc()
 				// Trip the circuit breaker open immediately
 				rt.cb.RecordFailure()
