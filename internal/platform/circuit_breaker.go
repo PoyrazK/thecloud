@@ -237,6 +237,33 @@ func (cb *CircuitBreaker) Reset() {
 	}
 }
 
+// RecordFailure immediately records a failure and trips the circuit breaker
+// if it is currently closed. This is used for fast-fail scenarios where
+// we want to trip the CB immediately on specific errors.
+func (cb *CircuitBreaker) RecordFailure() {
+	cb.mu.Lock()
+	var cbFunc StateChangeFunc
+	var name string
+	var from, to State
+	var changed bool
+
+	cb.halfOpenInFlight = false
+	cb.failureCount++
+	cb.lastFailure = time.Now()
+
+	switch cb.state {
+	case StateClosed:
+		cbFunc, name, from, to, changed = cb.transitionLocked(StateOpen)
+	case StateHalfOpen:
+		cbFunc, name, from, to, changed = cb.transitionLocked(StateOpen)
+	}
+	cb.mu.Unlock()
+
+	if changed && cbFunc != nil {
+		cbFunc(name, from, to)
+	}
+}
+
 // GetState returns the current state of the circuit breaker.
 func (cb *CircuitBreaker) GetState() State {
 	cb.mu.Lock()

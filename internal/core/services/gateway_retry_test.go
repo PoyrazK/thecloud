@@ -268,10 +268,13 @@ func TestRetryTransport_GivesUpOnConnectionErrorAfterMaxRetries(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/", nil)
 	resp, err := transport.RoundTrip(req) //nolint:bodyclose
-	// When all attempts return errors, doRoundTrip returns nil, nil
-	require.NoError(t, err)
+	// When all attempts return connection errors, we retry until retries
+	// are exhausted then return the last error (which allows circuit breaker
+	// to properly count the failure)
+	require.Error(t, err, "expected error after exhausting retries")
 	assert.Nil(t, resp)
 	assert.Equal(t, 3, m.calls, "3 attempts: first + 2 retries")
+	assert.Contains(t, err.Error(), "connection refused")
 }
 
 func TestRetryTransport_SucceedsOnFirstAttempt(t *testing.T) {

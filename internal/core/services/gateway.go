@@ -656,12 +656,17 @@ func calculateMatchScore(route *domain.GatewayRoute, _ string) int {
 
 // retryTransport wraps an http.Transport with circuit breaker and retry logic.
 type retryTransport struct {
-	base         http.RoundTripper
-	cb           *platform.CircuitBreaker // nil if circuit breaker is disabled
-	maxRetries   int
-	retryTimeout time.Duration
-	logger       *slog.Logger
-	routeID      string
+	base                    http.RoundTripper
+	cb                      *platform.CircuitBreaker // nil if circuit breaker is disabled
+	maxRetries              int
+	retryTimeout            time.Duration
+	logger                  *slog.Logger
+	routeID                 string
+	// fastFailThreshold prevents retry storms when upstream is unreachable.
+	// When >0, consecutive connection errors exceeding this count trips the
+	// circuit breaker immediately (bypassing normal failure counting).
+	fastFailThreshold      int
+	consecutiveConnErrors   int
 }
 
 // retryableStatusError wraps a response returned when retries are exhausted
@@ -681,11 +686,12 @@ func (e *retryableStatusError) Error() string {
 // newRetryTransport wraps a base http.Transport with per-route retry and circuit breaker behavior.
 func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logger *slog.Logger) *retryTransport {
 	rt := &retryTransport{
-		base:         base,
-		maxRetries:   route.MaxRetries,
-		retryTimeout: time.Duration(route.RetryTimeout) * time.Millisecond,
-		logger:       logger,
-		routeID:      route.ID.String(),
+		base:               base,
+		maxRetries:         route.MaxRetries,
+		retryTimeout:       time.Duration(route.RetryTimeout) * time.Millisecond,
+		logger:             logger,
+		routeID:            route.ID.String(),
+		fastFailThreshold:  route.CircuitBreakerThreshold,
 	}
 	if route.CircuitBreakerThreshold > 0 {
 		rt.cb = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
@@ -767,6 +773,8 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 
 		resp, err := rt.base.RoundTrip(req)
 		if err == nil {
+			// Reset consecutive error counter on success
+			rt.consecutiveConnErrors = 0
 			if !rt.isRetryableStatus(resp.StatusCode) {
 				// Drain body before returning so connection can be reused
 				if resp.Body != nil {
@@ -783,8 +791,28 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		}
 
 		if !rt.isRetryableError(err) {
+			// Drain body before returning so connection can be reused
+			if resp != nil && resp.Body != nil {
+				_, _ = io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+			// Reset consecutive errors on non-retryable error (upstream responded)
+			rt.consecutiveConnErrors = 0
 			return nil, err
 		}
+
+		// Fast-fail: if we hit too many consecutive connection errors, trip the
+		// circuit breaker immediately to prevent retry storms.
+		if rt.cb != nil && rt.fastFailThreshold > 0 {
+			rt.consecutiveConnErrors++
+			if rt.consecutiveConnErrors >= rt.fastFailThreshold {
+				platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "fast_fail").Inc()
+				// Trip the circuit breaker open immediately
+				rt.cb.RecordFailure()
+				return nil, fmt.Errorf("fast-fail: too many consecutive connection errors: %w", err)
+			}
+		}
+
 		lastErr = err
 		lastResp = resp
 
@@ -829,7 +857,8 @@ func (rt *retryTransport) isRetryableError(err error) bool {
 	// Use net.Error interface for robust detection of transient errors
 	var netErr net.Error
 	if stderrors.As(err, &netErr) {
-		return netErr.Timeout()
+		// Use both Temporary() and Timeout() - connection refused has Temporary()=true
+		return netErr.Temporary() || netErr.Timeout()
 	}
 	// Fallback to string matching for errors not wrapped as net.Error
 	msg := err.Error()
