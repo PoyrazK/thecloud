@@ -703,8 +703,7 @@ func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logge
 		retryTimeout: time.Duration(route.RetryTimeout) * time.Millisecond,
 		logger:       logger,
 		routeID:      route.ID.String(),
-		//nolint:G115 // int->int32 conversion safe for small threshold values
-		fastFailThreshold: int32(route.CircuitBreakerThreshold),
+		fastFailThreshold: int32(route.CircuitBreakerThreshold), //nolint:gosec
 	}
 	if route.CircuitBreakerThreshold > 0 {
 		rt.cb = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
