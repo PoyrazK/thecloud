@@ -520,7 +520,8 @@ func (s *GatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayR
 		return key, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("invalid token: %w", err)
+		// Return generic error to avoid leaking timing info about signature validation
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	if !token.Valid {
