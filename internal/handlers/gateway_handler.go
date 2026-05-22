@@ -374,8 +374,8 @@ func (rw *responseWrapper) WriteHeader(status int) {
 }
 
 // gzipWriterPool reuses gzip writers to reduce allocations under high throughput.
-// Close() flushes the writer before returning it to the pool, ensuring all
-// compressed data is written to the underlying response.
+// Note: Each writer is Reset() with a new destination before use, so pooled
+// writers are stateless and safe to reuse.
 var gzipWriterPool = sync.Pool{
 	New: func() any {
 		return new(gzip.Writer)
@@ -421,7 +421,10 @@ func (cw *compressWriter) Close() error {
 
 // Hijack implements http.Hijacker to support websocket and streaming scenarios.
 func (cw *compressWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return cw.ResponseWriter.(http.Hijacker).Hijack()
+	if hj, ok := cw.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, fmt.Errorf("embedded ResponseWriter does not implement http.Hijacker")
 }
 
 func (h *GatewayHandler) validateDryRun(c *gin.Context, req CreateRouteRequest) {
