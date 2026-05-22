@@ -374,6 +374,9 @@ func (rw *responseWrapper) WriteHeader(status int) {
 }
 
 // gzipWriterPool reuses gzip writers to reduce allocations under high throughput.
+// Note: Writers returned to the pool may have unflushed buffered data if Close()
+// encounters an error. This is an acceptable trade-off for the performance gain.
+// Callers should ensure Close() is always called before returning the writer.
 var gzipWriterPool = sync.Pool{
 	New: func() any {
 		return new(gzip.Writer)
