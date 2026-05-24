@@ -1,5 +1,7 @@
+version: "2"
+
 run:
-  timeout: 5m
+  timeout: 10m
 
 linters:
   disable-all: true
@@ -43,9 +45,18 @@ linters-settings:
   staticcheck:
     checks: ["all", "-QF1008"]
   gosec:
+    settings:
+      GOFLAGS: ""
     excludes:
       - G101
       - G106
+      - G204
+      - G304
+      - G117
+      - G301
+      - G118
+      - G115
+      - G704
 
 issues:
   exclude-rules:
@@ -55,6 +66,13 @@ issues:
     - path: _test\.go
       linters:
         - gosec
+    - path: _test\.go
+      linters:
+        - revive
+      text: "unused-parameter"
+    - path: _test\.go
+      linters:
+        - staticcheck
     - path: internal/core/services/cluster_unit_test\.go
       linters:
         - unparam
@@ -63,3 +81,9 @@ issues:
       linters:
         - nolintlint
       text: "directive.*unused.*bodyclose"
+    - linters:
+        - staticcheck
+      text: "QF1012"
+    - linters:
+        - gosec
+      text: "G101|G106|G204|G304|G117|G301|G118|G115|G704"

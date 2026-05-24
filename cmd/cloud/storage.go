@@ -69,13 +69,13 @@ var storageListCmd = &cobra.Command{
 			table.Header([]string{"NAME", "PUBLIC", headerCreatedAt})
 
 			for _, b := range buckets {
-				table.Append([]string{
+				_ = table.Append([]string{
 					b.Name,
 					fmt.Sprintf("%v", b.IsPublic),
 					b.CreatedAt.Format(time.RFC3339),
 				})
 			}
-			table.Render()
+			_ = table.Render()
 
 			if meta != nil {
 				fmt.Printf("\nShowing %d of %d total", len(buckets), meta.TotalCount)
@@ -105,14 +105,14 @@ var storageListCmd = &cobra.Command{
 		table.Header([]string{"KEY", "SIZE", headerCreatedAt, "ARN"})
 
 		for _, obj := range objects {
-			table.Append([]string{
+			_ = table.Append([]string{
 				obj.Key,
 				fmt.Sprintf("%d", obj.SizeBytes),
 				obj.CreatedAt.Format(time.RFC3339),
 				obj.ARN,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 
@@ -286,14 +286,14 @@ var storageClusterStatusCmd = &cobra.Command{
 		table.Header([]string{"NODE ID", "ADDRESS", "STATUS", "LAST SEEN"})
 
 		for _, n := range status.Nodes {
-			table.Append([]string{
+			_ = table.Append([]string{
 				n.ID,
 				n.Address,
 				n.Status,
 				n.LastSeen.Format(time.RFC3339),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 
@@ -347,14 +347,14 @@ var storageVersionsCmd = &cobra.Command{
 		table.Header([]string{"VERSION ID", "LATEST", "SIZE", headerCreatedAt})
 
 		for _, v := range versions {
-			table.Append([]string{
+			_ = table.Append([]string{
 				v.VersionID,
 				fmt.Sprintf("%v", v.IsLatest),
 				fmt.Sprintf("%d", v.SizeBytes),
 				v.CreatedAt.Format(time.RFC3339),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

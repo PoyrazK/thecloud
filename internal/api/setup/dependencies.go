@@ -15,6 +15,7 @@ import (
 
 	dnsadapter "github.com/poyrazk/thecloud/internal/adapters/dns"
 	"github.com/poyrazk/thecloud/internal/adapters/vault"
+	"github.com/poyrazk/thecloud/internal/core/pool"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/poyrazk/thecloud/internal/handlers/ws"
@@ -324,7 +325,8 @@ func InitServices(c ServiceConfig) (*Services, *Workers, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to init secret service: %w", err)
 	}
-	fnSvc := services.NewFunctionService(c.Repos.Function, rbacSvc, c.Compute, fileStore, auditSvc, secretSvc, c.Logger)
+	poolMgr := pool.NewManager(c.Compute, c.Logger)
+	fnSvc := services.NewFunctionService(c.Repos.Function, rbacSvc, c.Compute, fileStore, auditSvc, secretSvc, poolMgr, c.Logger)
 	fnSchedSvc := services.NewFunctionScheduleService(c.Repos.FunctionSchedule, c.Repos.Function, rbacSvc, eventSvc, auditSvc, c.Logger)
 	cacheSvc := services.NewCacheService(c.Repos.Cache, rbacSvc, c.Compute, c.Repos.Vpc, eventSvc, auditSvc, c.Logger)
 	queueSvc := services.NewQueueService(c.Repos.Queue, rbacSvc, eventSvc, auditSvc, c.Logger)

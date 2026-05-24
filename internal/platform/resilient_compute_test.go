@@ -129,6 +129,15 @@ func (m *mockCompute) Type() string                                     { return
 func (m *mockCompute) PauseInstance(_ context.Context, _ string) error  { return nil }
 func (m *mockCompute) ResumeInstance(_ context.Context, _ string) error { return nil }
 func (m *mockCompute) ResetCircuitBreaker()                             {}
+func (m *mockCompute) StartPoolInstance(_ context.Context, _ ports.RunTaskOptions) (string, []string, error) {
+	return "pool-inst-1", nil, nil
+}
+func (m *mockCompute) ExecInInstance(_ context.Context, _ string, _ []string) (string, error) {
+	return "exec-output", nil
+}
+func (m *mockCompute) GetInstanceReady(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
 
 // ---------- tests ----------
 

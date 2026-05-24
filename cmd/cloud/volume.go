@@ -47,7 +47,7 @@ var volumeListCmd = &cobra.Command{
 			if v.InstanceID != nil {
 				attachedTo = truncateID(v.InstanceID.String())
 			}
-			table.Append([]string{
+			_ = table.Append([]string{
 				id,
 				v.Name,
 				fmt.Sprintf("%d GB", v.SizeGB),
@@ -55,7 +55,7 @@ var volumeListCmd = &cobra.Command{
 				attachedTo,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

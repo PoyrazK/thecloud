@@ -39,7 +39,7 @@ func TestDatabaseAdvancedE2E(t *testing.T) {
 		}
 		resp := postRequest(t, client, testutil.TestBaseURL+"/databases", token, payload)
 		if resp != nil && resp.Body != nil {
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 		}
 
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
@@ -55,7 +55,7 @@ func TestDatabaseAdvancedE2E(t *testing.T) {
 		// Cleanup
 		respDel := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, dbID), token)
 		if respDel != nil && respDel.Body != nil {
-			defer respDel.Body.Close()
+			defer func() { _ = respDel.Body.Close() }()
 		}
 	})
 
@@ -118,7 +118,7 @@ func runInvalidConfigsTest(t *testing.T, client *http.Client, token string) {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := postRequest(t, client, testutil.TestBaseURL+"/databases", token, tc.payload)
 			if resp != nil && resp.Body != nil {
-				defer resp.Body.Close()
+				defer func() { _ = resp.Body.Close() }()
 			}
 
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Expected 400 Bad Request for %s", tc.name)
@@ -143,7 +143,7 @@ func runPromotionEdgeCasesTest(t *testing.T, client *http.Client, token string) 
 		Data domain.Database `json:"data"`
 	}
 	err := json.NewDecoder(resp.Body).Decode(&res)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	require.NoError(t, err)
 	dbID := res.Data.ID.String()
 
@@ -151,7 +151,7 @@ func runPromotionEdgeCasesTest(t *testing.T, client *http.Client, token string) 
 	t.Run("PromotePrimaryFails", func(t *testing.T) {
 		respPromo := postRequest(t, client, fmt.Sprintf("%s/databases/%s/promote", testutil.TestBaseURL, dbID), token, nil)
 		if respPromo != nil && respPromo.Body != nil {
-			defer respPromo.Body.Close()
+			defer func() { _ = respPromo.Body.Close() }()
 		}
 		assert.Equal(t, http.StatusBadRequest, respPromo.StatusCode)
 	})
@@ -161,7 +161,7 @@ func runPromotionEdgeCasesTest(t *testing.T, client *http.Client, token string) 
 		fakeID := "00000000-0000-0000-0000-000000000000"
 		respPromo := postRequest(t, client, fmt.Sprintf("%s/databases/%s/promote", testutil.TestBaseURL, fakeID), token, nil)
 		if respPromo != nil && respPromo.Body != nil {
-			defer respPromo.Body.Close()
+			defer func() { _ = respPromo.Body.Close() }()
 		}
 		assert.Equal(t, http.StatusNotFound, respPromo.StatusCode)
 	})
@@ -169,7 +169,7 @@ func runPromotionEdgeCasesTest(t *testing.T, client *http.Client, token string) 
 	// Cleanup
 	respDel := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, dbID), token)
 	if respDel != nil && respDel.Body != nil {
-		defer respDel.Body.Close()
+		defer func() { _ = respDel.Body.Close() }()
 	}
 }
 
@@ -187,7 +187,7 @@ func runVpcIntegrationTest(t *testing.T, client *http.Client, token string) {
 		Data domain.VPC `json:"data"`
 	}
 	err := json.NewDecoder(respVpc.Body).Decode(&vpcRes)
-	respVpc.Body.Close()
+	_ = respVpc.Body.Close()
 	require.NoError(t, err)
 	vpcID := vpcRes.Data.ID
 
@@ -203,12 +203,12 @@ func runVpcIntegrationTest(t *testing.T, client *http.Client, token string) {
 	respDb := postRequest(t, client, testutil.TestBaseURL+"/databases", token, dbPayload)
 	if respDb.StatusCode != http.StatusCreated {
 		if respDb.Body != nil {
-			respDb.Body.Close()
+			_ = respDb.Body.Close()
 		}
 		// Cleanup VPC if DB fails
 		respDelVpc := deleteRequest(t, client, fmt.Sprintf("%s/vpcs/%s?force=true", testutil.TestBaseURL, vpcID), token)
 		if respDelVpc != nil && respDelVpc.Body != nil {
-			respDelVpc.Body.Close()
+			_ = respDelVpc.Body.Close()
 		}
 		t.Skipf("Skipping VPC integration test: Database creation failed with %d (likely infra issue)", respDb.StatusCode)
 	}
@@ -217,18 +217,18 @@ func runVpcIntegrationTest(t *testing.T, client *http.Client, token string) {
 		Data domain.Database `json:"data"`
 	}
 	err = json.NewDecoder(respDb.Body).Decode(&dbRes)
-	respDb.Body.Close()
+	_ = respDb.Body.Close()
 	require.NoError(t, err)
 	assert.Equal(t, vpcID, *dbRes.Data.VpcID)
 
 	// Cleanup
 	respDel1 := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, dbRes.Data.ID), token)
 	if respDel1 != nil && respDel1.Body != nil {
-		respDel1.Body.Close()
+		_ = respDel1.Body.Close()
 	}
 	respDel2 := deleteRequest(t, client, fmt.Sprintf("%s/vpcs/%s?force=true", testutil.TestBaseURL, vpcID), token)
 	if respDel2 != nil && respDel2.Body != nil {
-		respDel2.Body.Close()
+		_ = respDel2.Body.Close()
 	}
 }
 
@@ -248,7 +248,7 @@ func runMultiReplicaPromotionTest(t *testing.T, client *http.Client, token strin
 		Data domain.Database `json:"data"`
 	}
 	err := json.NewDecoder(respP.Body).Decode(&pRes)
-	respP.Body.Close()
+	_ = respP.Body.Close()
 	require.NoError(t, err)
 	primaryID := pRes.Data.ID
 
@@ -266,7 +266,7 @@ func runMultiReplicaPromotionTest(t *testing.T, client *http.Client, token strin
 			Data domain.Database `json:"data"`
 		}
 		err = json.NewDecoder(respR.Body).Decode(&rRes)
-		respR.Body.Close()
+		_ = respR.Body.Close()
 		require.NoError(t, err)
 		replicaIDs[i] = rRes.Data.ID.String()
 		assert.Equal(t, domain.RoleReplica, rRes.Data.Role)
@@ -276,7 +276,7 @@ func runMultiReplicaPromotionTest(t *testing.T, client *http.Client, token strin
 	// 3. Promote Replica 1
 	respPromo := postRequest(t, client, fmt.Sprintf("%s/databases/%s/promote", testutil.TestBaseURL, replicaIDs[0]), token, nil)
 	if respPromo != nil && respPromo.Body != nil {
-		respPromo.Body.Close()
+		_ = respPromo.Body.Close()
 	}
 	assert.Equal(t, http.StatusOK, respPromo.StatusCode)
 
@@ -286,7 +286,7 @@ func runMultiReplicaPromotionTest(t *testing.T, client *http.Client, token strin
 		Data domain.Database `json:"data"`
 	}
 	err = json.NewDecoder(respG1.Body).Decode(&g1Res)
-	respG1.Body.Close()
+	_ = respG1.Body.Close()
 	require.NoError(t, err)
 	assert.Equal(t, domain.RolePrimary, g1Res.Data.Role)
 	assert.Nil(t, g1Res.Data.PrimaryID)
@@ -297,7 +297,7 @@ func runMultiReplicaPromotionTest(t *testing.T, client *http.Client, token strin
 		Data domain.Database `json:"data"`
 	}
 	err = json.NewDecoder(respG2.Body).Decode(&g2Res)
-	respG2.Body.Close()
+	_ = respG2.Body.Close()
 	require.NoError(t, err)
 	assert.Equal(t, domain.RoleReplica, g2Res.Data.Role)
 	assert.Equal(t, primaryID, *g2Res.Data.PrimaryID)
@@ -305,15 +305,15 @@ func runMultiReplicaPromotionTest(t *testing.T, client *http.Client, token strin
 	// Cleanup
 	respDelP := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, primaryID), token)
 	if respDelP != nil && respDelP.Body != nil {
-		respDelP.Body.Close()
+		_ = respDelP.Body.Close()
 	}
 	respDelR1 := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, replicaIDs[0]), token)
 	if respDelR1 != nil && respDelR1.Body != nil {
-		respDelR1.Body.Close()
+		_ = respDelR1.Body.Close()
 	}
 	respDelR2 := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, replicaIDs[1]), token)
 	if respDelR2 != nil && respDelR2.Body != nil {
-		respDelR2.Body.Close()
+		_ = respDelR2.Body.Close()
 	}
 }
 
@@ -340,7 +340,7 @@ func runConnectionStringFormatsTest(t *testing.T, client *http.Client, token str
 			resp := postRequest(t, client, testutil.TestBaseURL+"/databases", token, payload)
 			if resp.StatusCode != http.StatusCreated {
 				if resp != nil && resp.Body != nil {
-					resp.Body.Close()
+					_ = resp.Body.Close()
 				}
 				t.Skipf("Skipping %s connection string test due to infra error: %d", tc.engine, resp.StatusCode)
 			}
@@ -349,7 +349,7 @@ func runConnectionStringFormatsTest(t *testing.T, client *http.Client, token str
 				Data domain.Database `json:"data"`
 			}
 			err := json.NewDecoder(resp.Body).Decode(&res)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			require.NoError(t, err)
 			dbID := res.Data.ID.String()
 
@@ -360,7 +360,7 @@ func runConnectionStringFormatsTest(t *testing.T, client *http.Client, token str
 				} `json:"data"`
 			}
 			err = json.NewDecoder(respConn.Body).Decode(&connRes)
-			respConn.Body.Close()
+			_ = respConn.Body.Close()
 			require.NoError(t, err)
 			assert.Contains(t, connRes.Data.ConnectionString, tc.prefix)
 			assert.Contains(t, connRes.Data.ConnectionString, dbName)
@@ -368,7 +368,7 @@ func runConnectionStringFormatsTest(t *testing.T, client *http.Client, token str
 			// Cleanup
 			respDel := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, dbID), token)
 			if respDel != nil && respDel.Body != nil {
-				respDel.Body.Close()
+				_ = respDel.Body.Close()
 			}
 		})
 	}
@@ -382,7 +382,7 @@ func runUnauthorizedAccessTest(t *testing.T, client *http.Client) {
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -395,21 +395,21 @@ func runResourceNotFoundTest(t *testing.T, client *http.Client, token string) {
 	// 1. Get non-existent DB
 	respG := getRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, fakeID), token)
 	if respG != nil && respG.Body != nil {
-		defer respG.Body.Close()
+		defer func() { _ = respG.Body.Close() }()
 	}
 	assert.Equal(t, http.StatusNotFound, respG.StatusCode)
 
 	// 2. Delete non-existent DB
 	respD := deleteRequest(t, client, fmt.Sprintf("%s/databases/%s", testutil.TestBaseURL, fakeID), token)
 	if respD != nil && respD.Body != nil {
-		defer respD.Body.Close()
+		defer func() { _ = respD.Body.Close() }()
 	}
 	assert.Equal(t, http.StatusNotFound, respD.StatusCode)
 
 	// 3. Get connection string for non-existent DB
 	respC := getRequest(t, client, fmt.Sprintf("%s/databases/%s/connection", testutil.TestBaseURL, fakeID), token)
 	if respC != nil && respC.Body != nil {
-		defer respC.Body.Close()
+		defer func() { _ = respC.Body.Close() }()
 	}
 	assert.Equal(t, http.StatusNotFound, respC.StatusCode)
 }

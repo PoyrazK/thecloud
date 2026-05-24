@@ -120,6 +120,18 @@ func (m *mockAdminComputeFull) DeleteSnapshot(ctx context.Context, id, name stri
 	args := m.Called(ctx, id, name)
 	return args.Error(0)
 }
+func (m *mockAdminComputeFull) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	args := m.Called(ctx, opts)
+	return args.String(0), args.Get(1).([]string), args.Error(2)
+}
+func (m *mockAdminComputeFull) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	args := m.Called(ctx, id, cmd)
+	return args.String(0), args.Error(1)
+}
+func (m *mockAdminComputeFull) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	args := m.Called(ctx, id)
+	return args.Bool(0), args.Error(1)
+}
 
 const adminPath = "/admin/reset-circuit-breakers"
 
@@ -149,55 +161,64 @@ func TestAdminHandlerResetCircuitBreakers_WithResetSupport(t *testing.T) {
 
 type computeNoOpReset struct{}
 
-func (c *computeNoOpReset) LaunchInstanceWithOptions(ctx context.Context, opts ports.CreateInstanceOptions) (string, []string, error) {
+func (c *computeNoOpReset) LaunchInstanceWithOptions(_ context.Context, _ ports.CreateInstanceOptions) (string, []string, error) {
 	return "", nil, nil
 }
-func (c *computeNoOpReset) StartInstance(ctx context.Context, id string) error  { return nil }
-func (c *computeNoOpReset) StopInstance(ctx context.Context, id string) error   { return nil }
-func (c *computeNoOpReset) PauseInstance(ctx context.Context, id string) error  { return nil }
-func (c *computeNoOpReset) ResumeInstance(ctx context.Context, id string) error { return nil }
-func (c *computeNoOpReset) DeleteInstance(ctx context.Context, id string) error { return nil }
-func (c *computeNoOpReset) GetInstanceLogs(ctx context.Context, id string) (io.ReadCloser, error) {
+func (c *computeNoOpReset) StartInstance(_ context.Context, _ string) error  { return nil }
+func (c *computeNoOpReset) StopInstance(_ context.Context, _ string) error   { return nil }
+func (c *computeNoOpReset) PauseInstance(_ context.Context, _ string) error  { return nil }
+func (c *computeNoOpReset) ResumeInstance(_ context.Context, _ string) error { return nil }
+func (c *computeNoOpReset) DeleteInstance(_ context.Context, _ string) error { return nil }
+func (c *computeNoOpReset) GetInstanceLogs(_ context.Context, _ string) (io.ReadCloser, error) {
 	return nil, nil
 }
-func (c *computeNoOpReset) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
+func (c *computeNoOpReset) GetInstanceStats(_ context.Context, _ string) (io.ReadCloser, error) {
 	return nil, nil
 }
-func (c *computeNoOpReset) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {
+func (c *computeNoOpReset) GetInstancePort(_ context.Context, _ string, _ string) (int, error) {
 	return 0, nil
 }
-func (c *computeNoOpReset) GetInstanceIP(ctx context.Context, id string) (string, error) {
+func (c *computeNoOpReset) GetInstanceIP(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
-func (c *computeNoOpReset) GetConsoleURL(ctx context.Context, id string) (string, error) {
+func (c *computeNoOpReset) GetConsoleURL(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
-func (c *computeNoOpReset) Exec(ctx context.Context, id string, cmd []string) (string, error) {
+func (c *computeNoOpReset) Exec(_ context.Context, _ string, _ []string) (string, error) {
 	return "", nil
 }
-func (c *computeNoOpReset) RunTask(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+func (c *computeNoOpReset) RunTask(_ context.Context, _ ports.RunTaskOptions) (string, []string, error) {
 	return "", nil, nil
 }
-func (c *computeNoOpReset) WaitTask(ctx context.Context, id string) (int64, error) { return 0, nil }
-func (c *computeNoOpReset) CreateNetwork(ctx context.Context, name string) (string, error) {
+func (c *computeNoOpReset) WaitTask(_ context.Context, _ string) (int64, error) { return 0, nil }
+func (c *computeNoOpReset) CreateNetwork(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
-func (c *computeNoOpReset) DeleteNetwork(ctx context.Context, id string) error { return nil }
-func (c *computeNoOpReset) AttachVolume(ctx context.Context, id, volumePath string) (string, string, error) {
+func (c *computeNoOpReset) DeleteNetwork(_ context.Context, _ string) error { return nil }
+func (c *computeNoOpReset) AttachVolume(_ context.Context, _, _ string) (string, string, error) {
 	return "", "", nil
 }
-func (c *computeNoOpReset) DetachVolume(ctx context.Context, id, volumePath string) (string, error) {
+func (c *computeNoOpReset) DetachVolume(_ context.Context, _, _ string) (string, error) {
 	return "", nil
 }
-func (c *computeNoOpReset) Ping(ctx context.Context) error { return nil }
-func (c *computeNoOpReset) Type() string                   { return "" }
-func (c *computeNoOpReset) ResizeInstance(ctx context.Context, id string, cpu, memory int64) error {
+func (c *computeNoOpReset) Ping(_ context.Context) error { return nil }
+func (c *computeNoOpReset) Type() string                 { return "" }
+func (c *computeNoOpReset) ResizeInstance(_ context.Context, _ string, _, _ int64) error {
 	return nil
 }
-func (c *computeNoOpReset) CreateSnapshot(ctx context.Context, id, name string) error  { return nil }
-func (c *computeNoOpReset) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
-func (c *computeNoOpReset) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
-func (c *computeNoOpReset) ResetCircuitBreaker()                                       {}
+func (c *computeNoOpReset) CreateSnapshot(_ context.Context, _, _ string) error  { return nil }
+func (c *computeNoOpReset) RestoreSnapshot(_ context.Context, _, _ string) error { return nil }
+func (c *computeNoOpReset) DeleteSnapshot(_ context.Context, _, _ string) error  { return nil }
+func (c *computeNoOpReset) StartPoolInstance(_ context.Context, _ ports.RunTaskOptions) (string, []string, error) {
+	return "", nil, nil
+}
+func (c *computeNoOpReset) ExecInInstance(_ context.Context, _ string, _ []string) (string, error) {
+	return "", nil
+}
+func (c *computeNoOpReset) GetInstanceReady(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+func (c *computeNoOpReset) ResetCircuitBreaker() {}
 
 // TestAdminHandlerResetCircuitBreakers_NopImplementation verifies that when
 // ResetCircuitBreaker is a no-op (backend doesn't support reset), the handler

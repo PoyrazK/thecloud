@@ -44,6 +44,17 @@ type ComputeBackend interface {
 	// WaitTask blocks until a specific task completes and returns its exit code.
 	WaitTask(ctx context.Context, id string) (int64, error)
 
+	// Pool Management (warm containers for serverless)
+
+	// StartPoolInstance starts a warm instance that stays running but waiting for work.
+	// The instance should be ready to execute but not actively running a function yet.
+	StartPoolInstance(ctx context.Context, opts RunTaskOptions) (string, []string, error)
+	// ExecInInstance executes a command in a warm (already running) instance.
+	// Used to inject code and trigger function execution without restarting the instance.
+	ExecInInstance(ctx context.Context, id string, cmd []string) (string, error)
+	// GetInstanceReady checks if an instance is fully initialized and ready to accept work.
+	GetInstanceReady(ctx context.Context, id string) (bool, error)
+
 	// Network Management
 
 	// CreateNetwork establishes a new L2/L3 isolation boundary.

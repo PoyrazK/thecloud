@@ -79,6 +79,15 @@ func (t *testComputeBackend) DeleteSnapshot(ctx context.Context, id, name string
 func (t *testComputeBackend) PauseInstance(ctx context.Context, id string) error         { return nil }
 func (t *testComputeBackend) ResumeInstance(ctx context.Context, id string) error        { return nil }
 func (t *testComputeBackend) ResetCircuitBreaker()                                       {}
+func (t *testComputeBackend) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	return "", nil, nil
+}
+func (t *testComputeBackend) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
+func (t *testComputeBackend) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	return true, nil
+}
 
 // compile-time check that testComputeBackend satisfies ports.ComputeBackend
 var _ ports.ComputeBackend = (*testComputeBackend)(nil)

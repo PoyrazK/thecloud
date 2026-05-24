@@ -3,8 +3,17 @@ package libvirt
 
 import (
 	"context"
+	"io"
 
 	"github.com/digitalocean/go-libvirt"
+)
+
+// ConsoleFlags represents flags for DomainOpenConsole.
+type ConsoleFlags uint32
+
+const (
+	ConsoleForce ConsoleFlags = 1 << iota // VIR_DOMAIN_CONSOLE_FORCE
+	ConsoleSafe  ConsoleFlags = 1 << iota // VIR_DOMAIN_CONSOLE_SAFE
 )
 
 // LibvirtClient defines the interface for libvirt operations.
@@ -28,6 +37,7 @@ type LibvirtClient interface {
 	DomainDetachDevice(ctx context.Context, dom libvirt.Domain, xml string) error
 	DomainMemoryStats(ctx context.Context, dom libvirt.Domain, maxStats uint32, flags uint32) ([]libvirt.DomainMemoryStat, error)
 	DomainGetCPUStats(ctx context.Context, dom libvirt.Domain, nparams uint32, startCPU int32, ncpus uint32, flags libvirt.TypedParameterFlags) ([]libvirt.TypedParam, int32, error)
+	DomainOpenConsole(ctx context.Context, dom libvirt.Domain, devName string, flags ConsoleFlags) (io.ReadCloser, io.WriteCloser, error)
 
 	// Network
 	NetworkLookupByName(ctx context.Context, name string) (libvirt.Network, error)

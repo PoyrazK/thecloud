@@ -174,7 +174,7 @@ func TestLocalStoreReadSizeLimit(t *testing.T) {
 	// But ReadStream() should still work
 	rc, _, err := store.ReadStream(bucket, key)
 	require.NoError(t, err)
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	// Verify we can read the data via stream
 	data, err := io.ReadAll(rc)

@@ -351,3 +351,18 @@ func (r *ResilientCompute) ResetCircuitBreaker() {
 		cb.Reset()
 	}
 }
+
+// StartPoolInstance delegates to the inner backend.
+func (r *ResilientCompute) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	return r.inner.StartPoolInstance(ctx, opts)
+}
+
+// ExecInInstance delegates to the inner backend.
+func (r *ResilientCompute) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	return r.inner.ExecInInstance(ctx, id, cmd)
+}
+
+// GetInstanceReady delegates to the inner backend.
+func (r *ResilientCompute) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	return r.inner.GetInstanceReady(ctx, id)
+}

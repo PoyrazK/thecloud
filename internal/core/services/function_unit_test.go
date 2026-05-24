@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/pool"
 	"github.com/poyrazk/thecloud/internal/core/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -35,8 +36,9 @@ func testFunctionServiceBasicOps(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	poolMgr := pool.NewManager(compute, slog.Default())
 
-	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, slog.Default())
+	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -91,8 +93,9 @@ func testFunctionServiceCreateFunction(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	poolMgr := pool.NewManager(compute, slog.Default())
 
-	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, slog.Default())
+	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 
 	ctx := appcontext.WithUserID(context.Background(), uuid.New())
 	userID := appcontext.UserIDFromContext(ctx)
@@ -123,8 +126,9 @@ func testFunctionServiceInvokeFunction(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	poolMgr := pool.NewManager(compute, slog.Default())
 
-	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, slog.Default())
+	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 
 	ctx := context.Background()
 	id := uuid.New()
@@ -208,7 +212,7 @@ func testFunctionServiceCreateFunctionUnsupportedRuntime(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	svc := services.NewFunctionService(repo, rbacSvc, nil, nil, nil, secretSvc, slog.Default())
+	svc := services.NewFunctionService(repo, rbacSvc, nil, nil, nil, secretSvc, nil, slog.Default())
 	ctx := appcontext.WithUserID(context.Background(), uuid.New())
 
 	_, err := svc.CreateFunction(ctx, "fail", "cobol99", "handler", []byte("code"))
@@ -224,8 +228,9 @@ func testFunctionServiceUpdateFunction(t *testing.T) {
 	rbacSvc := new(MockRBACService)
 	secretSvc := new(MockSecretService)
 	rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	poolMgr := pool.NewManager(compute, slog.Default())
 
-	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, slog.Default())
+	svc := services.NewFunctionService(repo, rbacSvc, compute, fileStore, auditSvc, secretSvc, poolMgr, slog.Default())
 
 	ctx := appcontext.WithUserID(context.Background(), uuid.New())
 	id := uuid.New()

@@ -82,7 +82,7 @@ func TestDriver_RunStop(t *testing.T) {
 	require.NoError(t, err)
 
 	d.Stop()
-	conn.Close()
+	_ = conn.Close() //nolint:errcheck
 
 	select {
 	case err := <-errCh:
@@ -152,32 +152,32 @@ func TestDriver_ControllerServer(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == "POST" && r.URL.Path == "/volumes" {
 			w.WriteHeader(http.StatusCreated)
-			w.Write([]byte(`{"data": {"id": "83adaa62-ddb6-48ad-8a6b-b8e4816735e3", "name": "test-vol", "size_gb": 10}}`))
+			_, _ = w.Write([]byte(`{"data": {"id": "83adaa62-ddb6-48ad-8a6b-b8e4816735e3", "name": "test-vol", "size_gb": 10}}`)) //nolint:errcheck
 			return
 		}
 		if r.Method == "DELETE" && r.URL.Path == "/volumes/83adaa62-ddb6-48ad-8a6b-b8e4816735e3" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": "success"}`))
+			_, _ = w.Write([]byte(`{"data": "success"}`)) //nolint:errcheck
 			return
 		}
 		if r.Method == "GET" && r.URL.Path == "/instances" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": [{"id": "inst-123", "name": "node-1"}]}`))
+			_, _ = w.Write([]byte(`{"data": [{"id": "inst-123", "name": "node-1"}]}`)) //nolint:errcheck
 			return
 		}
 		if r.Method == "GET" && r.URL.Path == "/instances/inst-123" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": {"id": "inst-123", "name": "node-1"}}`))
+			_, _ = w.Write([]byte(`{"data": {"id": "inst-123", "name": "node-1"}}`)) //nolint:errcheck
 			return
 		}
 		if r.Method == "POST" && r.URL.Path == "/volumes/83adaa62-ddb6-48ad-8a6b-b8e4816735e3/attach" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": {"device_path": "/dev/vdb"}}`))
+			_, _ = w.Write([]byte(`{"data": {"device_path": "/dev/vdb"}}`))
 			return
 		}
 		if r.Method == "POST" && r.URL.Path == "/volumes/83adaa62-ddb6-48ad-8a6b-b8e4816735e3/detach" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": "success"}`))
+			_, _ = w.Write([]byte(`{"data": "success"}`))
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -257,7 +257,7 @@ func TestDriver_ControllerServer(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"data": {"id": "inst-123"}}`))
+			_, _ = w.Write([]byte(`{"data": {"id": "inst-123"}}`))
 		}))
 		defer errorServer.Close()
 		errD := NewDriver("t", "1", "n", "u", sdk.NewClient(errorServer.URL, "k"), slog.Default())

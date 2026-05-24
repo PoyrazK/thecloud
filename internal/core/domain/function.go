@@ -22,15 +22,17 @@ type EnvVar struct {
 // to distinguish "not provided" from "set to empty string" — this is intentional
 // and differs from the pointer pattern used by other fields.
 type FunctionUpdate struct {
-	Handler                  *string   `json:"handler,omitempty"`
-	Timeout                  *int      `json:"timeout,omitempty"`
-	MemoryMB                 *int      `json:"memory_mb,omitempty"`
-	CPUs                     *float64  `json:"cpus,omitempty"`
-	Status                   string    `json:"status,omitempty"`
-	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
-	MaxConcurrentInvocations *int      `json:"max_concurrent_invocations,omitempty"`
-	MaxQueueDepth            *int      `json:"max_queue_depth,omitempty"`
-	MaxRetries               *int      `json:"max_retries,omitempty"`
+	Handler                  *string     `json:"handler,omitempty"`
+	Timeout                  *int        `json:"timeout,omitempty"`
+	MemoryMB                 *int        `json:"memory_mb,omitempty"`
+	CPUs                     *float64    `json:"cpus,omitempty"`
+	Status                   string      `json:"status,omitempty"`
+	EnvVars                  []*EnvVar   `json:"env_vars,omitempty"`
+	PoolConfig               *PoolConfig `json:"pool_config,omitempty"`
+	CodePath                 *string     `json:"code_path,omitempty"` // For internal use to detect code changes
+	MaxConcurrentInvocations *int        `json:"max_concurrent_invocations,omitempty"`
+	MaxQueueDepth            *int        `json:"max_queue_depth,omitempty"`
+	MaxRetries               *int        `json:"max_retries,omitempty"`
 }
 
 // Validate checks that timeout, memory, and CPU values are within acceptable bounds.
@@ -85,6 +87,9 @@ func (u *FunctionUpdate) SetColumns() []string {
 	if u.EnvVars != nil {
 		cols = append(cols, "env_vars")
 	}
+	if u.PoolConfig != nil {
+		cols = append(cols, "pool_config")
+	}
 	if u.MaxConcurrentInvocations != nil {
 		cols = append(cols, "max_concurrent_invocations")
 	}
@@ -100,23 +105,31 @@ func (u *FunctionUpdate) SetColumns() []string {
 // Function represents a serverless function.
 // Functions are event-driven units of execution (FaaS).
 type Function struct {
-	ID                       uuid.UUID `json:"id"`
-	UserID                   uuid.UUID `json:"user_id"`
-	TenantID                 uuid.UUID `json:"tenant_id"`
-	Name                     string    `json:"name"`
-	Runtime                  string    `json:"runtime"`   // e.g. "python3.9", "go1.21"
-	Handler                  string    `json:"handler"`   // Entry point (e.g. "main.Handle")
-	CodePath                 string    `json:"code_path"` // Path to code artifact
-	Timeout                  int       `json:"timeout"`   // Execution timeout in seconds
-	MemoryMB                 int       `json:"memory_mb"` // Memory allocation in MB
-	CPUs                     float64   `json:"cpus"`      // CPU cores (e.g., 0.5, 1.0, 2.0)
-	Status                   string    `json:"status"`    // e.g. "DEPLOYING", "READY"
-	EnvVars                  []*EnvVar `json:"env_vars,omitempty"`
-	MaxConcurrentInvocations int       `json:"max_concurrent_invocations"` // 0 = unlimited
-	MaxQueueDepth            int       `json:"max_queue_depth"`            // 0 = no queue (fail fast)
-	MaxRetries               int       `json:"max_retries"`                // 0 = no retries, -1 = infinite retries
-	CreatedAt                time.Time `json:"created_at"`
-	UpdatedAt                time.Time `json:"updated_at"`
+	ID                       uuid.UUID   `json:"id"`
+	UserID                   uuid.UUID   `json:"user_id"`
+	TenantID                 uuid.UUID   `json:"tenant_id"`
+	Name                     string      `json:"name"`
+	Runtime                  string      `json:"runtime"`   // e.g. "python3.9", "go1.21"
+	Handler                  string      `json:"handler"`   // Entry point (e.g. "main.Handle")
+	CodePath                 string      `json:"code_path"` // Path to code artifact
+	Timeout                  int         `json:"timeout"`   // Execution timeout in seconds
+	MemoryMB                 int         `json:"memory_mb"` // Memory allocation in MB
+	CPUs                     float64     `json:"cpus"`      // CPU cores (e.g., 0.5, 1.0, 2.0)
+	Status                   string      `json:"status"`    // e.g. "DEPLOYING", "READY"
+	EnvVars                  []*EnvVar   `json:"env_vars,omitempty"`
+	PoolConfig               *PoolConfig `json:"pool_config,omitempty"`      // Warm pool settings (nil = disabled)
+	MaxConcurrentInvocations int         `json:"max_concurrent_invocations"` // 0 = unlimited
+	MaxQueueDepth            int         `json:"max_queue_depth"`            // 0 = no queue (fail fast)
+	MaxRetries               int         `json:"max_retries"`                // 0 = no retries, -1 = infinite retries
+	CreatedAt                time.Time   `json:"created_at"`
+	UpdatedAt                time.Time   `json:"updated_at"`
+}
+
+// PoolConfig holds the sizing parameters for a function's warm container pool.
+type PoolConfig struct {
+	MinSize     int `json:"min_size"`      // Minimum warm instances to maintain (default: 1)
+	MaxSize     int `json:"max_size"`      // Maximum warm instances / scale-out limit (default: 10)
+	MaxIdleSecs int `json:"max_idle_secs"` // Seconds before reaping idle warm instances (default: 300)
 }
 
 // Invocation represents a single execution of a Function.

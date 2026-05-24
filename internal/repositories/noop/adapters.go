@@ -162,6 +162,15 @@ func (b *NoopComputeBackend) CreateSnapshot(ctx context.Context, id, name string
 func (b *NoopComputeBackend) RestoreSnapshot(ctx context.Context, id, name string) error { return nil }
 func (b *NoopComputeBackend) DeleteSnapshot(ctx context.Context, id, name string) error  { return nil }
 func (b *NoopComputeBackend) ResetCircuitBreaker()                                       {}
+func (b *NoopComputeBackend) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	return uuid.New().String(), nil, nil
+}
+func (b *NoopComputeBackend) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
+func (b *NoopComputeBackend) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	return true, nil
+}
 
 // NoopDNSService is a no-op DNS service.
 type NoopDNSService struct{}

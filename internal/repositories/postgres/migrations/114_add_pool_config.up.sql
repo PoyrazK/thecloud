@@ -1,0 +1,1 @@
+ALTER TABLE functions ADD COLUMN pool_config JSONB;

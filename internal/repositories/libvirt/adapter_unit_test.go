@@ -762,7 +762,7 @@ func TestLibvirtAdapter_StatsAndConsole(t *testing.T) {
 		stats, err := a.GetInstanceStats(ctx, id)
 		require.NoError(t, err)
 		assert.NotNil(t, stats)
-		defer stats.Close()
+		defer func() { _ = stats.Close() }()
 
 		// Read and verify the stats JSON contains the CPU time
 		statsBytes, err := io.ReadAll(stats)
@@ -909,7 +909,7 @@ func TestLibvirtAdapter_SnapshotMethods(t *testing.T) {
 
 		// Create a dummy qcow2 file
 		f, _ := os.Create(qcow2File)
-		f.Close()
+		_ = f.Close()
 
 		// Create a proper tar.gz
 		cmd := exec.Command("tar", "czf", snapshotPath, "-C", tmpDir, "disk.qcow2")

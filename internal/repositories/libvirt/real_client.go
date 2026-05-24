@@ -4,7 +4,9 @@ package libvirt
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
+	"os"
 
 	"github.com/digitalocean/go-libvirt"
 )
@@ -280,4 +282,50 @@ func (r *RealLibvirtClient) StorageVolGetPath(ctx context.Context, vol libvirt.S
 	default:
 	}
 	return r.conn.StorageVolGetPath(vol)
+}
+
+func (r *RealLibvirtClient) DomainOpenConsole(ctx context.Context, dom libvirt.Domain, devName string, flags ConsoleFlags) (io.ReadCloser, io.WriteCloser, error) {
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	default:
+	}
+
+	// Create a pipe for console I/O
+	// DomainOpenConsole writes console output to the inStream writer
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create pipe: %w", err)
+	}
+
+	// DomainOpenConsole expects devName as OptString (libvirt's optional string type)
+	// Empty string means use first console device
+	var devNameOpt libvirt.OptString
+	if devName != "" {
+		devNameOpt = libvirt.OptString{devName}
+	}
+
+	// Pass the write end to DomainOpenConsole - console data goes to this writer
+	err = r.conn.DomainOpenConsole(dom, devNameOpt, writer, uint32(flags))
+	if err != nil {
+		_ = reader.Close()
+		_ = writer.Close()
+		return nil, nil, fmt.Errorf("failed to open console: %w", err)
+	}
+
+	// Return reader for reading console output, writer should not be used separately
+	return &osReader{file: reader}, writer, nil
+}
+
+// osReader wraps an os.File to implement io.ReadCloser
+type osReader struct {
+	file *os.File
+}
+
+func (r *osReader) Read(p []byte) (n int, err error) {
+	return r.file.Read(p)
+}
+
+func (r *osReader) Close() error {
+	return r.file.Close()
 }

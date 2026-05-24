@@ -97,7 +97,7 @@ func TestInstanceTypesE2E(t *testing.T) {
 			}
 			resp = deleteRequest(t, client, fmt.Sprintf(testutil.TestRouteFormat, testutil.TestBaseURL, testutil.TestRouteInstances, instanceID), token)
 			if resp.StatusCode == http.StatusOK {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				return
 			}
 			if resp.StatusCode != http.StatusInternalServerError {
@@ -105,13 +105,13 @@ func TestInstanceTypesE2E(t *testing.T) {
 			}
 			// 500 — check if instance was already deleted by API restart cleanup
 			checkResp := getRequest(t, client, fmt.Sprintf(testutil.TestRouteFormat, testutil.TestBaseURL, testutil.TestRouteInstances, instanceID), token)
-			checkResp.Body.Close()
+			_ = checkResp.Body.Close()
 			if checkResp.StatusCode == http.StatusNotFound {
 				t.Log("Instance already deleted (API restart cleanup during chaos tests)")
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				return
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		if resp != nil {
 			t.Logf("Instance still exists after %d attempts", maxRetries)

@@ -39,7 +39,7 @@ func TestNewFirecrackerAdapter(t *testing.T) {
 	t.Run("InvalidSocketDir", func(t *testing.T) {
 		tmpFile, err := os.CreateTemp("", "fc-not-a-dir")
 		require.NoError(t, err)
-		defer os.Remove(tmpFile.Name())
+		defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 		_, err = NewFirecrackerAdapter(logger, Config{SocketDir: tmpFile.Name()})
 		require.Error(t, err)

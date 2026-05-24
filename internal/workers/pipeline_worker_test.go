@@ -176,6 +176,15 @@ func (m *mockComputeBackendExtended) RestoreSnapshot(ctx context.Context, id, na
 func (m *mockComputeBackendExtended) DeleteSnapshot(ctx context.Context, id, name string) error {
 	return m.Called(ctx, id, name).Error(0)
 }
+func (m *mockComputeBackendExtended) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	return "", nil, nil
+}
+func (m *mockComputeBackendExtended) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	return "", nil
+}
+func (m *mockComputeBackendExtended) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	return true, nil
+}
 func (m *mockComputeBackendExtended) ResetCircuitBreaker() {}
 
 func TestPipelineWorker_processJob(t *testing.T) {

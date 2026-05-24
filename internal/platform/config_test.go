@@ -14,32 +14,32 @@ func TestNewConfig(t *testing.T) {
 	origSecret := os.Getenv("STORAGE_SECRET")
 	origDNSKey := os.Getenv("POWERDNS_API_KEY")
 	defer func() {
-		os.Setenv("PORT", origPort)
-		os.Setenv("STORAGE_SECRET", origSecret)
-		os.Setenv("POWERDNS_API_KEY", origDNSKey)
+		_ = os.Setenv("PORT", origPort)               //nolint:errcheck
+		_ = os.Setenv("STORAGE_SECRET", origSecret)   //nolint:errcheck
+		_ = os.Setenv("POWERDNS_API_KEY", origDNSKey) //nolint:errcheck
 	}()
 
 	t.Run("Default values", func(t *testing.T) {
-		os.Unsetenv("PORT")
-		os.Setenv("STORAGE_SECRET", "test-secret")
-		os.Setenv("POWERDNS_API_KEY", "test-dns-key")
+		os.Unsetenv("PORT")                               //nolint:errcheck
+		_ = os.Setenv("STORAGE_SECRET", "test-secret")    //nolint:errcheck
+		_ = os.Setenv("POWERDNS_API_KEY", "test-dns-key") //nolint:errcheck
 		cfg, err := NewConfig()
 		require.NoError(t, err)
 		assert.Equal(t, "8080", cfg.Port)
 	})
 
 	t.Run("Env override", func(t *testing.T) {
-		os.Setenv("PORT", "9090")
-		os.Setenv("STORAGE_SECRET", "test-secret")
-		os.Setenv("POWERDNS_API_KEY", "test-dns-key")
+		_ = os.Setenv("PORT", "9090")                     //nolint:errcheck
+		_ = os.Setenv("STORAGE_SECRET", "test-secret")    //nolint:errcheck
+		_ = os.Setenv("POWERDNS_API_KEY", "test-dns-key") //nolint:errcheck
 		cfg, err := NewConfig()
 		require.NoError(t, err)
 		assert.Equal(t, "9090", cfg.Port)
 	})
 
 	t.Run("Missing POWERDNS_API_KEY fails", func(t *testing.T) {
-		os.Setenv("STORAGE_SECRET", "test-secret")
-		os.Unsetenv("POWERDNS_API_KEY")
+		_ = os.Setenv("STORAGE_SECRET", "test-secret") //nolint:errcheck
+		os.Unsetenv("POWERDNS_API_KEY")                //nolint:errcheck
 		_, err := NewConfig()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "POWERDNS_API_KEY")

@@ -1366,3 +1366,133 @@ func (a *LibvirtAdapter) isNotFound(err error) bool {
 // ResetCircuitBreaker is a no-op for the raw Libvirt adapter.
 // The circuit breaker lives in ResilientCompute wrapping this backend.
 func (a *LibvirtAdapter) ResetCircuitBreaker() {}
+
+// StartPoolInstance starts a warm VM that stays running but waiting for work.
+func (a *LibvirtAdapter) StartPoolInstance(ctx context.Context, opts ports.RunTaskOptions) (string, []string, error) {
+	name := "pool-" + uuid.New().String()[:8]
+
+	pool, err := a.client.StoragePoolLookupByName(ctx, defaultPoolName)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to find default pool: %w", err)
+	}
+
+	volXML := generateVolumeXML(name+"-root", 1, "")
+	vol, err := a.client.StorageVolCreateXML(ctx, pool, volXML, 0)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to create root volume: %w", err)
+	}
+
+	diskPath, err := a.client.StorageVolGetPath(ctx, vol)
+	if err != nil {
+		_ = a.client.StorageVolDelete(ctx, vol, 0)
+		return "", nil, fmt.Errorf(errGetVolumePath, err)
+	}
+
+	// Use a keep-alive command instead of the actual function command
+	isoPath := a.prepareCloudInit(ctx, name, nil, []string{"tail", "-f", "/dev/null"}, "")
+	additionalDisks := a.resolveBinds(ctx, opts.Binds)
+	domainXML := generateDomainXML(name, diskPath, "default", isoPath, int(opts.MemoryMB), 1, additionalDisks, nil, "")
+
+	dom, err := a.client.DomainDefineXML(ctx, domainXML)
+	if err != nil {
+		a.cleanupCreateFailure(ctx, vol, isoPath)
+		return "", nil, fmt.Errorf("failed to define warm VM domain: %w", err)
+	}
+
+	if err := a.client.DomainCreate(ctx, dom); err != nil {
+		_ = a.client.DomainUndefine(ctx, dom)
+		_ = a.client.StorageVolDelete(ctx, vol, 0)
+		return "", nil, fmt.Errorf("failed to start warm VM: %w", err)
+	}
+
+	return name, nil, nil
+}
+
+// ExecInInstance executes a command in a warm (already running) VM.
+// It uses the serial console to send the command and capture output.
+// Command completion is detected via a 1s gap in output (no new data = done).
+// This avoids fragile shell-prompt detection that breaks when output contains "$ " or "# ".
+func (a *LibvirtAdapter) ExecInInstance(ctx context.Context, id string, cmd []string) (string, error) {
+	dom, err := a.client.DomainLookupByName(ctx, id)
+	if err != nil {
+		return "", fmt.Errorf("failed to lookup domain: %w", err)
+	}
+
+	// Open console to the serial device (empty devName uses first console)
+	reader, writer, err := a.client.DomainOpenConsole(ctx, dom, "", ConsoleForce)
+	if err != nil {
+		return "", fmt.Errorf("failed to open console: %w", err)
+	}
+	defer func() { _ = reader.Close() }()
+	defer func() { _ = writer.Close() }()
+
+	// Send the command followed by newline
+	cmdLine := strings.Join(cmd, " ") + "\n"
+	if _, err := writer.Write([]byte(cmdLine)); err != nil {
+		return "", fmt.Errorf("failed to write command: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return "", fmt.Errorf("failed to close writer: %w", err)
+	}
+
+	// Read output with gap-based detection (500ms silence = done)
+	var output strings.Builder
+	buf := make([]byte, 4096)
+	deadline := time.Now().Add(60 * time.Second)
+	lastData := time.Now()
+	gapDuration := 1 * time.Second
+
+	// Use polling with ticker to detect gaps
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return output.String(), ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return output.String(), fmt.Errorf("exec timed out after 60s")
+			}
+
+			// Try to read with a short timeout
+			readBuf := make([]byte, len(buf))
+			n, err := reader.Read(readBuf)
+
+			if n > 0 {
+				output.Write(readBuf[:n])
+				lastData = time.Now()
+			}
+
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					// EOF - check if we have enough data (gap detection)
+					if time.Since(lastData) >= gapDuration {
+						return output.String(), nil
+					}
+					continue
+				}
+				// On error, check if we've been silent long enough
+				if time.Since(lastData) >= gapDuration {
+					return output.String(), nil
+				}
+			}
+		}
+	}
+}
+
+// GetInstanceReady checks if a VM is fully initialized and ready to accept work.
+func (a *LibvirtAdapter) GetInstanceReady(ctx context.Context, id string) (bool, error) {
+	dom, err := a.client.DomainLookupByName(ctx, id)
+	if err != nil {
+		if a.isNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	state, _, err := a.client.DomainGetState(ctx, dom, 0)
+	if err != nil {
+		return false, err
+	}
+	return state == domainStateRunning, nil
+}

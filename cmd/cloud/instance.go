@@ -66,7 +66,7 @@ var listCmd = &cobra.Command{
 
 			access := formatAccessPorts(inst.Ports, inst.Status)
 
-			table.Append([]string{
+			_ = table.Append([]string{
 				id,
 				inst.Name,
 				inst.Image,
@@ -74,7 +74,7 @@ var listCmd = &cobra.Command{
 				access,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 
 		if meta != nil {
 			fmt.Printf("\nShowing %d of %d total", len(instances), meta.TotalCount)

@@ -42,14 +42,14 @@ var iacListCmd = &cobra.Command{
 		table.Header([]string{"ID", "NAME", "STATUS", "CREATED AT"})
 
 		for _, s := range stacks {
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(s.ID.String()),
 				s.Name,
 				string(s.Status),
 				s.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 
@@ -113,14 +113,14 @@ var iacGetCmd = &cobra.Command{
 			table := tablewriter.NewWriter(os.Stdout)
 			table.Header([]string{"LOGICAL ID", "PHYSICAL ID", "TYPE", "STATUS"})
 			for _, r := range stack.Resources {
-				table.Append([]string{
+				_ = table.Append([]string{
 					r.LogicalID,
 					r.PhysicalID,
 					r.ResourceType,
 					r.Status,
 				})
 			}
-			table.Render()
+			_ = table.Render()
 		}
 	},
 }
