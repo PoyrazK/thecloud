@@ -290,9 +290,12 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 		fields := strings.Fields(string(statData)[lastParen+2:])
 		if len(fields) >= 13 {
 			var utime, stime int64
-			fmt.Sscanf(fields[11], "%d", &utime)
-			fmt.Sscanf(fields[12], "%d", &stime)
-			cpuTime = utime + stime
+			if _, err := fmt.Sscanf(fields[11], "%d", &utime); err == nil {
+				cpuTime += utime
+			}
+			if _, err := fmt.Sscanf(fields[12], "%d", &stime); err == nil {
+				cpuTime += stime
+			}
 		}
 	}
 
@@ -308,12 +311,14 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 
 	for _, line := range strings.Split(string(statusData), "\n") {
 		if strings.HasPrefix(line, "VmRSS:") {
-			fmt.Sscanf(line, "VmRSS:\t%d kB", &memUsage)
-			memUsage *= 1024 // Convert to bytes
+			if _, err := fmt.Sscanf(line, "VmRSS:\t%d kB", &memUsage); err == nil {
+				memUsage *= 1024 // Convert to bytes
+			}
 		}
 		if strings.HasPrefix(line, "VmSize:") {
-			fmt.Sscanf(line, "VmSize:\t%d kB", &memLimit)
-			memLimit *= 1024 // Convert to bytes
+			if _, err := fmt.Sscanf(line, "VmSize:\t%d kB", &memLimit); err == nil {
+				memLimit *= 1024 // Convert to bytes
+			}
 		}
 	}
 
@@ -334,11 +339,14 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 	}
 
 	stats := &domain.InstanceStats{
-		CPUPercentage:      0, // TODO: requires delta between two calls to calculate CPU%
-		MemoryUsageBytes:   float64(memUsage),
-		MemoryLimitBytes:   float64(memLimit),
-		MemoryPercentage:   memPercentage,
-		CPUTimeNanoseconds: func() *uint64 { v := uint64(cpuNanoseconds); return &v }(),
+		CPUPercentage:    0, // TODO: requires delta between two calls to calculate CPU%
+		MemoryUsageBytes: float64(memUsage),
+		MemoryLimitBytes: float64(memLimit),
+		MemoryPercentage: memPercentage,
+	}
+	if cpuNanoseconds >= 0 {
+		v := uint64(cpuNanoseconds)
+		stats.CPUTimeNanoseconds = &v
 	}
 
 	data, err := json.Marshal(stats)
