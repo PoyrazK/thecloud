@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"log/slog"
 	"os"
 	"testing"
@@ -62,6 +64,27 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 
 		err = adapter.DeleteInstance(ctx, id)
 		assert.NoError(t, err)
+	})
+
+	t.Run("GetInstanceStats", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		stats, err := adapter.GetInstanceStats(ctx, id)
+		require.NoError(t, err, "GetInstanceStats should succeed")
+		defer stats.Close()
+
+		data, err := io.ReadAll(stats)
+		require.NoError(t, err)
+		assert.NotEmpty(t, data)
+
+		var statsMap map[string]interface{}
+		err = json.Unmarshal(data, &statsMap)
+		require.NoError(t, err, "Stats should be valid JSON")
+		assert.Contains(t, statsMap, "memory_usage_bytes")
 	})
 
 	t.Run("ResizeInstance", func(t *testing.T) {
