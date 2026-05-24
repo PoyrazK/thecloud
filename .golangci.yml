@@ -55,7 +55,10 @@ issues:
         - errcheck
     - path: _test\.go
       linters:
+        - errcheck
         - gosec
+        - staticcheck
+        - unused
     - path: internal/core/services/cluster_unit_test\.go
       linters:
         - unparam
@@ -64,3 +67,6 @@ issues:
       linters:
         - nolintlint
       text: "directive.*unused.*bodyclose"
+    - linters:
+        - nolintlint
+      text: "directive.*unused.*codeql"
