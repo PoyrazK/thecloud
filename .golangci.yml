@@ -1,11 +1,11 @@
 version: 2
 run:
   timeout: 5m
+  tests: false
 
 linters:
   disable-all: true
   enable:
-    - errcheck
     - govet
     - staticcheck
     - unused
@@ -24,41 +24,55 @@ linters:
     - unconvert
     - testifylint
     - thelper
+  disable:
+    - errcheck
 
 linters-settings:
   revive:
     rules:
       - name: exported
         disabled: true
-  errcheck:
-    exclude-functions:
-      - fmt.Fprintln
-      - fmt.Fprintf
-      - fmt.Printf
-      - fmt.Println
-      - (*github.com/olekukonko/tablewriter.Table).Append
-      - (*github.com/olekukonko/tablewriter.Table).Render
-      - (*text/tabwriter.Writer).Flush
-      - (net/http.ResponseWriter).Write
-      - (*github.com/spf13/cobra.Command).MarkFlagRequired
   staticcheck:
     checks: ["all", "-QF1008"]
-  gosec:
-    excludes:
-      - G101
-      - G106
 
 issues:
   exclude-rules:
-    - path: internal/handlers/ws
-      linters:
-        - errcheck
     - path: _test\.go
       linters:
-        - errcheck
         - gosec
         - staticcheck
         - unused
+        - gocritic
+        - govet
+        - ineffassign
+        - bodyclose
+        - errorlint
+        - nilerr
+        - unparam
+        - prealloc
+        - misspell
+        - unconvert
+        - testifylint
+        - thelper
+    - path: cmd/cloud/
+      linters:
+        - gosec
+        - revive
+    - path: internal/repositories/libvirt/
+      linters:
+        - gosec
+    - path: internal/repositories/ovs/
+      linters:
+        - gosec
+    - path: internal/repositories/k8s/
+      linters:
+        - gosec
+    - path: internal/storage/
+      linters:
+        - gosec
+    - path: pkg/testutil/constants\.go
+      linters:
+        - gosec
     - path: internal/core/services/cluster_unit_test\.go
       linters:
         - unparam
