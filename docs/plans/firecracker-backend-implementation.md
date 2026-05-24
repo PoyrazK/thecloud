@@ -18,14 +18,14 @@ Implement a new `ComputeBackend` adapter using Amazon Firecracker to support lig
 - [x] Implement `GetInstanceIP` (ARP lookup via `ip neigh show` + `/proc/net/arp`).
 - [x] Implement `CreateNetwork` / `DeleteNetwork` (TAP device via `ip tuntap`).
 - [x] Implement `CreateSnapshot` / `RestoreSnapshot` / `DeleteSnapshot` (via qemu-img + tar wrappers).
-- [x] Implement `ResizeInstance` (cold resize: stop → restart; online resize pending SDK support).
+- [x] Implement `ResizeInstance` — returns `ErrNotSupported` (Firecracker SDK lacks VM config update API; cold resize via stop→restart not implemented).
 - [x] Return proper error types for unsupported operations (`PauseInstance`, `ResumeInstance`, `GetConsoleURL`, `Exec`, `DetachVolume`).
 - [x] Unit tests and E2E coverage.
 
 ### Known Limitations
 
-- **ResizeInstance is a cold resize** — Firecracker's SDK does not expose `PutMachineConfiguration`. The adapter performs a stop→start cycle without config change. True online resize requires Firecracker v1.0+ support or VM recreation.
-- **AttachVolume returns NotImplemented** — Firecracker does not support hot-attach of drives after VM start. Full support would require stopping the VM, recreating it with the additional drive, and restarting — which is complex and potentially destructive.
+- **ResizeInstance returns ErrNotSupported** — Firecracker SDK lacks VM config update API (`PutMachineConfiguration`). True online resize requires Firecracker v1.0+ support or VM recreation (stop → recreate with new config → start).
+- **AttachVolume returns NotImplemented** — Firecracker does not support hot-attach of drives after VM start.
 - **PauseInstance / ResumeInstance** — Firecracker has no pause/resume support. These return `ErrInstanceNotPausable` / `ErrInstanceNotResumable`.
 - **GetConsoleURL / Exec** — Firecracker has no VNC console or guest agent; these return structured `NotImplemented` errors.
 - **Root/CAP_NET_ADMIN required** — TAP device creation and deletion require host privileges.

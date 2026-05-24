@@ -4,6 +4,7 @@ package firecracker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -46,6 +47,7 @@ type Machine interface {
 	Shutdown(ctx context.Context) error
 	StopVMM() error
 	Wait(ctx context.Context) error
+	PID() (int, error)
 }
 
 // FirecrackerAdapter implements ports.ComputeBackend using Firecracker.
@@ -244,7 +246,104 @@ func (a *FirecrackerAdapter) GetInstanceLogs(ctx context.Context, id string) (io
 }
 
 func (a *FirecrackerAdapter) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
-	return nil, fmt.Errorf("not implemented")
+	a.mu.RLock()
+	m, ok := a.machines[id]
+	a.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("instance %s not found", id)
+	}
+
+	if a.cfg.MockMode {
+		return nil, fmt.Errorf("not implemented in mock mode")
+	}
+
+	pid, err := m.PID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get VM PID: %w", err)
+	}
+
+	stats, err := a.collectStats(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// collectStats reads CPU and memory stats from /proc/{pid}/
+func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
+	var cpuTime int64
+
+	// Read CPU time from /proc/{pid}/stat
+	// Format: pid (comm) state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime ...
+	statData, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read proc stat: %w", err)
+	}
+
+	// Find the last ')' to skip comm field
+	lastParen := strings.LastIndex(string(statData), ")")
+	if lastParen > 0 {
+		fields := strings.Fields(string(statData)[lastParen+2:])
+		if len(fields) >= 13 {
+			var utime, stime int64
+			fmt.Sscanf(fields[11], "%d", &utime)
+			fmt.Sscanf(fields[12], "%d", &stime)
+			cpuTime = utime + stime
+		}
+	}
+
+	var memUsage, memLimit int64
+
+	// Read memory from /proc/{pid}/status
+	// VmRSS: resident set size (actual memory used)
+	// VmSize: virtual memory size (includes all allocated, not just resident)
+	statusData, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read proc status: %w", err)
+	}
+
+	for _, line := range strings.Split(string(statusData), "\n") {
+		if strings.HasPrefix(line, "VmRSS:") {
+			fmt.Sscanf(line, "VmRSS:\t%d kB", &memUsage)
+			memUsage *= 1024 // Convert to bytes
+		}
+		if strings.HasPrefix(line, "VmSize:") {
+			fmt.Sscanf(line, "VmSize:\t%d kB", &memLimit)
+			memLimit *= 1024 // Convert to bytes
+		}
+	}
+
+	// Get jiffies per second for CPU percentage calculation
+	jiffies := getJiffiesPerSecond()
+	if jiffies == 0 {
+		jiffies = 100 // Fallback assumption
+	}
+
+	// Convert CPU time to nanoseconds (jiffies * (1e9 / jiffies_per_sec) = nanoseconds)
+	cpuNanoseconds := (cpuTime * 1e9) / jiffies
+
+	// Calculate memory percentage
+	var memPercentage float64
+	if memLimit > 0 {
+		memPercentage = float64(memUsage) / float64(memLimit) * 100
+	}
+
+	stats := &statsJSON{
+		CPUPercentage:    0, // Requires delta between two calls
+		MemoryUsageBytes: float64(memUsage),
+		MemoryLimitBytes: float64(memLimit),
+		MemoryPercentage: memPercentage,
+		CPUTimeNanoseconds: &cpuNanoseconds,
+	}
+
+	data, err := json.Marshal(stats)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal stats: %w", err)
+	}
+
+	return io.NopCloser(strings.NewReader(string(data))), nil
 }
 
 func (a *FirecrackerAdapter) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {
