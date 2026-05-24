@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -373,15 +372,7 @@ func (rw *responseWrapper) WriteHeader(status int) {
 	rw.ResponseWriter.WriteHeader(status)
 }
 
-// gzipWriterPool reuses gzip writers to reduce allocations under high throughput.
-// Note: Each writer is Reset() with a new destination before use, so pooled
-// writers are stateless and safe to reuse.
-var gzipWriterPool = sync.Pool{
-	New: func() any {
-		return new(gzip.Writer)
-	},
-}
-
+// compressWriter wraps http.ResponseWriter to provide gzip compression.
 type compressWriter struct {
 	http.ResponseWriter
 	status      int
@@ -404,16 +395,14 @@ func (cw *compressWriter) WriteHeader(status int) {
 
 func (cw *compressWriter) Write(p []byte) (int, error) {
 	if cw.gz == nil {
-		cw.gz = gzipWriterPool.Get().(*gzip.Writer)
-		cw.gz.Reset(cw.ResponseWriter)
+		cw.gz = gzip.NewWriter(cw.ResponseWriter)
 	}
 	return cw.gz.Write(p)
 }
 
 func (cw *compressWriter) Close() error {
 	if cw.gz != nil {
-		_ = cw.gz.Flush()
-		gzipWriterPool.Put(cw.gz)
+		_ = cw.gz.Close()
 		cw.gz = nil
 	}
 	return nil
