@@ -795,9 +795,8 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 				}
 				return resp, nil //nolint:bodyclose
 			}
-			// drain and close body so connection can be reused, then retry
+			// drain body (do NOT close — lastResp may be returned to caller with readable body)
 			_, _ = io.Copy(io.Discard, resp.Body)
-			_ = resp.Body.Close()
 			lastResp = resp
 			continue
 		}
