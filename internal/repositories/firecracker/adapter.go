@@ -17,6 +17,7 @@ import (
 	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 	"github.com/google/uuid"
+	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 )
 
@@ -332,12 +333,12 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 		memPercentage = float64(memUsage) / float64(memLimit) * 100
 	}
 
-	stats := &statsJSON{
-		CPUPercentage:    0, // TODO: requires delta between two calls to calculate CPU%
-		MemoryUsageBytes: float64(memUsage),
-		MemoryLimitBytes: float64(memLimit),
-		MemoryPercentage: memPercentage,
-		CPUTimeNanoseconds: &cpuNanoseconds,
+	stats := &domain.InstanceStats{
+		CPUPercentage:      0, // TODO: requires delta between two calls to calculate CPU%
+		MemoryUsageBytes:   float64(memUsage),
+		MemoryLimitBytes:   float64(memLimit),
+		MemoryPercentage:   memPercentage,
+		CPUTimeNanoseconds: func() *uint64 { v := uint64(cpuNanoseconds); return &v }(),
 	}
 
 	data, err := json.Marshal(stats)
