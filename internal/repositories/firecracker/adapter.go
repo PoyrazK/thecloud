@@ -135,6 +135,7 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 }
 
 // generateMAC creates a deterministic MAC address from instance ID
+// TODO(cni): wire up to CreateNetwork once TAP device networking is integrated
 func generateMAC(instanceID string) string {
 	h := uuid.NewMD5(uuid.NameSpaceDNS, []byte(instanceID))
 	macBytes := h[:]
@@ -318,6 +319,7 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 	// Get jiffies per second for CPU percentage calculation
 	jiffies := getJiffiesPerSecond()
 	if jiffies == 0 {
+		a.logger.Warn("could not detect kernel HZ, using fallback 100")
 		jiffies = 100 // Fallback assumption
 	}
 
@@ -331,7 +333,7 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 	}
 
 	stats := &statsJSON{
-		CPUPercentage:    0, // Requires delta between two calls
+		CPUPercentage:    0, // TODO: requires delta between two calls to calculate CPU%
 		MemoryUsageBytes: float64(memUsage),
 		MemoryLimitBytes: float64(memLimit),
 		MemoryPercentage: memPercentage,
