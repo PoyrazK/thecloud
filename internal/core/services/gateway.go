@@ -788,11 +788,9 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 			// Reset consecutive error counter on success
 			rt.consecutiveConnErrors.Store(0)
 			if !rt.isRetryableStatus(resp.StatusCode) {
-				// Drain body before returning so connection can be reused
-				if resp.Body != nil {
-					_, _ = io.Copy(io.Discard, resp.Body)
-					resp.Body.Close()
-				}
+				// For successful non-retryable responses, do NOT drain or close the body.
+				// The caller (ReverseProxy) needs to read from it to forward to the client.
+				// The transport's underlying connection management handles reuse.
 				return resp, nil //nolint:bodyclose
 			}
 			// drain body (do NOT close — lastResp may be returned to caller with readable body)
