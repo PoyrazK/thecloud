@@ -334,8 +334,7 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 	var needsClose bool
 
 	// Enable compression if configured and client accepts it
-	// TEMPORARILY DISABLED: sync.Pool gzip implementation causing body close issues in E2E
-	if route != nil && route.Compression != "" && strings.Contains(c.GetHeader("Accept-Encoding"), route.Compression) && false {
+	if route != nil && route.Compression != "" && strings.Contains(c.GetHeader("Accept-Encoding"), route.Compression) {
 		wrapper = newCompressWriter(c.Writer, route.Compression)
 		needsClose = true
 	}
@@ -413,7 +412,7 @@ func (cw *compressWriter) Write(p []byte) (int, error) {
 
 func (cw *compressWriter) Close() error {
 	if cw.gz != nil {
-		_ = cw.gz.Close()
+		_ = cw.gz.Flush()
 		gzipWriterPool.Put(cw.gz)
 		cw.gz = nil
 	}
