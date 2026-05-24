@@ -333,7 +333,7 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 	var needsClose bool
 
 	// Enable compression if configured and client accepts it
-	if route != nil && route.Compression != "" && strings.Contains(c.GetHeader("Accept-Encoding"), route.Compression) {
+	if false && route != nil && route.Compression != "" && strings.Contains(c.GetHeader("Accept-Encoding"), route.Compression) {
 		wrapper = newCompressWriter(c.Writer, route.Compression)
 		needsClose = true
 	}
@@ -402,7 +402,7 @@ func (cw *compressWriter) Write(p []byte) (int, error) {
 
 func (cw *compressWriter) Close() error {
 	if cw.gz != nil {
-		_ = cw.gz.Close()
+		_ = cw.gz.Flush()
 		cw.gz = nil
 	}
 	return nil
