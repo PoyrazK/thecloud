@@ -67,6 +67,9 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 	})
 
 	t.Run("GetInstanceStats", func(t *testing.T) {
+		if os.Getenv("FIRECRACKER_MOCK_MODE") == "true" {
+			t.Skip("GetInstanceStats requires real Firecracker, skipping in mock mode")
+		}
 		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
 		if err != nil {
 			t.Skipf("Launch failed, skipping: %v", err)
