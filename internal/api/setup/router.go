@@ -397,16 +397,20 @@ func registerNetworkRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 	}
 
 	sgGroup := r.Group("/security-groups")
-	sgGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant), httputil.RequireTenant())
+	sgGroup.Use(
+		httputil.Auth(svcs.Identity, svcs.Tenant),
+		httputil.RequireTenant(),
+		httputil.TenantMember(svcs.Tenant),
+	)
 	{
-		sgGroup.POST("", handlers.SecurityGroup.Create)
-		sgGroup.GET("", handlers.SecurityGroup.List)
-		sgGroup.GET("/:id", handlers.SecurityGroup.Get)
-		sgGroup.DELETE("/:id", handlers.SecurityGroup.Delete)
-		sgGroup.POST("/:id/rules", handlers.SecurityGroup.AddRule)
-		sgGroup.DELETE("/rules/:rule_id", handlers.SecurityGroup.RemoveRule)
-		sgGroup.POST("/attach", handlers.SecurityGroup.Attach)
-		sgGroup.POST("/detach", handlers.SecurityGroup.Detach)
+		sgGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionSgCreate), handlers.SecurityGroup.Create)
+		sgGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionSgRead), handlers.SecurityGroup.List)
+		sgGroup.GET("/:id", httputil.Permission(svcs.RBAC, domain.PermissionSgRead), handlers.SecurityGroup.Get)
+		sgGroup.DELETE("/:id", httputil.Permission(svcs.RBAC, domain.PermissionSgDelete), handlers.SecurityGroup.Delete)
+		sgGroup.POST("/:id/rules", httputil.Permission(svcs.RBAC, domain.PermissionSgUpdate), handlers.SecurityGroup.AddRule)
+		sgGroup.DELETE("/rules/:rule_id", httputil.Permission(svcs.RBAC, domain.PermissionSgUpdate), handlers.SecurityGroup.RemoveRule)
+		sgGroup.POST("/attach", httputil.Permission(svcs.RBAC, domain.PermissionSgUpdate), handlers.SecurityGroup.Attach)
+		sgGroup.POST("/detach", httputil.Permission(svcs.RBAC, domain.PermissionSgUpdate), handlers.SecurityGroup.Detach)
 	}
 
 	lbGroup := r.Group("/lb")
