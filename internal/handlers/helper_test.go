@@ -120,4 +120,36 @@ func TestGetBucketAndKeyRequired(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "key is required")
 	})
+
+	// Regression for #683 — keys containing path traversal segments or NUL
+	// bytes must be rejected before reaching the storage backend.
+	t.Run("rejects path traversal", func(t *testing.T) {
+		badKeys := []string{"../foo", "a/../b", "../../etc/passwd", "..\x00", "/../escape"}
+		for _, k := range badKeys {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Params = []gin.Param{
+				{Key: "bucket", Value: testBucket},
+				{Key: "key", Value: k},
+			}
+			_, _, ok := getBucketAndKeyRequired(c)
+			assert.Falsef(t, ok, "expected key %q to be rejected", k)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		}
+	})
+
+	t.Run("accepts nested keys", func(t *testing.T) {
+		goodKeys := []string{"a.txt", "folder/file.png", "deep/nested/object"}
+		for _, k := range goodKeys {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Params = []gin.Param{
+				{Key: "bucket", Value: testBucket},
+				{Key: "key", Value: k},
+			}
+			_, gotKey, ok := getBucketAndKeyRequired(c)
+			assert.Truef(t, ok, "expected key %q to be accepted", k)
+			assert.Equal(t, k, gotKey)
+		}
+	})
 }
