@@ -243,16 +243,23 @@ func (s *VolumeService) ResizeVolume(ctx context.Context, idOrName string, newSi
 
 	// 1. Resize in Backend
 	backendName := FormatBackendVolumeName(vol.ID)
+	oldSizeGB := vol.SizeGB
 	if err := s.storage.ResizeVolume(ctx, backendName, newSizeGB); err != nil {
 		return errors.Wrap(errors.Internal, "failed to resize volume in backend", err)
 	}
 
-	// 2. Update DB
-	oldSizeGB := vol.SizeGB
+	// 2. Update DB. If this fails, revert the backend so the DB and the
+	// backend stay in sync — otherwise the user sees the old size while the
+	// underlying storage has already grown.
 	vol.SizeGB = newSizeGB
 	vol.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(ctx, vol); err != nil {
+		if rbErr := s.storage.ResizeVolume(ctx, backendName, oldSizeGB); rbErr != nil {
+			s.logger.Error("failed to rollback backend volume resize",
+				"volume_id", vol.ID, "from", newSizeGB, "to", oldSizeGB, "error", rbErr)
+		}
+		vol.SizeGB = oldSizeGB
 		return err
 	}
 
