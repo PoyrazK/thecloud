@@ -72,13 +72,24 @@ func Logger(logger *slog.Logger) gin.HandlerFunc {
 }
 
 // CORS enables permissive CORS headers for development.
+//
+// Browsers reject responses that combine `Access-Control-Allow-Origin: *`
+// with `Access-Control-Allow-Credentials: true`. When the request supplies
+// an `Origin` header we mirror it back (with `Vary: Origin`) and allow
+// credentials; otherwise we fall back to the wildcard with no credentials.
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*") // For development, allow all. Could restrict to localhost:3000
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
+			c.Header("Access-Control-Allow-Credentials", "true")
+		} else {
+			c.Header("Access-Control-Allow-Origin", "*")
+		}
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
 		c.Header("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, x-api-key")
 		c.Header("Access-Control-Expose-Headers", "Content-Length")
-		c.Header("Access-Control-Allow-Credentials", "true")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
