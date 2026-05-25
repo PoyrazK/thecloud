@@ -243,6 +243,12 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, params ports.Launc
 	s.logger.Info("enqueueing provision job", "instance_id", inst.ID, "queue", "provision_queue", "tenant_id", inst.TenantID)
 	if err := s.taskQueue.Enqueue(ctx, "provision_queue", job); err != nil {
 		s.logger.Error("failed to enqueue provision job", "instance_id", inst.ID, "error", err)
+		// Rollback the DB record so we do not leave an orphan STARTING instance
+		// that no worker will ever advance.
+		if delErr := s.repo.Delete(ctx, inst.ID); delErr != nil {
+			s.logger.Error("failed to rollback orphaned instance record",
+				"instance_id", inst.ID, "error", delErr)
+		}
 		// Rollback quota reservation on enqueue failure
 		_ = s.tenantSvc.DecrementUsage(ctx, tenantID, "vcpus", it.VCPUs)
 		_ = s.tenantSvc.DecrementUsage(ctx, tenantID, "memory", it.MemoryMB/1024)
@@ -313,6 +319,12 @@ func (s *InstanceService) LaunchInstanceWithOptions(ctx context.Context, opts po
 
 	if err := s.taskQueue.Enqueue(ctx, "provision_queue", job); err != nil {
 		s.logger.Error("failed to enqueue provision job", "instance_id", inst.ID, "error", err)
+		// Rollback the DB record so we do not leave an orphan STARTING instance
+		// that no worker will ever advance.
+		if delErr := s.repo.Delete(ctx, inst.ID); delErr != nil {
+			s.logger.Error("failed to rollback orphaned instance record",
+				"instance_id", inst.ID, "error", delErr)
+		}
 		return nil, errors.Wrap(errors.Internal, "failed to enqueue provisioning task", err)
 	}
 
