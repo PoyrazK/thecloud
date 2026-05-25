@@ -410,7 +410,11 @@ func registerNetworkRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 	}
 
 	lbGroup := r.Group("/lb")
-	lbGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant))
+	lbGroup.Use(
+		httputil.Auth(svcs.Identity, svcs.Tenant),
+		httputil.RequireTenant(),
+		httputil.TenantMember(svcs.Tenant),
+	)
 	{
 		lbGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionLbCreate), handlers.LB.Create)
 		lbGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionLbRead), handlers.LB.List)
@@ -482,7 +486,11 @@ func registerNetworkRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 
 func registerGlobalLBRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 	glbGroup := r.Group("/global-lb")
-	glbGroup.Use(httputil.Auth(svcs.Identity, svcs.Tenant))
+	glbGroup.Use(
+		httputil.Auth(svcs.Identity, svcs.Tenant),
+		httputil.RequireTenant(),
+		httputil.TenantMember(svcs.Tenant),
+	)
 	{
 		glbGroup.POST("", httputil.Permission(svcs.RBAC, domain.PermissionLbCreate), handlers.GlobalLB.Create)
 		glbGroup.GET("", httputil.Permission(svcs.RBAC, domain.PermissionLbRead), handlers.GlobalLB.List)
