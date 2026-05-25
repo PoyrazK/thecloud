@@ -145,7 +145,7 @@ func (d *Driver) Stop() {
 func parseEndpoint(ep string) (string, string, error) {
 	if strings.HasPrefix(ep, "unix://") || strings.HasPrefix(ep, "tcp://") {
 		parts := strings.SplitN(ep, "://", 2)
-		if parts[1] != "" {
+		if len(parts) == 2 && parts[1] != "" {
 			return parts[0], parts[1], nil
 		}
 	}

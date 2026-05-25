@@ -145,6 +145,9 @@ func (s *ClusterService) CreateCluster(ctx context.Context, params ports.CreateC
 	}
 
 	// Persist Node Group
+	if len(cluster.NodeGroups) == 0 {
+		return nil, errors.New(errors.Internal, "cluster has no node groups to persist")
+	}
 	if err := s.repo.AddNodeGroup(ctx, &cluster.NodeGroups[0]); err != nil {
 		// Rollback: delete the orphan cluster to avoid leaving a cluster
 		// without its required default nodegroup
