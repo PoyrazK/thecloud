@@ -40,7 +40,7 @@ func (r *LBRepository) Create(ctx context.Context, lb *domain.LoadBalancer) erro
 func (r *LBRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.LoadBalancer, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
+		SELECT id, user_id, tenant_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
 		WHERE id = $1 AND tenant_id = $2
 	`
@@ -50,7 +50,7 @@ func (r *LBRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.LoadB
 func (r *LBRepository) GetByName(ctx context.Context, name string) (*domain.LoadBalancer, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
+		SELECT id, user_id, tenant_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
 		WHERE name = $1 AND tenant_id = $2
 	`
@@ -63,7 +63,7 @@ func (r *LBRepository) GetByIdempotencyKey(ctx context.Context, key string) (*do
 	}
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, user_id, idempotency_key, name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
+		SELECT id, user_id, tenant_id, idempotency_key, name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
 		WHERE idempotency_key = $1 AND tenant_id = $2
 	`
@@ -73,7 +73,7 @@ func (r *LBRepository) GetByIdempotencyKey(ctx context.Context, key string) (*do
 func (r *LBRepository) List(ctx context.Context) ([]*domain.LoadBalancer, error) {
 	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
+		SELECT id, user_id, tenant_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
 		WHERE tenant_id = $1
 		ORDER BY created_at DESC
@@ -87,7 +87,7 @@ func (r *LBRepository) List(ctx context.Context) ([]*domain.LoadBalancer, error)
 
 func (r *LBRepository) ListAll(ctx context.Context) ([]*domain.LoadBalancer, error) {
 	query := `
-		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
+		SELECT id, user_id, tenant_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
 		ORDER BY created_at DESC
 	`
@@ -100,7 +100,7 @@ func (r *LBRepository) ListAll(ctx context.Context) ([]*domain.LoadBalancer, err
 
 func (r *LBRepository) ListByStatus(ctx context.Context, status string, limit, offset int) ([]*domain.LoadBalancer, error) {
 	query := `
-		SELECT id, user_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
+		SELECT id, user_id, tenant_id, COALESCE(idempotency_key, ''), name, vpc_id, port, algorithm, COALESCE(ip, ''), status, version, created_at
 		FROM load_balancers
 		WHERE status = $1
 		ORDER BY created_at DESC
@@ -117,7 +117,7 @@ func (r *LBRepository) scanLB(row pgx.Row) (*domain.LoadBalancer, error) {
 	var lb domain.LoadBalancer
 	var status string
 	err := row.Scan(
-		&lb.ID, &lb.UserID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.IP, &status, &lb.Version, &lb.CreatedAt,
+		&lb.ID, &lb.UserID, &lb.TenantID, &lb.IdempotencyKey, &lb.Name, &lb.VpcID, &lb.Port, &lb.Algorithm, &lb.IP, &status, &lb.Version, &lb.CreatedAt,
 	)
 	if err != nil {
 		if stdlib_errors.Is(err, pgx.ErrNoRows) {
