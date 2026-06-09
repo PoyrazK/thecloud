@@ -233,7 +233,7 @@ func (s *FunctionService) DeleteFunction(ctx context.Context, id uuid.UUID) erro
 	s.bulkheadMu.Unlock()
 
 	// Async delete from file store
-	go func() {
+	go func() { //nolint:gosec // G118: fire-and-forget cleanup goroutine with its own timeout
 		delCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := s.fileStore.Delete(delCtx, "functions", f.CodePath); err != nil {

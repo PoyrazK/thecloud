@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	stdlib_errors "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -122,12 +121,12 @@ func NewLibvirtAdapter(logger *slog.Logger, uri string) (*LibvirtAdapter, error)
 	}
 
 	// Connect to libvirt socket
-	c, err := net.DialTimeout("unix", uri, 2*time.Second)
+	c, err := net.DialTimeout("unix", uri, 2*time.Second) //nolint:gosec // intentional libvirt socket connection with timeout
 	if err != nil {
 		// Fallback to session mode if system socket fails
 		if !strings.Contains(uri, "session") {
 			sessionUri := filepath.Join(os.Getenv("HOME"), ".cache/libvirt/libvirt-sock")
-			if c2, err2 := net.DialTimeout("unix", sessionUri, 2*time.Second); err2 == nil {
+			if c2, err2 := net.DialTimeout("unix", sessionUri, 2*time.Second); err2 == nil { //nolint:gosec // intentional libvirt socket connection with timeout
 				c = c2
 				uri = sessionUri
 			} else {
@@ -421,7 +420,7 @@ func (a *LibvirtAdapter) LaunchInstanceWithOptions(ctx context.Context, opts por
 	}
 
 	if len(allocatedPorts) > 0 {
-		go a.setupPortForwarding(name, allocatedPorts)
+		go a.setupPortForwarding(name, allocatedPorts) //nolint:gosec // G118: fire-and-forget port forwarding with its own timeout
 	}
 
 	return name, allocatedPorts, nil
@@ -1152,14 +1151,14 @@ func (a *LibvirtAdapter) generateUserData(env, cmd []string, userDataRaw string)
 		userData.WriteString("  - path: /etc/profile.d/cloud-env.sh\n")
 		userData.WriteString("    content: |\n")
 		for _, e := range env {
-			userData.WriteString(fmt.Sprintf("      export %s\n", e))
+			fmt.Fprintf(&userData, "      export %s\n", e)
 		}
 	}
 
 	if len(cmd) > 0 {
 		userData.WriteString("runcmd:\n")
 		for _, c := range cmd {
-			userData.WriteString(fmt.Sprintf("  - [ sh, -c, %q ]\n", c))
+			fmt.Fprintf(&userData, "  - [ sh, -c, %q ]\n", c)
 		}
 	}
 	return userData.Bytes()
@@ -1192,7 +1191,7 @@ func (a *LibvirtAdapter) getNextNetworkRange() (gateway, rangeStart, rangeEnd st
 	offset := a.networkCounter * 256
 	for i := len(baseIP) - 1; i >= 0 && offset > 0; i-- {
 		sum := int(baseIP[i]) + offset
-		baseIP[i] = byte(sum % 256)
+		baseIP[i] = byte(sum % 256) //nolint:gosec // safe: sum%256 is always 0-255
 		offset = sum / 256
 	}
 
@@ -1221,7 +1220,7 @@ func validateID(id string) error {
 }
 
 func (a *LibvirtAdapter) setupPortForwarding(name string, ports []string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute) //nolint:gosec // intentional: fire-and-forget goroutine with its own timeout
 	defer cancel()
 
 	ip, err := a.waitInitialIP(ctx, name)
@@ -1346,7 +1345,7 @@ func findFreePort() (int, error) {
 	defer func() { _ = l.Close() }()
 	tcpAddr, ok := l.Addr().(*net.TCPAddr)
 	if !ok {
-		return 0, stdlib_errors.New("failed to get TCP address")
+		return 0, errors.New("failed to get TCP address")
 	}
 	return tcpAddr.Port, nil
 }
@@ -1356,7 +1355,7 @@ func (a *LibvirtAdapter) isNotFound(err error) bool {
 		return false
 	}
 	var libvirtErr libvirt.Error
-	if stdlib_errors.As(err, &libvirtErr) {
+	if errors.As(err, &libvirtErr) {
 		// 42: Domain not found, 43: Network not found, 45: Storage vol not found
 		return libvirtErr.Code == 42 || libvirtErr.Code == 43 || libvirtErr.Code == 45
 	}

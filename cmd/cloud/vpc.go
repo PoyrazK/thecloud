@@ -42,7 +42,7 @@ var vpcListCmd = &cobra.Command{
 		table.Header([]string{"ID", "NAME", "CIDR", "VXLAN", "STATUS", "CREATED AT"})
 
 		for _, v := range vpcs {
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(v.ID),
 				v.Name,
 				v.CIDRBlock,
@@ -51,7 +51,7 @@ var vpcListCmd = &cobra.Command{
 				v.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

@@ -60,7 +60,7 @@ var iamPolicyCreateCmd = &cobra.Command{
 		name := args[0]
 		filePath := args[1]
 
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(filePath) //nolint:gosec // intentional file loading from user-provided path
 		if err != nil {
 			fmt.Printf("Error reading file: %v\n", err)
 			return

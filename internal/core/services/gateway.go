@@ -456,7 +456,7 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		resp, err := rt.doRoundTrip(req)
 		var se *retryableStatusError
 		if stderrors.As(err, &se) && se.resp != nil {
-			return se.resp, nil //nolint:bodyclose
+			return se.resp, nil
 		}
 		return resp, err
 	}
@@ -476,11 +476,11 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if r.err != nil {
 		var se *retryableStatusError
 		if stderrors.As(r.err, &se) && se.resp != nil {
-			return se.resp, nil //nolint:bodyclose
+			return se.resp, nil
 		}
 		return nil, r.err
 	}
-	return r.resp, nil //nolint:bodyclose
+	return r.resp, nil
 }
 
 func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error) {
@@ -509,7 +509,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		resp, err := rt.base.RoundTrip(req)
 		if err == nil {
 			if !rt.isRetryableStatus(resp.StatusCode) {
-				return resp, nil //nolint:bodyclose
+				return resp, nil
 			}
 			// drain and close body so connection can be reused, then retry
 			_, _ = io.Copy(io.Discard, resp.Body)
@@ -540,7 +540,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	if lastResp != nil && rt.isRetryableStatus(lastResp.StatusCode) {
 		return nil, &retryableStatusError{resp: lastResp}
 	}
-	return lastResp, nil //nolint:bodyclose
+	return lastResp, nil
 }
 
 func (rt *retryTransport) isRetryableStatus(code int) bool {

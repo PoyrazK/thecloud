@@ -25,7 +25,7 @@ func getConfigFilePath() string {
 var configFile = getConfigFilePath()
 
 func loadConfigFile() string {
-	data, err := os.ReadFile(configFile)
+	data, err := os.ReadFile(configFile) //nolint:gosec // intentional config file loading from user's home directory
 	if err != nil {
 		return ""
 	}
@@ -39,7 +39,7 @@ func loadConfigFile() string {
 }
 
 func loadFullConfig() *cliConfig {
-	data, err := os.ReadFile(configFile)
+	data, err := os.ReadFile(configFile) //nolint:gosec // intentional config file loading from user's home directory
 	if err != nil {
 		return &cliConfig{}
 	}
@@ -54,11 +54,11 @@ func loadFullConfig() *cliConfig {
 
 func saveConfigFile(cfg cliConfig) error {
 	dir := filepath.Dir(configFile)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ") //nolint:gosec // G117: field name matches pattern but is a config option, not a secret
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}

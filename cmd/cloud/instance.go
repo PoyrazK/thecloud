@@ -66,7 +66,7 @@ var listCmd = &cobra.Command{
 
 			access := formatAccessPorts(inst.Ports, inst.Status)
 
-			table.Append([]string{
+			_ = table.Append([]string{
 				id,
 				inst.Name,
 				inst.Image,
@@ -74,7 +74,7 @@ var listCmd = &cobra.Command{
 				access,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 
 		if meta != nil {
 			fmt.Printf("\nShowing %d of %d total", len(instances), meta.TotalCount)
@@ -418,7 +418,7 @@ var sshCmd = &cobra.Command{
 		// This handles interactive terminal correctly.
 		env := os.Environ()
 		allArgs := append([]string{"ssh"}, sshArgs...)
-		err = syscall.Exec(binary, allArgs, env)
+		err = syscall.Exec(binary, allArgs, env) //nolint:gosec // intentional exec for SSH connection
 		if err != nil {
 			fmt.Printf("Error executing ssh: %v\n", err)
 		}

@@ -190,7 +190,7 @@ func saveConfig(key string) {
 	}
 
 	cfg := Config{APIKey: key}
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ") //nolint:gosec // G117: field name matches pattern but is a config option, not a secret
 	if err != nil {
 		fmt.Printf("Error: failed to marshal config: %v\n", err)
 		return

@@ -156,7 +156,7 @@ func (s *CacheService) CreateCache(ctx context.Context, name, version string, me
 // parseAllocatedPort extracts the host port from allocated port mapping strings.
 // Expected format is "hostPort:containerPort" (e.g. "8080:6379").
 //
-//nolint:unparam // targetPort is always defaultRedisPort but kept as param for future extensibility
+
 func (s *CacheService) parseAllocatedPort(allocatedPorts []string, targetPort string) (int, error) {
 	for _, p := range allocatedPorts {
 		parts := strings.Split(p, ":")

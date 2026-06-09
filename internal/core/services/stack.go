@@ -85,7 +85,7 @@ func (s *stackService) CreateStack(ctx context.Context, name, templateStr string
 	// Process in background
 	// Create a copy for the goroutine to avoid data race with the returned stack
 	stackCopy := *stack
-	go s.processStack(&stackCopy)
+	go s.processStack(&stackCopy) //nolint:gosec // G118: async stack processing with its own context
 
 	return stack, nil
 }
@@ -366,7 +366,7 @@ func (s *stackService) DeleteStack(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// 2. Perform background deletion
-	go func() {
+	go func() { //nolint:gosec // G118: async deletion with its own timeout context
 		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		bgCtx = appcontext.WithUserID(bgCtx, stack.UserID)

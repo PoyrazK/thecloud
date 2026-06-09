@@ -96,7 +96,7 @@ func (s *SnapshotService) CreateSnapshot(ctx context.Context, volumeID uuid.UUID
 	s.asyncResults[snapshot.ID] = errCh
 	s.mu.Unlock()
 
-	go func() {
+	go func() { //nolint:gosec // G118: async snapshot operation with its own timeout context
 		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		err := s.performSnapshot(bgCtx, vol, &asyncSnap)

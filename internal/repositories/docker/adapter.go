@@ -369,10 +369,10 @@ func (a *DockerAdapter) processCloudConfig(ctx context.Context, containerID stri
 	// 2. Write Files
 	for _, f := range cfg.WriteFiles {
 		encodedContent := base64.StdEncoding.EncodeToString([]byte(f.Content))
-		scriptBuilder.WriteString(fmt.Sprintf("mkdir -p $(dirname %s)\n", f.Path))
-		scriptBuilder.WriteString(fmt.Sprintf("echo %s | base64 -d > %s\n", encodedContent, f.Path))
+		fmt.Fprintf(&scriptBuilder, "mkdir -p $(dirname %s)\n", f.Path)
+		fmt.Fprintf(&scriptBuilder, "echo %s | base64 -d > %s\n", encodedContent, f.Path)
 		if f.Permissions != "" {
-			scriptBuilder.WriteString(fmt.Sprintf("chmod %s %s\n", f.Permissions, f.Path))
+			fmt.Fprintf(&scriptBuilder, "chmod %s %s\n", f.Permissions, f.Path)
 		}
 	}
 
@@ -382,7 +382,7 @@ func (a *DockerAdapter) processCloudConfig(ctx context.Context, containerID stri
 		scriptBuilder.WriteString("chmod 700 /root/.ssh\n")
 		for _, key := range cfg.SSHAuthorizedKeys {
 			encodedKey := base64.StdEncoding.EncodeToString([]byte(key + "\n"))
-			scriptBuilder.WriteString(fmt.Sprintf("echo %s | base64 -d >> /root/.ssh/authorized_keys\n", encodedKey))
+			fmt.Fprintf(&scriptBuilder, "echo %s | base64 -d >> /root/.ssh/authorized_keys\n", encodedKey)
 		}
 		scriptBuilder.WriteString("chmod 600 /root/.ssh/authorized_keys\n")
 	}

@@ -136,7 +136,7 @@ func (s *LocalStore) ReadStream(bucket, key string) (io.ReadCloser, VectorClock,
 			vc[s.nodeID] = binary.LittleEndian.Uint64(metaBytes)
 		} else if info, statErr := os.Stat(path); statErr == nil {
 			// No meta file — fall back to mtime as counter
-			//nolint:gosec // G115: timestamp within uint64 range for the foreseeable future
+
 			vc[s.nodeID] = uint64(info.ModTime().UnixNano())
 		}
 	}
@@ -184,7 +184,7 @@ func (s *LocalStore) Read(bucket, key string) ([]byte, VectorClock, error) {
 		if len(metaBytes) == 8 {
 			vc[s.nodeID] = binary.LittleEndian.Uint64(metaBytes)
 		} else {
-			//nolint:gosec // G115: timestamp within uint64 range for the foreseeable future
+
 			vc[s.nodeID] = uint64(info.ModTime().UnixNano())
 		}
 	}

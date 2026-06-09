@@ -76,8 +76,8 @@ func asInt64(v uint64) int64 {
 	// Build the int64 byte-by-byte to avoid direct uint64->int64 conversion.
 	// This is safe because the caller masks v to [0, 2^63-1].
 	byt := []byte{
-		byte(v >> 56), byte(v >> 48), byte(v >> 40), byte(v >> 32),
-		byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v),
+		byte(v >> 56), byte(v >> 48), byte(v >> 40), byte(v >> 32), //nolint:gosec // safe: v is masked to lower 63 bits
+		byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v),         //nolint:gosec // safe: v is masked to lower 63 bits
 	}
 	var out int64
 	for i, b := range byt {

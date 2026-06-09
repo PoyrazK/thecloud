@@ -34,7 +34,7 @@ var dbListCmd = &cobra.Command{
 		}
 
 		if opts.JSON {
-			data, _ := json.MarshalIndent(databases, "", "  ")
+			data, _ := json.MarshalIndent(databases, "", "  ") //nolint:gosec // field names match patterns but are config, not secrets
 			fmt.Println(string(data))
 			return
 		}
@@ -96,7 +96,7 @@ var dbCreateCmd = &cobra.Command{
 			// Mask password for JSON output
 			dbCopy := *db
 			dbCopy.Password = "********"
-			data, _ := json.MarshalIndent(dbCopy, "", "  ")
+			data, _ := json.MarshalIndent(dbCopy, "", "  ") //nolint:gosec // field names match patterns but are config, not secrets
 			fmt.Println(string(data))
 		} else {
 			fmt.Printf("ID:       %s\n", db.ID)

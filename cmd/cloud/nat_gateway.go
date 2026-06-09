@@ -72,7 +72,7 @@ var natGatewayListCmd = &cobra.Command{
 		table.Header([]string{"ID", "SUBNET ID", "EIP ID", "PRIVATE IP", "STATUS", "CREATED AT"})
 
 		for _, nat := range nats {
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(nat.ID),
 				truncateID(nat.SubnetID),
 				truncateID(nat.ElasticIPID),
@@ -81,7 +81,7 @@ var natGatewayListCmd = &cobra.Command{
 				nat.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

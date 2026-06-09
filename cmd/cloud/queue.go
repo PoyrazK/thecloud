@@ -38,14 +38,14 @@ var listQueuesCmd = &cobra.Command{
 		table.Header([]string{"ID", "NAME", "STATUS", "ARN"})
 
 		for _, q := range queues {
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(q.ID),
 				q.Name,
 				q.Status,
 				q.ARN,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 
@@ -135,13 +135,13 @@ var receiveMessagesCmd = &cobra.Command{
 		table.Header([]string{"ID", "BODY", "RECEIPT HANDLE"})
 
 		for _, m := range msgs {
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(m.ID),
 				m.Body,
 				m.ReceiptHandle,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 
