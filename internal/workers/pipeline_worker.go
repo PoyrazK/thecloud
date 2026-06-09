@@ -108,7 +108,7 @@ func (w *PipelineWorker) Run(ctx context.Context, wg *sync.WaitGroup) {
 			sem <- struct{}{}
 			go func(m *ports.DurableMessage, j domain.BuildJob) {
 				defer func() { <-sem }()
-				w.processJob(ctx, m, j)
+				w.processJob(context.WithoutCancel(ctx), m, j)
 			}(msg, job)
 		}
 	}

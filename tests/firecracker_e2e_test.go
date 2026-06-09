@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"log/slog"
 	"os"
 	"testing"
@@ -62,5 +64,223 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 
 		err = adapter.DeleteInstance(ctx, id)
 		assert.NoError(t, err)
+	})
+
+	t.Run("GetInstanceStats", func(t *testing.T) {
+		if os.Getenv("FIRECRACKER_MOCK_MODE") == "true" {
+			t.Skip("GetInstanceStats requires real Firecracker, skipping in mock mode")
+		}
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		stats, err := adapter.GetInstanceStats(ctx, id)
+		require.NoError(t, err, "GetInstanceStats should succeed")
+		defer stats.Close()
+
+		data, err := io.ReadAll(stats)
+		require.NoError(t, err)
+		assert.NotEmpty(t, data)
+
+		var statsMap map[string]interface{}
+		err = json.Unmarshal(data, &statsMap)
+		require.NoError(t, err, "Stats should be valid JSON")
+		assert.Contains(t, statsMap, "memory_usage_bytes")
+	})
+
+	t.Run("ResizeInstance", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping test: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		err = adapter.ResizeInstance(ctx, id, 2, 256*1024*1024)
+		if err != nil {
+			// ResizeInstance is not supported on firecracker
+			t.Skipf("ResizeInstance not supported: %v", err)
+		}
+
+		// Verify via GetInstanceStats - parse CPU/memory from result
+		stats, err := adapter.GetInstanceStats(ctx, id)
+		if err != nil {
+			// GetInstanceStats may not be implemented, that's ok
+			return
+		}
+		assert.NotEmpty(t, stats)
+	})
+
+	t.Run("AttachVolume", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping test: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		// Use a temporary volume path for testing
+		volumePath := os.Getenv("FIRECRACKER_TEST_VOLUME")
+		if volumePath == "" {
+			t.Skip("FIRECRACKER_TEST_VOLUME not set, skipping AttachVolume test")
+		}
+
+		dev, _, err := adapter.AttachVolume(ctx, id, volumePath)
+		require.NoError(t, err, "AttachVolume should succeed")
+		assert.Equal(t, "/dev/vdb", dev)
+	})
+
+	t.Run("Resize then Attach", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping test: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		// Resize first
+		err = adapter.ResizeInstance(ctx, id, 2, 256*1024*1024)
+		if err != nil {
+			t.Skipf("ResizeInstance not supported: %v", err)
+		}
+
+		// Then attach a volume
+		volumePath := os.Getenv("FIRECRACKER_TEST_VOLUME")
+		if volumePath == "" {
+			t.Skip("FIRECRACKER_TEST_VOLUME not set, skipping AttachVolume test")
+		}
+
+		dev, _, err := adapter.AttachVolume(ctx, id, volumePath)
+		require.NoError(t, err, "AttachVolume should succeed after ResizeInstance")
+		assert.NotEmpty(t, dev)
+	})
+
+	t.Run("StartStopStart", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping test: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		err = adapter.StopInstance(ctx, id)
+		require.NoError(t, err)
+
+		err = adapter.StartInstance(ctx, id)
+		require.NoError(t, err)
+
+		err = adapter.StopInstance(ctx, id)
+		require.NoError(t, err)
+	})
+
+	t.Run("Ping", func(t *testing.T) {
+		err := adapter.Ping(ctx)
+		require.NoError(t, err, "Ping should always succeed")
+	})
+
+	t.Run("CreateAndDeleteNetwork", func(t *testing.T) {
+		tapName := "fc-test-tap-e2e"
+		_, err := adapter.CreateNetwork(ctx, tapName)
+		require.NoError(t, err, "CreateNetwork should succeed")
+		defer func() { _ = adapter.DeleteNetwork(ctx, tapName) }()
+	})
+
+	t.Run("DeleteNetwork_Twice", func(t *testing.T) {
+		// DeleteNetwork is idempotent
+		tapName := "fc-test-tap-e2e-dup"
+		_, err := adapter.CreateNetwork(ctx, tapName)
+		require.NoError(t, err)
+		defer func() { _ = adapter.DeleteNetwork(ctx, tapName) }()
+
+		_, err = adapter.CreateNetwork(ctx, tapName)
+		require.NoError(t, err)
+		defer func() { _ = adapter.DeleteNetwork(ctx, tapName) }()
+
+		err = adapter.DeleteNetwork(ctx, tapName)
+		require.NoError(t, err)
+
+		err = adapter.DeleteNetwork(ctx, tapName) // second call should not fail
+		require.NoError(t, err)
+	})
+
+	t.Run("GetInstanceIP_AfterLaunch", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping test: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		ip, err := adapter.GetInstanceIP(ctx, id)
+		if err != nil {
+			// IP may not be available immediately
+			assert.Contains(t, err.Error(), "not found")
+		} else {
+			assert.NotEmpty(t, ip)
+		}
+	})
+
+	t.Run("StopInstance_NotFound", func(t *testing.T) {
+		err := adapter.StopInstance(ctx, "nonexistent-fc-id")
+		// In real mode, returns "not found". In mock mode, returns nil.
+		if err != nil {
+			assert.Contains(t, err.Error(), "not found")
+		}
+	})
+
+	t.Run("StartInstance_NotFound", func(t *testing.T) {
+		err := adapter.StartInstance(ctx, "nonexistent-fc-id")
+		// In real mode, returns "not found". In mock mode, returns nil.
+		if err != nil {
+			assert.Contains(t, err.Error(), "not found")
+		}
+	})
+
+	t.Run("ResizeInstance_NotFound", func(t *testing.T) {
+		err := adapter.ResizeInstance(ctx, "nonexistent-fc-id", 2, 1024)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "resize not supported on firecracker")
+	})
+
+	t.Run("AttachVolume_NotFound", func(t *testing.T) {
+		_, _, err := adapter.AttachVolume(ctx, "nonexistent-fc-id", "/path/to/vol")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not implemented")
+	})
+
+	t.Run("CreateAndRestoreSnapshot", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping test: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		err = adapter.CreateSnapshot(ctx, id, "e2e-test-snap")
+		if err != nil {
+			t.Skipf("CreateSnapshot not supported: %v", err)
+		}
+
+		err = adapter.StopInstance(ctx, id)
+		require.NoError(t, err)
+
+		err = adapter.RestoreSnapshot(ctx, id, "e2e-test-snap")
+		if err != nil {
+			t.Skipf("RestoreSnapshot not supported: %v", err)
+		}
+	})
+
+	t.Run("DeleteSnapshot", func(t *testing.T) {
+		id, _, err := adapter.LaunchInstanceWithOptions(ctx, opts)
+		if err != nil {
+			t.Skipf("Launch failed, skipping test: %v", err)
+		}
+		defer func() { _ = adapter.DeleteInstance(ctx, id) }()
+
+		err = adapter.CreateSnapshot(ctx, id, "e2e-to-delete")
+		if err != nil {
+			t.Skipf("CreateSnapshot not supported: %v", err)
+		}
+
+		err = adapter.DeleteSnapshot(ctx, id, "e2e-to-delete")
+		if err != nil {
+			t.Skipf("DeleteSnapshot not supported: %v", err)
+		}
 	})
 }

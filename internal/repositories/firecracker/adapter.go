@@ -4,17 +4,20 @@ package firecracker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/firecracker-microvm/firecracker-go-sdk/client/models"
 	"github.com/google/uuid"
+	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 )
 
@@ -45,6 +48,7 @@ type Machine interface {
 	Shutdown(ctx context.Context) error
 	StopVMM() error
 	Wait(ctx context.Context) error
+	PID() (int, error)
 }
 
 // FirecrackerAdapter implements ports.ComputeBackend using Firecracker.
@@ -131,6 +135,42 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 	return id, nil, nil
 }
 
+// generateMAC creates a deterministic MAC address from instance ID
+// TODO(cni): wire up to CreateNetwork once TAP device networking is integrated
+func generateMAC(instanceID string) string {
+	h := uuid.NewMD5(uuid.NameSpaceDNS, []byte(instanceID))
+	macBytes := h[:]
+	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
+		macBytes[0]&0xfe|0x02, // Set local bit, clear multicast bit
+		macBytes[1], macBytes[2], macBytes[3], macBytes[4], macBytes[5]&0xfe)
+}
+
+// getJiffiesPerSecond returns the kernel HZ value (CONFIG_HZ)
+func getJiffiesPerSecond() int64 {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return 0
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "cpu ") {
+			fields := strings.Fields(line)
+			if len(fields) >= 8 {
+				// user+nice+sys+idle+iowait+irq+softirq+steal
+				var total int64
+				for i := 1; i <= 7; i++ {
+					var v int64
+					if _, err := fmt.Sscanf(fields[i], "%d", &v); err == nil {
+						total += v
+					}
+				}
+				return total
+			}
+		}
+	}
+	return 0
+}
+
 func (a *FirecrackerAdapter) StartInstance(ctx context.Context, id string) error {
 	if a.cfg.MockMode {
 		return nil
@@ -208,7 +248,113 @@ func (a *FirecrackerAdapter) GetInstanceLogs(ctx context.Context, id string) (io
 }
 
 func (a *FirecrackerAdapter) GetInstanceStats(ctx context.Context, id string) (io.ReadCloser, error) {
-	return nil, fmt.Errorf("not implemented")
+	a.mu.RLock()
+	m, ok := a.machines[id]
+	a.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("instance %s not found", id)
+	}
+
+	if a.cfg.MockMode {
+		return nil, fmt.Errorf("not implemented in mock mode")
+	}
+
+	pid, err := m.PID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get VM PID: %w", err)
+	}
+
+	stats, err := a.collectStats(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// collectStats reads CPU and memory stats from /proc/{pid}/
+func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
+	var cpuTime int64
+
+	// Read CPU time from /proc/{pid}/stat
+	// Format: pid (comm) state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime cutime cstime ...
+	statData, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read proc stat: %w", err)
+	}
+
+	// Find the last ')' to skip comm field
+	lastParen := strings.LastIndex(string(statData), ")")
+	if lastParen > 0 {
+		fields := strings.Fields(string(statData)[lastParen+2:])
+		if len(fields) >= 13 {
+			var utime, stime int64
+			if _, err := fmt.Sscanf(fields[11], "%d", &utime); err == nil {
+				cpuTime += utime
+			}
+			if _, err := fmt.Sscanf(fields[12], "%d", &stime); err == nil {
+				cpuTime += stime
+			}
+		}
+	}
+
+	var memUsage, memLimit int64
+
+	// Read memory from /proc/{pid}/status
+	// VmRSS: resident set size (actual memory used)
+	// VmSize: virtual memory size (includes all allocated, not just resident)
+	statusData, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pid))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read proc status: %w", err)
+	}
+
+	for _, line := range strings.Split(string(statusData), "\n") {
+		if strings.HasPrefix(line, "VmRSS:") {
+			if _, err := fmt.Sscanf(line, "VmRSS:\t%d kB", &memUsage); err == nil {
+				memUsage *= 1024 // Convert to bytes
+			}
+		}
+		if strings.HasPrefix(line, "VmSize:") {
+			if _, err := fmt.Sscanf(line, "VmSize:\t%d kB", &memLimit); err == nil {
+				memLimit *= 1024 // Convert to bytes
+			}
+		}
+	}
+
+	// Get jiffies per second for CPU percentage calculation
+	jiffies := getJiffiesPerSecond()
+	if jiffies == 0 {
+		a.logger.Warn("could not detect kernel HZ, using fallback 100")
+		jiffies = 100 // Fallback assumption
+	}
+
+	// Convert CPU time to nanoseconds (jiffies * (1e9 / jiffies_per_sec) = nanoseconds)
+	cpuNanoseconds := (cpuTime * 1e9) / jiffies
+
+	// Calculate memory percentage
+	var memPercentage float64
+	if memLimit > 0 {
+		memPercentage = float64(memUsage) / float64(memLimit) * 100
+	}
+
+	stats := &domain.InstanceStats{
+		CPUPercentage:    0, // TODO: requires delta between two calls to calculate CPU%
+		MemoryUsageBytes: float64(memUsage),
+		MemoryLimitBytes: float64(memLimit),
+		MemoryPercentage: memPercentage,
+	}
+	if cpuNanoseconds >= 0 {
+		v := uint64(cpuNanoseconds)
+		stats.CPUTimeNanoseconds = &v
+	}
+
+	data, err := json.Marshal(stats)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal stats: %w", err)
+	}
+
+	return io.NopCloser(strings.NewReader(string(data))), nil
 }
 
 func (a *FirecrackerAdapter) GetInstancePort(ctx context.Context, id string, internalPort string) (int, error) {

@@ -31,3 +31,8 @@ func (m *mockFirecrackerMachine) Wait(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
 }
+
+func (m *mockFirecrackerMachine) PID() (int, error) {
+	args := m.Called()
+	return args.Get(0).(int), args.Error(1)
+}
