@@ -201,6 +201,7 @@ func saveConfig(key string) {
 }
 
 // loadConfig reads the API key from the config file.
+//
 //nolint:unused // used by test files
 func loadConfig() string {
 	path := getConfigPath()
