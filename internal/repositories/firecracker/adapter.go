@@ -237,7 +237,6 @@ func (a *FirecrackerAdapter) DeleteInstance(ctx context.Context, id string) erro
 	delete(a.machines, id)
 	delete(a.machineConfigs, id)
 	delete(a.attachedVolumes, id)
-	delete(a.instanceNetworks, id)
 	a.mu.Unlock()
 
 	if !a.cfg.MockMode {
