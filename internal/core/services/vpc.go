@@ -279,7 +279,7 @@ func (s *VpcService) DeleteVPC(ctx context.Context, idOrName string, force bool)
 		}
 	} else {
 		// Force delete: cascade delete dependent resources to satisfy FK constraints
-		if err := s.cascadeDeleteDependencies(ctx, vpc.ID, vpc.TenantID); err != nil {
+		if err := s.cascadeDeleteDependencies(ctx, vpc.ID); err != nil {
 			return errors.Wrap(errors.Internal, "failed to cascade delete dependencies", err)
 		}
 	}
@@ -349,7 +349,7 @@ func (s *VpcService) checkDeleteDependencies(ctx context.Context, vpcID uuid.UUI
 // cascadeDeleteDependencies deletes all dependent resources of a VPC.
 // This is used when force=true to bypass FK constraint violations.
 // Returns an error if any deletion fails (partial failures are reported).
-func (s *VpcService) cascadeDeleteDependencies(ctx context.Context, vpcID, tenantID uuid.UUID) error {
+func (s *VpcService) cascadeDeleteDependencies(ctx context.Context, vpcID uuid.UUID) error {
 	// Delete all scaling groups for this VPC directly
 	groups, err := s.asRepo.ListGroups(ctx)
 	if err != nil {
@@ -369,10 +369,10 @@ func (s *VpcService) cascadeDeleteDependencies(ctx context.Context, vpcID, tenan
 	if err != nil {
 		return fmt.Errorf("listing load balancers: %w", err)
 	}
-	// Use tenantID context for LB operations (lbRepo.Delete requires tenant_id)
-	lbCtx := appcontext.WithTenantID(ctx, tenantID)
 	for _, lb := range lbs {
 		if lb.VpcID == vpcID {
+			// Use the LB's own TenantID for deletion (not the VPC's)
+			lbCtx := appcontext.WithTenantID(ctx, lb.TenantID)
 			if err := s.lbRepo.Delete(lbCtx, lb.ID); err != nil {
 				delErrs = append(delErrs, fmt.Errorf("load balancer %s: %w", lb.ID, err))
 			}
