@@ -152,7 +152,7 @@ func (c *Client) postWithContext(ctx context.Context, path string, body interfac
 	return c.postContext(ctx, path, body, result)
 }
 
-func (c *Client) delete(path string, result interface{}) error {
+func (c *Client) delete(path string, result interface{}) error { //nolint:unparam // result param is part of API design, used in tests
 	return c.deleteWithContext(context.Background(), path, result)
 }
 
