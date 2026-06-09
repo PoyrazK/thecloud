@@ -200,6 +200,21 @@ func saveConfig(key string) {
 	}
 }
 
+// loadConfig reads the API key from the config file.
+//nolint:unused // used by test files
+func loadConfig() string {
+	path := getConfigPath()
+	data, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return ""
+	}
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return ""
+	}
+	return cfg.APIKey
+}
+
 func init() {
 	authCmd.AddCommand(createDemoCmd)
 	authCmd.AddCommand(listApiKeysCmd)
