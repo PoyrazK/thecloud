@@ -115,7 +115,7 @@ func (w *LBWorker) processDeletingLBs(ctx context.Context) {
 			return
 		}
 		for _, lb := range lbs {
-			gCtx := appcontext.WithUserID(ctx, lb.UserID)
+			gCtx := appcontext.WithTenantID(ctx, lb.TenantID)
 			w.cleanupLB(gCtx, lb)
 		}
 		if len(lbs) < w.batchLimit {
