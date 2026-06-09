@@ -1220,7 +1220,7 @@ func validateID(id string) error {
 }
 
 func (a *LibvirtAdapter) setupPortForwarding(name string, ports []string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute) //nolint:gosec // intentional: fire-and-forget goroutine with its own timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	ip, err := a.waitInitialIP(ctx, name)

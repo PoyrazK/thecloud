@@ -200,19 +200,6 @@ func saveConfig(key string) {
 	}
 }
 
-func loadConfig() string {
-	path := getConfigPath()
-	data, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return ""
-	}
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return ""
-	}
-	return cfg.APIKey
-}
-
 func init() {
 	authCmd.AddCommand(createDemoCmd)
 	authCmd.AddCommand(listApiKeysCmd)

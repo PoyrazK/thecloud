@@ -11,6 +11,7 @@ type TaskQueue interface {
 	// Enqueue adds a serializable payload to the specified background processing queue.
 	Enqueue(ctx context.Context, queueName string, payload interface{}) error
 	// Dequeue pulls the next available raw message string from the background processing queue.
+	//
 	// Deprecated: parallel consumers should use DurableTaskQueue.Receive instead.
 	Dequeue(ctx context.Context, queueName string) (string, error)
 }
