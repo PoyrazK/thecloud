@@ -64,7 +64,7 @@ func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter
 	if cfg.SocketDir == "" {
 		cfg.SocketDir = defaultSocketDir
 	}
-	if err := os.MkdirAll(cfg.SocketDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.SocketDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create socket directory %s: %w", cfg.SocketDir, err)
 	}
 
