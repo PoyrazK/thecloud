@@ -24,11 +24,11 @@ func NewLBRepository(db DB) *LBRepository {
 
 func (r *LBRepository) Create(ctx context.Context, lb *domain.LoadBalancer) error {
 	query := `
-		INSERT INTO load_balancers (id, user_id, idempotency_key, name, vpc_id, port, algorithm, ip, status, version, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO load_balancers (id, user_id, tenant_id, idempotency_key, name, vpc_id, port, algorithm, ip, status, version, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 	_, err := r.db.Exec(ctx, query,
-		lb.ID, lb.UserID, lb.IdempotencyKey, lb.Name, lb.VpcID, lb.Port, lb.Algorithm, lb.IP, lb.Status, lb.Version, lb.CreatedAt,
+		lb.ID, lb.UserID, lb.TenantID, lb.IdempotencyKey, lb.Name, lb.VpcID, lb.Port, lb.Algorithm, lb.IP, lb.Status, lb.Version, lb.CreatedAt,
 	)
 	if err != nil {
 		// Check for unique constraint violation on idempotency_key
