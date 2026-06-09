@@ -137,6 +137,8 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 
 // generateMAC creates a deterministic MAC address from instance ID
 // TODO(cni): wire up to CreateNetwork once TAP device networking is integrated
+//
+//nolint:unused
 func generateMAC(instanceID string) string {
 	h := uuid.NewMD5(uuid.NameSpaceDNS, []byte(instanceID))
 	macBytes := h[:]
