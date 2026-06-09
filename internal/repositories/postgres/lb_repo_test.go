@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	lbQueryPattern = "SELECT id, user_id, COALESCE.+idempotency_key.+name, vpc_id, port, algorithm, COALESCE.+ip.+status, version, created_at FROM load_balancers"
+	lbQueryPattern = "SELECT id, user_id, tenant_id, COALESCE.+idempotency_key.+name, vpc_id, port, algorithm, COALESCE.+ip.+status, version, created_at FROM load_balancers"
 	errDbMessage   = "db error"
 	errNotFound    = "not found"
 )
@@ -81,8 +81,8 @@ func TestLBRepositoryGetByID(t *testing.T) {
 
 		mock.ExpectQuery(lbQueryPattern).
 			WithArgs(id, tenantID).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "idempotency_key", "name", "vpc_id", "port", "algorithm", "ip", "status", "version", "created_at"}).
-				AddRow(id, tenantID, "key-1", "lb-1", uuid.New(), 80, "round_robin", "10.0.0.1", string(domain.LBStatusActive), 1, now))
+			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "idempotency_key", "name", "vpc_id", "port", "algorithm", "ip", "status", "version", "created_at"}).
+				AddRow(id, uuid.New(), tenantID, "key-1", "lb-1", uuid.New(), 80, "round_robin", "10.0.0.1", string(domain.LBStatusActive), 1, now))
 
 		lb, err := repo.GetByID(ctx, id)
 		require.NoError(t, err)
@@ -124,8 +124,8 @@ func TestLBRepositoryList(t *testing.T) {
 
 		mock.ExpectQuery(lbQueryPattern).
 			WithArgs(tenantID).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "idempotency_key", "name", "vpc_id", "port", "algorithm", "ip", "status", "version", "created_at"}).
-				AddRow(uuid.New(), tenantID, "key-1", "lb-1", uuid.New(), 80, "round_robin", "10.0.0.1", string(domain.LBStatusActive), 1, now))
+			WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "tenant_id", "idempotency_key", "name", "vpc_id", "port", "algorithm", "ip", "status", "version", "created_at"}).
+				AddRow(uuid.New(), uuid.New(), tenantID, "key-1", "lb-1", uuid.New(), 80, "round_robin", "10.0.0.1", string(domain.LBStatusActive), 1, now))
 
 		lbs, err := repo.List(ctx)
 		require.NoError(t, err)
