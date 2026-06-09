@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/firecracker-microvm/firecracker-go-sdk"
@@ -355,4 +356,95 @@ func TestFirecrackerAdapter_StopInstance_RealMode_ShutdownError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "shutdown error")
 	failMachine.AssertExpectations(t)
+}
+
+func TestGenerateMAC(t *testing.T) {
+	mac := generateMAC("test-instance")
+	// MAC should be in format xx:xx:xx:xx:xx:xx where first byte has local bit set (bit 1) and multicast bit clear (bit 0)
+	assert.Regexp(t, `[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}`, mac)
+
+	// Verify first octet has local bit set and multicast bit clear
+	firstOctet, err := strconv.ParseUint(mac[:2], 16, 8)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(0), firstOctet&0x01, "multicast bit should be clear")
+	assert.NotEqual(t, uint64(0), firstOctet&0x02, "local bit should be set")
+
+	// Different instances should produce different MACs
+	mac2 := generateMAC("instance-b")
+	assert.NotEqual(t, mac, mac2)
+
+	// Same instance should produce same MAC (deterministic)
+	mac3 := generateMAC("test-instance")
+	assert.Equal(t, mac, mac3)
+}
+
+func TestGetJiffiesPerSecond(t *testing.T) {
+	// Should return a positive value (100, 250, 1000, etc. depending on kernel CONFIG_HZ)
+	tck := getJiffiesPerSecond()
+	assert.Positive(t, tck)
+}
+
+func TestFirecrackerAdapter_ResizeInstance_NotSupported(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  true,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = adapter.ResizeInstance(ctx, "any-id", 2, 1024)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resize not supported on firecracker")
+}
+
+func TestFirecrackerAdapter_ResizeInstance_RealMode_NotFound(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  false,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = adapter.ResizeInstance(ctx, "nonexistent", 2, 1024)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resize not supported on firecracker")
+}
+
+func TestFirecrackerAdapter_AttachVolume_MockMode(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  true,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	// MockMode: AttachVolume is not implemented, returns error
+	_, _, err = adapter.AttachVolume(ctx, "any-id", "/path/to/volume.qcow2")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented")
+}
+
+func TestFirecrackerAdapter_AttachVolume_RealMode_NotFound(t *testing.T) {
+	t.Parallel()
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  false,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	_, _, err = adapter.AttachVolume(ctx, "nonexistent", "/path/to/volume.qcow2")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not implemented")
 }
