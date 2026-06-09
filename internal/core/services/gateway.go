@@ -3,13 +3,18 @@ package services
 
 import (
 	"context"
+	cryptoRand "crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"math"
-	"math/rand/v2"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -17,8 +22,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
@@ -26,31 +33,49 @@ import (
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/platform"
 	"github.com/poyrazk/thecloud/internal/routing"
+	"golang.org/x/sync/singleflight"
 )
 
 // GatewayService manages API gateway routes and reverse proxies.
 type GatewayService struct {
-	repo     ports.GatewayRepository
-	rbacSvc  ports.RBACService
-	proxyMu  sync.RWMutex
-	proxies  map[uuid.UUID]*httputil.ReverseProxy
-	routes   []*domain.GatewayRoute
-	matchers map[uuid.UUID]*routing.PatternMatcher
-	auditSvc ports.AuditService
-	logger   *slog.Logger
+	repo               ports.GatewayRepository
+	rbacSvc            ports.RBACService
+	proxyMu            sync.RWMutex
+	proxies            map[uuid.UUID]*httputil.ReverseProxy
+	routes             []*domain.GatewayRoute
+	matchers           map[uuid.UUID]*routing.PatternMatcher
+	auditSvc           ports.AuditService
+	logger             *slog.Logger
+	jwksMu             sync.RWMutex
+	jwksCache          map[string]*jwksCacheEntry
+	httpClient         *http.Client
+	jwksCircuitBreaker *platform.CircuitBreaker
+	jwksInFlight       singleflight.Group
 }
 
 // NewGatewayService constructs a GatewayService and loads existing routes.
 func NewGatewayService(repo ports.GatewayRepository, rbacSvc ports.RBACService, auditSvc ports.AuditService, logger *slog.Logger) *GatewayService {
 	s := &GatewayService{
-		repo:     repo,
-		rbacSvc:  rbacSvc,
-		proxies:  make(map[uuid.UUID]*httputil.ReverseProxy),
-		routes:   make([]*domain.GatewayRoute, 0),
-		matchers: make(map[uuid.UUID]*routing.PatternMatcher),
-		auditSvc: auditSvc,
-		logger:   logger,
+		repo:       repo,
+		rbacSvc:    rbacSvc,
+		proxies:    make(map[uuid.UUID]*httputil.ReverseProxy),
+		routes:     make([]*domain.GatewayRoute, 0),
+		matchers:   make(map[uuid.UUID]*routing.PatternMatcher),
+		auditSvc:   auditSvc,
+		logger:     logger,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
+	s.jwksCircuitBreaker = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
+		Name:         "jwks-fetch",
+		Threshold:    3,
+		ResetTimeout: 30 * time.Second,
+		OnStateChange: func(name string, from, to platform.State) {
+			platform.JWKSBreakerState.Set(float64(to))
+			if s.logger != nil {
+				s.logger.Warn("JWKS circuit breaker state change", "name", name, "from", from.String(), "to", to.String())
+			}
+		},
+	})
 	// Initial load
 	if err := s.RefreshRoutes(context.Background()); err != nil {
 		s.logger.Error("failed to refresh routes on startup", "error", err)
@@ -104,6 +129,19 @@ func (s *GatewayService) CreateRoute(ctx context.Context, params ports.CreateRou
 		MaxRetries:              params.MaxRetries,
 		RetryTimeout:            params.RetryTimeout,
 		Priority:                params.Priority,
+		AllowedOrigins:          params.AllowedOrigins,
+		AllowedMethods:          params.AllowedMethods,
+		AllowedHeaders:          params.AllowedHeaders,
+		ExposeHeaders:           params.ExposeHeaders,
+		MaxAge:                  params.MaxAge,
+		StripResponseHeaders:    params.StripResponseHeaders,
+		Compression:             params.Compression,
+		JWTIssuer:               params.JWTIssuer,
+		JWTJwksURL:              params.JWTJwksURL,
+		JWTAudience:             params.JWTAudience,
+		ClientCert:              params.ClientCert,
+		ClientKey:               params.ClientKey,
+		CACert:                  params.CACert,
 		CreatedAt:               time.Now(),
 		UpdatedAt:               time.Now(),
 	}
@@ -253,6 +291,11 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 	proxy := httputil.NewSingleHostReverseProxy(target)
 
 	// Configure custom transport with timeouts and TLS
+	tlsConfig, err := s.buildTLSConfig(route)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build TLS config: %w", err)
+	}
+
 	dialTimeout := time.Duration(route.DialTimeout) * time.Millisecond
 	if dialTimeout <= 0 {
 		dialTimeout = 5 * time.Second
@@ -273,8 +316,10 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 		}).DialContext,
 		ResponseHeaderTimeout: responseHeaderTimeout,
 		IdleConnTimeout:       idleConnTimeout,
-		TLSClientConfig:       s.buildTLSConfig(route),
+		TLSClientConfig:       tlsConfig,
 		TLSHandshakeTimeout:   10 * time.Second,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
 	}
 
 	proxy.Transport = newRetryTransport(baseTransport, route, s.logger)
@@ -298,7 +343,7 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 	return proxy, nil
 }
 
-func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) *tls.Config {
+func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) (*tls.Config, error) {
 	cfg := &tls.Config{
 		InsecureSkipVerify: route.TLSSkipVerify, //nolint:gosec // User-controlled option for development/testing
 	}
@@ -307,7 +352,22 @@ func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) *tls.Config 
 	if route.RequireTLS {
 		cfg.MinVersion = tls.VersionTLS13
 	}
-	return cfg
+	// mTLS: load client certificate if provided
+	if route.ClientCert != "" && route.ClientKey != "" {
+		cert, err := tls.X509KeyPair([]byte(route.ClientCert), []byte(route.ClientKey))
+		if err != nil {
+			return nil, fmt.Errorf("invalid client cert/key: %w", err)
+		}
+		cfg.Certificates = []tls.Certificate{cert}
+	}
+	// CA cert for backend verification
+	if route.CACert != "" {
+		cfg.RootCAs = x509.NewCertPool()
+		if !cfg.RootCAs.AppendCertsFromPEM([]byte(route.CACert)) {
+			return nil, fmt.Errorf("failed to parse CA certificate")
+		}
+	}
+	return cfg, nil
 }
 
 func (s *GatewayService) sortRoutes(routes []*domain.GatewayRoute) {
@@ -317,6 +377,203 @@ func (s *GatewayService) sortRoutes(routes []*domain.GatewayRoute) {
 		scoreJ := calculateMatchScore(routes[j], "")
 		return scoreI > scoreJ // Descending order
 	})
+}
+
+type jwksCacheEntry struct {
+	keys      map[string]*rsa.PublicKey
+	fetchedAt time.Time
+}
+
+func (s *GatewayService) getJWKS(url string) (map[string]*rsa.PublicKey, error) {
+	s.jwksMu.Lock()
+	if entry, ok := s.jwksCache[url]; ok && time.Since(entry.fetchedAt) < 5*time.Minute {
+		s.jwksMu.Unlock()
+		return entry.keys, nil
+	}
+	s.jwksMu.Unlock()
+
+	// Use singleflight to dedupe concurrent requests for the same URL
+	val, err, _ := s.jwksInFlight.Do(url, func() (any, error) {
+		s.jwksMu.Lock()
+		// Double-check after acquiring lock
+		if entry, ok := s.jwksCache[url]; ok && time.Since(entry.fetchedAt) < 5*time.Minute {
+			s.jwksMu.Unlock()
+			return entry.keys, nil
+		}
+		s.jwksMu.Unlock()
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		var resp *http.Response
+		if cbErr := s.jwksCircuitBreaker.Execute(func() error {
+			resp, err = s.httpClient.Do(req) //nolint:bodyclose
+			return err
+		}); cbErr != nil {
+			platform.JWKSFetchTotal.WithLabelValues("circuit_open").Inc()
+			return nil, cbErr
+		}
+		defer func() {
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
+		}()
+
+		// Only cache successful JWKS responses
+		if resp.StatusCode != http.StatusOK {
+			platform.JWKSFetchTotal.WithLabelValues("error").Inc()
+			return nil, fmt.Errorf("JWKS fetch returned status %d", resp.StatusCode)
+		}
+
+		var jwks struct {
+			Keys []map[string]any `json:"keys"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+			platform.JWKSFetchTotal.WithLabelValues("error").Inc()
+			return nil, err
+		}
+
+		keys := make(map[string]*rsa.PublicKey)
+		for _, k := range jwks.Keys {
+			if kid, ok := k["kid"].(string); ok {
+				if kty, _ := k["kty"].(string); kty == "RSA" {
+					if pubKey, err := parseRSAPublicKeyFromJWK(k); err == nil {
+						keys[kid] = pubKey
+					}
+				}
+			}
+		}
+		// If JWKS had keys but none parsed successfully, don't cache an empty result
+		if len(keys) == 0 && len(jwks.Keys) > 0 {
+			platform.JWKSFetchTotal.WithLabelValues("error").Inc()
+			return nil, fmt.Errorf("JWKS returned %d keys but none were valid RSA keys", len(jwks.Keys))
+		}
+
+		platform.JWKSFetchTotal.WithLabelValues("success").Inc()
+		s.jwksMu.Lock()
+		if s.jwksCache == nil {
+			s.jwksCache = make(map[string]*jwksCacheEntry)
+		}
+		s.jwksCache[url] = &jwksCacheEntry{keys: keys, fetchedAt: time.Now()}
+		s.jwksMu.Unlock()
+		return keys, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return val.(map[string]*rsa.PublicKey), nil
+}
+
+// parseRSAPublicKeyFromJWK parses an RSA public key from a JWK map.
+func parseRSAPublicKeyFromJWK(k map[string]any) (*rsa.PublicKey, error) {
+	nVal, ok := k["n"].(string)
+	if !ok {
+		return nil, fmt.Errorf("JWK missing 'n'")
+	}
+	eVal, ok := k["e"].(string)
+	if !ok {
+		return nil, fmt.Errorf("JWK missing 'e'")
+	}
+
+	nBytes, err := base64.RawURLEncoding.DecodeString(nVal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode modulus: %w", err)
+	}
+	eBytes, err := base64.RawURLEncoding.DecodeString(eVal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode exponent: %w", err)
+	}
+
+	n := new(big.Int).SetBytes(nBytes)
+	// e is typically 65537 (0x10001) which encodes as "AQAB" in base64url
+	e := 0
+	for _, b := range eBytes {
+		if e >= 1<<30 { // exponents > 2^30 are invalid for RSA
+			return nil, fmt.Errorf("exponent too large")
+		}
+		e = e<<8 + int(b)
+	}
+
+	return &rsa.PublicKey{N: n, E: e}, nil
+}
+
+func (s *GatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayRoute, tokenString string) (map[string]string, error) {
+	if route.JWTJwksURL == "" || tokenString == "" {
+		return nil, nil
+	}
+
+	keys, err := s.getJWKS(route.JWTJwksURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
+	}
+
+	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
+		// Only allow RSA signature algorithms to prevent algorithm confusion attacks
+		switch t.Method.Alg() {
+		case "RS256", "RS384", "RS512":
+			// OK
+		default:
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Method.Alg())
+		}
+		kid, _ := t.Header["kid"].(string)
+		if kid == "" {
+			return nil, fmt.Errorf("kid not found in token header")
+		}
+		key, ok := keys[kid]
+		if !ok {
+			return nil, fmt.Errorf("key %s not found in JWKS", kid)
+		}
+		return key, nil
+	})
+	if err != nil {
+		// Return generic error to avoid leaking timing info about signature validation
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("token is invalid")
+	}
+
+	claims, _ := token.Claims.(jwt.MapClaims)
+	if route.JWTIssuer != "" {
+		if iss, _ := claims["iss"].(string); iss != route.JWTIssuer {
+			return nil, fmt.Errorf("invalid issuer")
+		}
+	}
+	if route.JWTAudience != "" {
+		if !verifyAudience(claims, route.JWTAudience) {
+			return nil, fmt.Errorf("invalid audience")
+		}
+	}
+
+	result := make(map[string]string)
+	for k, v := range claims {
+		if str, ok := v.(string); ok {
+			result[k] = str
+		}
+	}
+	return result, nil
+}
+
+// verifyAudience checks if the given audience claim matches the expected audience.
+// Handles both string and []interface{} audience claims per RFC 7519.
+func verifyAudience(claims jwt.MapClaims, expected string) bool {
+	aud, ok := claims["aud"]
+	if !ok {
+		return false
+	}
+	switch v := aud.(type) {
+	case string:
+		return v == expected
+	case []interface{}:
+		for _, a := range v {
+			if s, ok := a.(string); ok && s == expected {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ProxyHandler is handled in the API layer for now
@@ -337,7 +594,15 @@ func (s *GatewayService) GetProxy(method, path string) (*httputil.ReverseProxy, 
 	}
 
 	if bestMatch != nil {
-		return s.proxies[bestMatch.Route.ID], bestMatch.Route, bestMatch.Params, true
+		proxy := s.proxies[bestMatch.Route.ID]
+		if proxy == nil {
+			s.logger.Error("proxy not found for matched route, possible proxy creation failure",
+				"route_id", bestMatch.Route.ID.String(),
+				"route_name", bestMatch.Route.Name,
+				"path", path)
+			return nil, nil, nil, false
+		}
+		return proxy, bestMatch.Route, bestMatch.Params, true
 	}
 
 	return nil, nil, nil, false
@@ -408,6 +673,12 @@ type retryTransport struct {
 	maxRetries   int
 	retryTimeout time.Duration
 	logger       *slog.Logger
+	routeID      string
+	// fastFailThreshold prevents retry storms when upstream is unreachable.
+	// When >0, consecutive connection errors exceeding this count trips the
+	// circuit breaker immediately (bypassing normal failure counting).
+	fastFailThreshold     int32
+	consecutiveConnErrors atomic.Int32
 }
 
 // retryableStatusError wraps a response returned when retries are exhausted
@@ -427,10 +698,12 @@ func (e *retryableStatusError) Error() string {
 // newRetryTransport wraps a base http.Transport with per-route retry and circuit breaker behavior.
 func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logger *slog.Logger) *retryTransport {
 	rt := &retryTransport{
-		base:         base,
-		maxRetries:   route.MaxRetries,
-		retryTimeout: time.Duration(route.RetryTimeout) * time.Millisecond,
-		logger:       logger,
+		base:              base,
+		maxRetries:        route.MaxRetries,
+		retryTimeout:      time.Duration(route.RetryTimeout) * time.Millisecond,
+		logger:            logger,
+		routeID:           route.ID.String(),
+		fastFailThreshold: int32(route.CircuitBreakerThreshold), //nolint:gosec
 	}
 	if route.CircuitBreakerThreshold > 0 {
 		rt.cb = platform.NewCircuitBreakerWithOpts(platform.CircuitBreakerOpts{
@@ -438,6 +711,7 @@ func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logge
 			Threshold:    route.CircuitBreakerThreshold,
 			ResetTimeout: time.Duration(route.CircuitBreakerTimeout) * time.Millisecond,
 			OnStateChange: func(name string, from, to platform.State) {
+				platform.GatewayCircuitBreakerState.WithLabelValues(name).Set(float64(to))
 				if logger != nil {
 					logger.Warn("circuit breaker state change",
 						"route_id", name,
@@ -446,6 +720,7 @@ func newRetryTransport(base http.RoundTripper, route *domain.GatewayRoute, logge
 				}
 			},
 		})
+		platform.GatewayCircuitBreakerState.WithLabelValues(route.ID.String()).Set(float64(platform.StateClosed))
 	}
 	return rt
 }
@@ -489,6 +764,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	}
 
 	var lastResp *http.Response
+	var lastErr error
 	maxAttempts := rt.maxRetries + 1 // first attempt + retries
 	start := time.Now()
 
@@ -498,6 +774,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 			break
 		}
 		if attempt > 0 {
+			platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "retry").Inc()
 			delay := rt.backoffWithJitter(attempt)
 			select {
 			case <-req.Context().Done():
@@ -508,19 +785,44 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 
 		resp, err := rt.base.RoundTrip(req)
 		if err == nil {
+			// Reset consecutive error counter on success
+			rt.consecutiveConnErrors.Store(0)
 			if !rt.isRetryableStatus(resp.StatusCode) {
+				// For successful non-retryable responses, do NOT drain or close the body.
+				// The caller (ReverseProxy) needs to read from it to forward to the client.
+				// The transport's underlying connection management handles reuse.
 				return resp, nil //nolint:bodyclose
 			}
-			// drain and close body so connection can be reused, then retry
+			// drain body (do NOT close — lastResp may be returned to caller with readable body)
 			_, _ = io.Copy(io.Discard, resp.Body)
-			_ = resp.Body.Close()
 			lastResp = resp
 			continue
 		}
 
 		if !rt.isRetryableError(err) {
+			// Drain body before returning so connection can be reused
+			if resp != nil && resp.Body != nil {
+				_, _ = io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+			// Reset consecutive errors on non-retryable error (upstream responded)
+			rt.consecutiveConnErrors.Store(0)
 			return nil, err
 		}
+
+		// Fast-fail: if we hit too many consecutive connection errors, trip the
+		// circuit breaker immediately to prevent retry storms.
+		if rt.cb != nil && rt.fastFailThreshold > 0 {
+			//nolint:G115 // int->int32 safe: threshold is small positive int
+			if rt.consecutiveConnErrors.Add(1) >= rt.fastFailThreshold {
+				platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "fast_fail").Inc()
+				// Trip the circuit breaker open immediately
+				rt.cb.RecordFailure()
+				return nil, fmt.Errorf("fast-fail: too many consecutive connection errors: %w", err)
+			}
+		}
+
+		lastErr = err
 		lastResp = resp
 
 		// For idempotent methods with a replayable body, clone the request before retry.
@@ -538,7 +840,17 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	// so the circuit breaker can count this as a failure. The response is
 	// unwrapped and returned to the caller in RoundTrip.
 	if lastResp != nil && rt.isRetryableStatus(lastResp.StatusCode) {
+		platform.GatewayRetryTotal.WithLabelValues(rt.routeID, "exhausted").Inc()
 		return nil, &retryableStatusError{resp: lastResp}
+	}
+	// lastResp may have an undrained body from a network error — drain before returning
+	if lastResp != nil && lastResp.Body != nil {
+		_, _ = io.Copy(io.Discard, lastResp.Body)
+		lastResp.Body.Close()
+	}
+	// If we have a last error, return it; otherwise return the last response
+	if lastErr != nil {
+		return nil, lastErr
 	}
 	return lastResp, nil //nolint:bodyclose
 }
@@ -551,6 +863,13 @@ func (rt *retryTransport) isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
+	// Use net.Error interface for robust detection of transient errors
+	var netErr net.Error
+	if stderrors.As(err, &netErr) {
+		// Use Timeout() - Temporary() is deprecated per Go docs as unreliable
+		return netErr.Timeout()
+	}
+	// Fallback to string matching for errors not wrapped as net.Error
 	msg := err.Error()
 	return strings.Contains(msg, "connection refused") ||
 		strings.Contains(msg, "timeout") ||
@@ -578,10 +897,11 @@ func (rt *retryTransport) backoffWithJitter(attempt int) time.Duration {
 	return rt.jitter(time.Duration(delay))
 }
 
-// jitter returns a random duration in [0, max) using math/rand/v2.
-// rand.Uint() is safe for concurrent use; no locking needed.
+// jitter returns a random duration in [0, max) using crypto/rand.
+// crypto/rand is safe for concurrent use and provides cryptographic randomness.
 func (rt *retryTransport) jitter(max time.Duration) time.Duration {
-	val := float64(rand.Uint()) / float64(1<<64) * float64(math.MaxUint64)
-	frac := val / float64(math.MaxUint64)
-	return time.Duration(float64(max) * frac)
+	b := make([]byte, 8)
+	_, _ = cryptoRand.Read(b)
+	val := float64(uint64(b[0])<<56 | uint64(b[1])<<48 | uint64(b[2])<<40 | uint64(b[3])<<32 | uint64(b[4])<<24 | uint64(b[5])<<16 | uint64(b[6])<<8 | uint64(b[7]))
+	return time.Duration(float64(max) * (val / float64(1<<64)))
 }

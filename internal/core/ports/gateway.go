@@ -47,6 +47,19 @@ type CreateRouteParams struct {
 	MaxRetries              int
 	RetryTimeout            int64
 	Priority                int
+	AllowedOrigins          []string
+	AllowedMethods          []string
+	AllowedHeaders          []string
+	ExposeHeaders           []string
+	MaxAge                  int
+	StripResponseHeaders    []string
+	Compression             string
+	JWTIssuer               string
+	JWTJwksURL              string
+	JWTAudience             string
+	ClientCert              string
+	ClientKey               string
+	CACert                  string
 }
 
 // GatewayService provides business logic for managing the API gateway and ingress traffic.
@@ -62,4 +75,7 @@ type GatewayService interface {
 	// GetProxy finds the appropriate backend for the given path and method.
 	// Returns proxy, route, path params, and found flag.
 	GetProxy(method, path string) (*httputil.ReverseProxy, *domain.GatewayRoute, map[string]string, bool)
+	// ValidateJWT validates a JWT token against the route's JWKS configuration.
+	// Returns claims map if valid, or error.
+	ValidateJWT(ctx context.Context, route *domain.GatewayRoute, tokenString string) (map[string]string, error)
 }

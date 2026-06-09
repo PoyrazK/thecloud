@@ -241,14 +241,22 @@ This document provides a comprehensive overview of every feature currently imple
 - **VPC Scoped**: Zones are scoped to VPCs for private network resolution.
 
 ### 13. API Gateway 🆕
-**What it is**: Managed entry point for microservices with advanced routing, pattern matching, and rate limiting.
-**Tech Stack**: Go `httputil.ReverseProxy`, Redis, Regex Matcher.
+**What it is**: Managed entry point for microservices with advanced routing, pattern matching, rate limiting, JWT authentication, mTLS, and observability.
+**Tech Stack**: Go `httputil.ReverseProxy`, Redis, Regex Matcher, `golang.org/x/time/rate`, Prometheus metrics, `golang.org/x/sync/singleflight`.
+
 **Implementation**:
 - **Advanced Pattern Matching**: Support for RESTful patterns like `/users/{id}`, regex-constrained parameters `/id/{id:[0-9]+}`, and wildcards `/static/*`.
 - **HTTP Method Routing**: Route requests to different backends based on the HTTP verb (GET, POST, etc.) for the same path.
 - **Dynamic Specificity Scoring**: Automatic route selection based on prefix specificity, exact match bonuses, and explicit user-defined priority.
 - **Prefix Stripping**: Intelligent stripping of path patterns before forwarding to downstream services.
-- **Rate Limiting**: Integrated distributed rate limiting per route.
+- **Rate Limiting**: Integrated distributed rate limiting per route using token-bucket algorithm. Supports per-client key (API key prefix or IP) identification.
+- **Circuit Breaker & Retry**: Per-route circuit breaker with configurable threshold and reset timeout. Automatic retry with exponential backoff on `502`, `503`, `504`, `429` responses. Only idempotent methods (GET, HEAD, PUT, DELETE, OPTIONS) are retried.
+- **JWT Authentication**: JWKS-backed JWT validation with issuer and audience verification. RSA public keys parsed from JWK `n`/`e` parameters. JWKS fetches are deduplicated via singleflight and protected by a circuit breaker. Claims are propagated to upstream services via `X-JWT-Claim-*` headers.
+- **mTLS Support**: Configurable client certificates (PEM) and CA certificates for backend TLS verification.
+- **CORS**: Per-route CORS configuration with `allowed_origins`, `allowed_methods`, `allowed_headers`, `expose_headers`, and `max_age`.
+- **Compression**: Gzip response compression when client advertises support and route has compression enabled.
+- **Dry-Run Validation**: Route creation supports `?dry_run=true` to validate CIDR blocks, TLS conflicts, and mTLS certificate pairing without persisting.
+- **Observability**: Prometheus metrics for upstream latency (`thecloud_gateway_upstream_latency_seconds`), retry totals (`thecloud_gateway_retry_total`), circuit breaker state (`thecloud_gateway_circuit_breaker_state`), JWKS fetch totals and breaker state (`thecloud_jwks_fetch_total`, `thecloud_jwks_breaker_state`). W3C TraceContext headers (`traceparent`, `tracestate`) are preserved or generated for upstream traceability.
 - **Audit Logging**: Comprehensive tracking of all route changes and gateway operations.
 
 ### 14. CloudStacks (Native IaC) 🆕

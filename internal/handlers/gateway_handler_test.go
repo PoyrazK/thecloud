@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -15,7 +18,6 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
-	"github.com/poyrazk/thecloud/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -86,11 +88,19 @@ func (m *mockGatewayService) RefreshRoutes(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *mockGatewayService) ValidateJWT(ctx context.Context, route *domain.GatewayRoute, tokenString string) (map[string]string, error) {
+	args := m.Called(ctx, route, tokenString)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	r0, _ := args.Get(0).(map[string]string)
+	return r0, args.Error(1)
+}
+
 func setupGatewayHandlerTest(_ *testing.T) (*mockGatewayService, *GatewayHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	svc := new(mockGatewayService)
-	rateLimiter := ratelimit.NewIPRateLimiter(100, 200, nil)
-	handler := NewGatewayHandler(svc, rateLimiter, nil)
+	handler := NewGatewayHandler(svc, nil, nil)
 	r := gin.New()
 	return svc, handler, r
 }
@@ -258,6 +268,192 @@ func TestGatewayHandlerProxyWithSlash(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestGatewayHandlerProxyJWTEmptyToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+	// Request without Authorization header
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTMissingBearer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+	// Request with Authorization header but no Bearer prefix
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Basic dXNlcm5hbWU6cGFzc3dvcmQ=")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTValidToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	// Use a capturing proxy that records upstream headers
+	var upstreamReqHeaders http.Header
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		upstreamReqHeaders = wreq.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+	mockSvc.On("ValidateJWT", mock.Anything, route, "valid-token").Return(
+		map[string]string{"sub": "user123", "iss": "test-issuer"}, nil).Once()
+
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "user123", upstreamReqHeaders.Get("X-JWT-Claim-sub"))
+	assert.Equal(t, "test-issuer", upstreamReqHeaders.Get("X-JWT-Claim-iss"))
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTInvalidTokenServiceError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+	mockSvc.On("ValidateJWT", mock.Anything, route, "malformed-token").Return(
+		nil, fmt.Errorf("invalid token")).Once()
+
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer malformed-token")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	mockSvc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyJWTClaimsPropagation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockSvc := new(mockGatewayService)
+	handler := NewGatewayHandler(mockSvc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	var upstreamReqHeaders http.Header
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		upstreamReqHeaders = wreq.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:            uuid.New(),
+		Name:          "jwt-test",
+		JWTJwksURL:    "https://auth.example.com/.well-known/jwks.json",
+		AllowedIPNets: []*net.IPNet{},
+	}
+	mockSvc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+	mockSvc.On("ValidateJWT", mock.Anything, route, "multi-claim-token").Return(
+		map[string]string{
+			"sub":   "user1",
+			"role":  "admin",
+			"email": "u@example.com",
+		}, nil).Once()
+
+	req, err := http.NewRequest("GET", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer multi-claim-token")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "user1", upstreamReqHeaders.Get("X-JWT-Claim-sub"))
+	assert.Equal(t, "admin", upstreamReqHeaders.Get("X-JWT-Claim-role"))
+	assert.Equal(t, "u@example.com", upstreamReqHeaders.Get("X-JWT-Claim-email"))
+	mockSvc.AssertExpectations(t)
+}
+
 func TestGatewayHandlerCreateError(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidJSON", func(t *testing.T) {
@@ -352,11 +548,277 @@ func TestGatewayHandlerProxyParamWithoutSlash(t *testing.T) {
 	mockSvc.AssertExpectations(t)
 }
 
-func TestGatewayHandlerProxyRateLimitExceeded(t *testing.T) {
-	// TODO: Test requires mock-friendly rate limiter to be deterministic.
-	// The real limiter refills tokens over time (rate=10 → 1 token/100ms),
-	// so by the time the proxied request runs, tokens may have refilled.
-	// Will be addressed when a mock-able RateLimiter interface is introduced.
+func TestGatewayHandlerInjectCORSHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	tests := []struct {
+		name               string
+		origin             string
+		allowedOrigins     []string
+		allowedMethods     []string
+		allowedHeaders     []string
+		exposeHeaders      []string
+		maxAge             int
+		expectCORS         bool
+		expectMethods      bool
+		expectAllowMethods string
+	}{
+		{
+			name:           "wildcard origin - allowed",
+			origin:         "http://example.com",
+			allowedOrigins: []string{"*"},
+			expectCORS:     true,
+		},
+		{
+			name:           "exact origin match",
+			origin:         "http://example.com",
+			allowedOrigins: []string{"http://example.com", "http://test.com"},
+			expectCORS:     true,
+		},
+		{
+			name:           "origin not in allowlist",
+			origin:         "http://evil.com",
+			allowedOrigins: []string{"http://example.com"},
+			expectCORS:     false,
+		},
+		{
+			name:               "with methods and headers",
+			origin:             "http://example.com",
+			allowedOrigins:     []string{"http://example.com"},
+			allowedMethods:     []string{"GET", "POST"},
+			allowedHeaders:     []string{"Authorization", "Content-Type"},
+			exposeHeaders:      []string{"X-Custom-Header"},
+			maxAge:             3600,
+			expectCORS:         true,
+			expectMethods:      true,
+			expectAllowMethods: "GET, POST",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			route := &domain.GatewayRoute{
+				ID:             uuid.New(),
+				Name:           "cors-test",
+				Compression:    "",
+				AllowedOrigins: tc.allowedOrigins,
+				AllowedMethods: tc.allowedMethods,
+				AllowedHeaders: tc.allowedHeaders,
+				ExposeHeaders:  tc.exposeHeaders,
+				MaxAge:         tc.maxAge,
+				AllowedIPNets:  []*net.IPNet{},
+			}
+			svc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+			req, err := http.NewRequest("GET", gwAPITestPath, nil)
+			require.NoError(t, err)
+			req.Header.Set("Origin", tc.origin)
+			req.RemoteAddr = "10.0.0.1:12345"
+			w := &closeNotifierRecorder{httptest.NewRecorder()}
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			if tc.expectCORS {
+				assert.NotEmpty(t, w.Header().Get("Access-Control-Allow-Origin"))
+				if tc.expectMethods {
+					assert.Equal(t, tc.expectAllowMethods, w.Header().Get("Access-Control-Allow-Methods"))
+					assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+					assert.Equal(t, "X-Custom-Header", w.Header().Get("Access-Control-Expose-Headers"))
+					assert.Equal(t, "3600", w.Header().Get("Access-Control-Max-Age"))
+				}
+			} else {
+				assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"))
+			}
+			svc.AssertExpectations(t)
+		})
+	}
+}
+
+func TestGatewayHandlerInjectCORSHeadersPreflight(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	route := &domain.GatewayRoute{
+		ID:             uuid.New(),
+		Name:           "cors-preflight",
+		AllowedOrigins: []string{"http://example.com"},
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders: []string{"Authorization", "Content-Type"},
+		ExposeHeaders:  []string{"X-Custom-Header"},
+		MaxAge:         3600,
+		AllowedIPNets:  []*net.IPNet{},
+	}
+	svc.On("GetProxy", "OPTIONS", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+	req, err := http.NewRequest("OPTIONS", gwAPITestPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Origin", "http://example.com")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "http://example.com", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
+	assert.Equal(t, "GET, POST, OPTIONS", w.Header().Get("Access-Control-Allow-Methods"))
+	assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+	assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+	assert.Equal(t, "X-Custom-Header", w.Header().Get("Access-Control-Expose-Headers"))
+	assert.Equal(t, "3600", w.Header().Get("Access-Control-Max-Age"))
+	svc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyCompression(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("proxied response"))
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	tests := []struct {
+		name           string
+		compression    string
+		acceptEncoding string
+		expectEncoding string
+	}{
+		{
+			name:           "gzip compression enabled",
+			compression:    "gzip",
+			acceptEncoding: "gzip",
+			expectEncoding: "gzip",
+		},
+		{
+			name:           "no compression - route disabled",
+			compression:    "",
+			acceptEncoding: "gzip",
+			expectEncoding: "",
+		},
+		{
+			name:           "client does not accept gzip",
+			compression:    "gzip",
+			acceptEncoding: "",
+			expectEncoding: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			route := &domain.GatewayRoute{
+				ID:            uuid.New(),
+				Name:          "compression-test",
+				Compression:   tc.compression,
+				AllowedIPNets: []*net.IPNet{},
+			}
+			svc.On("GetProxy", "GET", "/api").Return(proxy, route, map[string]string{}, true).Once()
+
+			req, err := http.NewRequest("GET", gwAPITestPath, nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept-Encoding", tc.acceptEncoding)
+			req.RemoteAddr = "10.0.0.1:12345"
+			w := &closeNotifierRecorder{httptest.NewRecorder()}
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, tc.expectEncoding, w.Header().Get("Content-Encoding"))
+			svc.AssertExpectations(t)
+		})
+	}
+}
+
+func TestGatewayHandlerInjectTraceHeadersWithInbound(t *testing.T) {
+	t.Parallel()
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+
+	route := &domain.GatewayRoute{ID: uuid.New(), AllowedIPNets: []*net.IPNet{}}
+	svc.On("GetProxy", "GET", "/api").Return(
+		httputil.NewSingleHostReverseProxy(targetURL), route, map[string]string{}, true).Once()
+
+	req, _ := http.NewRequest("GET", gwAPITestPath, nil)
+	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	req.Header.Set("tracestate", "congo=t61rcWkgMzE")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	// Inbound traceparent should be preserved (not replaced with generated)
+	assert.Equal(t, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", w.Header().Get("traceparent"))
+	assert.Equal(t, "congo=t61rcWkgMzE", w.Header().Get("tracestate"))
+	svc.AssertExpectations(t)
+}
+
+func TestGatewayHandlerProxyCompressionGzipFlushed(t *testing.T) {
+	t.Parallel()
+	svc := new(mockGatewayService)
+	handler := NewGatewayHandler(svc, nil, nil)
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Any(gwProxyPath, handler.Proxy)
+
+	var gzipFlushed bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, wreq *http.Request) {
+		// Read body to confirm gzip was flushed
+		body := make([]byte, 100)
+		n, _ := wreq.Body.Read(body)
+		gzipFlushed = n > 0
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	targetURL, _ := url.Parse(ts.URL)
+
+	route := &domain.GatewayRoute{ID: uuid.New(), Compression: "gzip", AllowedIPNets: []*net.IPNet{}}
+	svc.On("GetProxy", "GET", "/api").Return(
+		httputil.NewSingleHostReverseProxy(targetURL), route, map[string]string{}, true).Once()
+
+	req, _ := http.NewRequest("GET", gwAPITestPath, strings.NewReader("hello world this is some test data"))
+	req.Header.Set("Accept-Encoding", "gzip")
+	req.RemoteAddr = "10.0.0.1:12345"
+	w := &closeNotifierRecorder{httptest.NewRecorder()}
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "gzip", w.Header().Get("Content-Encoding"))
+	assert.True(t, gzipFlushed, "gzip data should be flushed to upstream")
+	svc.AssertExpectations(t)
 }
 
 func TestGatewayHandlerDeleteError(t *testing.T) {
@@ -381,4 +843,75 @@ func TestGatewayHandlerDeleteError(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		svc.AssertExpectations(t)
 	})
+}
+
+func TestGatewayHandlerCreateRouteDryRun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		body         map[string]interface{}
+		wantValid    bool
+		wantErrCount int
+		errContains  []string
+	}{
+		{
+			name: "valid CIDR - passes",
+			body: map[string]interface{}{
+				"name":          "dry-run-test",
+				"path_prefix":   "/api/v1",
+				"target_url":    "http://example.com",
+				"allowed_cidrs": []string{"10.0.0.0/8"},
+			},
+			wantValid: true,
+		},
+		{
+			name: "invalid CIDR - fails",
+			body: map[string]interface{}{
+				"name":          "dry-run-test",
+				"path_prefix":   "/api/v1",
+				"target_url":    "http://example.com",
+				"allowed_cidrs": []string{"not-a-cidr"},
+			},
+			wantValid:   false,
+			errContains: []string{"invalid allowed CIDR"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, handler, r := setupGatewayHandlerTest(t)
+			r.POST(routesPath, handler.CreateRoute)
+
+			body, err := json.Marshal(tc.body)
+			require.NoError(t, err)
+			req, err := http.NewRequest("POST", routesPath+"?dry_run=true", bytes.NewBuffer(body))
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			var resp map[string]interface{}
+			err = json.Unmarshal(w.Body.Bytes(), &resp)
+			require.NoError(t, err)
+			data, ok := resp["data"].(map[string]interface{})
+			require.True(t, ok, "response data should be a map")
+			assert.Equal(t, true, data["dry_run"])
+			assert.Equal(t, tc.wantValid, data["valid"])
+			if !tc.wantValid && len(tc.errContains) > 0 {
+				errs, ok := data["errors"].([]interface{})
+				require.True(t, ok)
+				for _, exp := range tc.errContains {
+					found := false
+					for _, e := range errs {
+						if strings.Contains(e.(string), exp) {
+							found = true
+							break
+						}
+					}
+					assert.True(t, found, "expected error containing %q", exp)
+				}
+			}
+		})
+	}
 }

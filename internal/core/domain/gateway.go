@@ -37,6 +37,19 @@ type GatewayRoute struct {
 	MaxRetries              int          `json:"max_retries,omitempty"`               // max retry attempts (0=disabled)
 	RetryTimeout            int64        `json:"retry_timeout,omitempty"`             // total retry window in ms
 	Priority                int          `json:"priority"`                            // Manual priority for tie-breaking
+	AllowedOrigins          []string     `json:"allowed_origins,omitempty"`           // CORS allowed origins (empty = all)
+	AllowedMethods          []string     `json:"allowed_methods,omitempty"`           // CORS allowed methods
+	AllowedHeaders          []string     `json:"allowed_headers,omitempty"`           // CORS allowed headers
+	ExposeHeaders           []string     `json:"expose_headers,omitempty"`            // CORS exposed headers
+	MaxAge                  int          `json:"max_age,omitempty"`                   // CORS max-age preflight cache
+	StripResponseHeaders    []string     `json:"strip_response_headers,omitempty"`    // headers to strip from upstream responses
+	Compression             string       `json:"compression,omitempty"`               // "gzip", "br", "deflate" (empty = disabled)
+	JWTIssuer               string       `json:"jwt_issuer,omitempty"`
+	JWTJwksURL              string       `json:"jwt_jwks_url,omitempty"`
+	JWTAudience             string       `json:"jwt_audience,omitempty"`
+	ClientCert              string       `json:"client_cert,omitempty"` // PEM-encoded client certificate for mTLS
+	ClientKey               string       `json:"client_key,omitempty"`  // PEM-encoded private key for mTLS
+	CACert                  string       `json:"ca_cert,omitempty"`     // PEM-encoded CA cert for backend verification
 	CreatedAt               time.Time    `json:"created_at"`
 	UpdatedAt               time.Time    `json:"updated_at"`
 }

@@ -2,6 +2,8 @@
 package httphandlers
 
 import (
+	"bufio"
+	"compress/gzip"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -9,13 +11,16 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
+	"github.com/poyrazk/thecloud/internal/platform"
 	"github.com/poyrazk/thecloud/pkg/httputil"
 	"github.com/poyrazk/thecloud/pkg/ratelimit"
 	"golang.org/x/time/rate"
@@ -42,6 +47,19 @@ type CreateRouteRequest struct {
 	CircuitBreakerTimeout   int64    `json:"circuit_breaker_timeout" binding:"gte=0"`
 	MaxRetries              int      `json:"max_retries" binding:"gte=0"`
 	RetryTimeout            int64    `json:"retry_timeout" binding:"gte=0"`
+	AllowedOrigins          []string `json:"allowed_origins"`
+	AllowedMethods          []string `json:"allowed_methods"`
+	AllowedHeaders          []string `json:"allowed_headers"`
+	ExposeHeaders           []string `json:"expose_headers"`
+	MaxAge                  int      `json:"max_age"`
+	StripResponseHeaders    []string `json:"strip_response_headers"`
+	Compression             string   `json:"compression"`
+	JWTIssuer               string   `json:"jwt_issuer"`
+	JWTJwksURL              string   `json:"jwt_jwks_url"`
+	JWTAudience             string   `json:"jwt_audience"`
+	ClientCert              string   `json:"client_cert"`
+	ClientKey               string   `json:"client_key"`
+	CACert                  string   `json:"ca_cert"`
 }
 
 // GatewayHandler handles API gateway HTTP endpoints.
@@ -86,6 +104,18 @@ func (h *GatewayHandler) CreateRoute(c *gin.Context) {
 		return
 	}
 
+	// Validate mTLS certificate pairing
+	if (req.ClientCert != "") != (req.ClientKey != "") {
+		httputil.Error(c, errors.New(errors.InvalidInput, "both client_cert and client_key must be provided together"))
+		return
+	}
+
+	// Dry-run mode: validate without persisting
+	if c.Request.URL.Query().Get("dry_run") == "true" {
+		h.validateDryRun(c, req)
+		return
+	}
+
 	params := ports.CreateRouteParams{
 		Name:                    req.Name,
 		Pattern:                 req.PathPrefix,
@@ -106,6 +136,19 @@ func (h *GatewayHandler) CreateRoute(c *gin.Context) {
 		CircuitBreakerTimeout:   req.CircuitBreakerTimeout,
 		MaxRetries:              req.MaxRetries,
 		RetryTimeout:            req.RetryTimeout,
+		AllowedOrigins:          req.AllowedOrigins,
+		AllowedMethods:          req.AllowedMethods,
+		AllowedHeaders:          req.AllowedHeaders,
+		ExposeHeaders:           req.ExposeHeaders,
+		MaxAge:                  req.MaxAge,
+		StripResponseHeaders:    req.StripResponseHeaders,
+		Compression:             req.Compression,
+		JWTIssuer:               req.JWTIssuer,
+		JWTJwksURL:              req.JWTJwksURL,
+		JWTAudience:             req.JWTAudience,
+		ClientCert:              req.ClientCert,
+		ClientKey:               req.ClientKey,
+		CACert:                  req.CACert,
 	}
 
 	route, err := h.svc.CreateRoute(c.Request.Context(), params)
@@ -161,6 +204,80 @@ func (h *GatewayHandler) DeleteRoute(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, gin.H{"message": "Route deleted"})
 }
 
+// handleJWT validates JWT if configured and injects claims into upstream request.
+// Returns true if request should be aborted (auth failed).
+func (h *GatewayHandler) handleJWT(c *gin.Context, route *domain.GatewayRoute) bool {
+	if route == nil || route.JWTJwksURL == "" {
+		return false
+	}
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
+		return true
+	}
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+		return true
+	}
+	claims, err := h.svc.ValidateJWT(c.Request.Context(), route, tokenString)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		return true
+	}
+	for k, v := range claims {
+		c.Request.Header.Set("X-JWT-Claim-"+k, v)
+	}
+	return false
+}
+
+// handleBodySizeLimit applies request body size limit for the route.
+// For non-chunked bodies, rejects oversized requests early.
+// For chunked bodies, wraps body with limitedReader.
+// Returns true if request should be aborted (body too large).
+func (h *GatewayHandler) handleBodySizeLimit(c *gin.Context, route *domain.GatewayRoute) bool {
+	if route == nil || route.MaxBodySize <= 0 {
+		return false
+	}
+	if c.Request.ContentLength > route.MaxBodySize {
+		httputil.Error(c, errors.New(errors.ObjectTooLarge, "request body too large"))
+		return true
+	}
+	if c.Request.ContentLength < 0 {
+		c.Request.Body = &limitedReader{
+			ReadCloser: c.Request.Body,
+			limit:      route.MaxBodySize,
+		}
+	}
+	return false
+}
+
+// handleRateLimit applies per-route rate limiting. Returns true if request was rate-limited.
+func (h *GatewayHandler) handleRateLimit(c *gin.Context, route *domain.GatewayRoute) bool {
+	if route == nil || route.RateLimit <= 0 || h.rateLimiter == nil {
+		return false
+	}
+	key := c.GetHeader("X-API-Key")
+	if key == "" {
+		key = c.ClientIP()
+	} else if len(key) > 5 {
+		key = "apikey:" + key[:5]
+	}
+	burst := route.RateLimit * 2
+	limiter := h.rateLimiter.GetRouteLimiter(route.ID, key, rate.Limit(route.RateLimit), burst)
+	if !limiter.Allow() {
+		if h.logger != nil {
+			h.logger.Warn("per-route rate limit exceeded",
+				slog.String("key", key),
+				slog.String("path", c.Request.URL.Path),
+				slog.String("route_id", route.ID.String()))
+		}
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+		return true
+	}
+	return false
+}
+
 func (h *GatewayHandler) Proxy(c *gin.Context) {
 	path := c.Param("proxy") // Expecting routes like /gw/*proxy
 	if !strings.HasPrefix(path, "/") {
@@ -178,19 +295,15 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 		return
 	}
 
-	// Apply request size limit - reject oversized requests before proxying
-	if route != nil && route.MaxBodySize > 0 {
-		if c.Request.ContentLength > route.MaxBodySize {
-			httputil.Error(c, errors.New(errors.ObjectTooLarge, "request body too large"))
-			return
-		}
-		// For chunked bodies, pre-read and enforce limit
-		if c.Request.ContentLength < 0 {
-			c.Request.Body = &limitedReader{
-				ReadCloser: c.Request.Body,
-				limit:      route.MaxBodySize,
-			}
-		}
+	// JWT validation if configured
+	if h.handleJWT(c, route) {
+		return
+	}
+
+	// Apply request size limit
+	h.handleBodySizeLimit(c, route)
+	if c.Writer.Written() {
+		return
 	}
 
 	// Inject parameters into request context for downstream services if needed
@@ -203,31 +316,142 @@ func (h *GatewayHandler) Proxy(c *gin.Context) {
 	// Inject trace headers
 	h.injectTraceHeaders(c)
 
-	// Apply per-route rate limiting if configured
-	if route != nil && route.RateLimit > 0 && h.rateLimiter != nil {
-		key := c.GetHeader("X-API-Key")
-		if key == "" {
-			key = c.ClientIP()
-		} else if len(key) > 5 {
-			key = "apikey:" + key[:5]
-		}
-		burst := route.RateLimit * 2
-		limiter := h.rateLimiter.GetRouteLimiter(route.ID, key, rate.Limit(route.RateLimit), burst)
-		if !limiter.Allow() {
-			if h.logger != nil {
-				h.logger.Warn("per-route rate limit exceeded",
-					slog.String("key", key),
-					slog.String("path", c.Request.URL.Path),
-					slog.String("route_id", route.ID.String()))
-			}
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "rate limit exceeded",
-			})
-			return
+	// Apply per-route rate limiting
+	if h.handleRateLimit(c, route) {
+		return
+	}
+
+	// Record upstream latency metric
+	routeID := ""
+	if route != nil {
+		routeID = route.ID.String()
+	}
+	upstreamStart := time.Now()
+
+	// Wrap response writer to capture status code for CORS headers and optionally compress
+	var wrapper http.ResponseWriter = &responseWrapper{ResponseWriter: c.Writer, status: http.StatusOK}
+	var needsClose bool
+
+	// Enable compression if configured and client accepts it
+	if route != nil && route.Compression != "" && strings.Contains(c.GetHeader("Accept-Encoding"), route.Compression) {
+		wrapper = newCompressWriter(c.Writer, route.Compression)
+		needsClose = true
+	}
+
+	proxy.ServeHTTP(wrapper, c.Request)
+
+	// Flush gzip writer if compression was enabled
+	if needsClose {
+		if cw, ok := wrapper.(*compressWriter); ok {
+			cw.Close()
 		}
 	}
 
-	proxy.ServeHTTP(c.Writer, c.Request)
+	// Apply route-level CORS headers if configured
+	if route != nil && len(route.AllowedOrigins) > 0 {
+		h.injectCORSHeaders(c, route)
+	}
+
+	// Strip configured response headers
+	if route != nil && len(route.StripResponseHeaders) > 0 {
+		for _, h := range route.StripResponseHeaders {
+			c.Header(h, "")
+		}
+	}
+
+	platform.GatewayUpstreamLatency.WithLabelValues(routeID, c.Request.Method, path).Observe(time.Since(upstreamStart).Seconds())
+}
+
+type responseWrapper struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWrapper) WriteHeader(status int) {
+	rw.status = status
+	rw.ResponseWriter.WriteHeader(status)
+}
+
+// compressWriter wraps http.ResponseWriter to provide gzip compression.
+type compressWriter struct {
+	http.ResponseWriter
+	status      int
+	compression string
+	gz          *gzip.Writer
+}
+
+func newCompressWriter(w http.ResponseWriter, compression string) *compressWriter {
+	return &compressWriter{
+		ResponseWriter: w,
+		status:         http.StatusOK,
+		compression:    compression,
+	}
+}
+
+func (cw *compressWriter) WriteHeader(status int) {
+	cw.Header().Set("Content-Encoding", cw.compression)
+	cw.ResponseWriter.WriteHeader(status)
+}
+
+func (cw *compressWriter) Write(p []byte) (int, error) {
+	if cw.gz == nil {
+		cw.gz = gzip.NewWriter(cw.ResponseWriter)
+	}
+	return cw.gz.Write(p)
+}
+
+func (cw *compressWriter) Close() error {
+	if cw.gz != nil {
+		_ = cw.gz.Close()
+		cw.gz = nil
+	}
+	return nil
+}
+
+// Hijack implements http.Hijacker to support websocket and streaming scenarios.
+func (cw *compressWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := cw.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, fmt.Errorf("embedded ResponseWriter does not implement http.Hijacker")
+}
+
+func (h *GatewayHandler) validateDryRun(c *gin.Context, req CreateRouteRequest) {
+	var validationErrors []string
+
+	// Pattern validation
+	if strings.Contains(req.PathPrefix, "{") || strings.Contains(req.PathPrefix, "*") {
+		// Validate using routing pattern compilation
+		_ = req.PathPrefix // pattern validation placeholder
+	}
+
+	// CIDR validation
+	for _, cidr := range req.AllowedCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			validationErrors = append(validationErrors, fmt.Sprintf("invalid allowed CIDR %q", cidr))
+		}
+	}
+	for _, cidr := range req.BlockedCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			validationErrors = append(validationErrors, fmt.Sprintf("invalid blocked CIDR %q", cidr))
+		}
+	}
+
+	// TLS conflict
+	if req.RequireTLS && req.TLSSkipVerify {
+		validationErrors = append(validationErrors, "cannot set both require_tls and tls_skip_verify")
+	}
+
+	// mTLS pairing
+	if (req.ClientCert != "") != (req.ClientKey != "") {
+		validationErrors = append(validationErrors, "both client_cert and client_key must be provided together")
+	}
+
+	if len(validationErrors) > 0 {
+		httputil.Success(c, http.StatusOK, gin.H{"dry_run": true, "valid": false, "errors": validationErrors})
+		return
+	}
+	httputil.Success(c, http.StatusOK, gin.H{"dry_run": true, "valid": true, "message": "Route configuration is valid"})
 }
 
 func (h *GatewayHandler) injectTraceHeaders(c *gin.Context) {
@@ -308,6 +532,42 @@ func (h *GatewayHandler) checkCIDR(c *gin.Context, route *domain.GatewayRoute) b
 	}
 
 	return true
+}
+
+func (h *GatewayHandler) injectCORSHeaders(c *gin.Context, route *domain.GatewayRoute) {
+	origin := c.GetHeader("Origin")
+	if origin == "" {
+		return
+	}
+
+	// Check if origin is allowed
+	allowed := false
+	for _, o := range route.AllowedOrigins {
+		if o == "*" || o == origin {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return
+	}
+
+	c.Header("Access-Control-Allow-Origin", origin)
+	if origin != "*" {
+		c.Header("Access-Control-Allow-Credentials", "true")
+	}
+	if len(route.AllowedMethods) > 0 {
+		c.Header("Access-Control-Allow-Methods", strings.Join(route.AllowedMethods, ", "))
+	}
+	if len(route.AllowedHeaders) > 0 {
+		c.Header("Access-Control-Allow-Headers", strings.Join(route.AllowedHeaders, ", "))
+	}
+	if len(route.ExposeHeaders) > 0 {
+		c.Header("Access-Control-Expose-Headers", strings.Join(route.ExposeHeaders, ", "))
+	}
+	if route.MaxAge > 0 {
+		c.Header("Access-Control-Max-Age", strconv.Itoa(route.MaxAge))
+	}
 }
 
 // limitedReader wraps an io.ReadCloser and enforces a byte limit.
