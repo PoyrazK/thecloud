@@ -44,7 +44,7 @@ func TestLBRepositoryCreate(t *testing.T) {
 		}
 
 		mock.ExpectExec("INSERT INTO load_balancers").
-			WithArgs(lb.ID, lb.UserID, lb.IdempotencyKey, lb.Name, lb.VpcID, lb.Port, lb.Algorithm, lb.IP, lb.Status, lb.Version, lb.CreatedAt).
+			WithArgs(lb.ID, lb.UserID, lb.TenantID, lb.IdempotencyKey, lb.Name, lb.VpcID, lb.Port, lb.Algorithm, lb.IP, lb.Status, lb.Version, lb.CreatedAt).
 			WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
 		err = repo.Create(context.Background(), lb)
