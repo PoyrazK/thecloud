@@ -59,7 +59,7 @@ type FirecrackerAdapter struct {
 	machines map[string]Machine
 	// machineConfigs stores the firecracker config per instance for rebuilds (AttachVolume, ResizeInstance)
 	machineConfigs map[string]firecracker.Config
-	mu sync.RWMutex
+	mu             sync.RWMutex
 }
 
 // NewFirecrackerAdapter creates a new FirecrackerAdapter.
@@ -72,10 +72,10 @@ func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter
 	}
 
 	return &FirecrackerAdapter{
-		cfg:             cfg,
-		logger:          logger,
-		machines:        make(map[string]Machine),
-		machineConfigs:  make(map[string]firecracker.Config),
+		cfg:            cfg,
+		logger:         logger,
+		machines:       make(map[string]Machine),
+		machineConfigs: make(map[string]firecracker.Config),
 	}, nil
 }
 
@@ -322,7 +322,7 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 			}
 		}
 		if strings.HasPrefix(line, "VmSize:") {
-			if _, err := fmt.Sscanf(line, "VmSize:\t%d kB",&memLimit); err == nil {
+			if _, err := fmt.Sscanf(line, "VmSize:\t%d kB", &memLimit); err == nil {
 				memLimit *= 1024 // Convert to bytes
 			}
 		}

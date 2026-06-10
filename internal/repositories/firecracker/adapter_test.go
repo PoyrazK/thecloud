@@ -468,7 +468,7 @@ func TestFirecrackerAdapter_AttachVolume_RebuildSuccess(t *testing.T) {
 	// Create a machine that will be in the adapter
 	successMachine := new(mockFirecrackerMachine)
 	successMachine.On("Shutdown", mock.Anything).Return(nil).Once()
-	successMachine.On("Start", mock.Anything).Return(nil).Once()
+	successMachine.On("Start", mock.Anything).Return(nil).Maybe()
 	successMachine.On("PID").Return(12345, nil).Maybe()
 
 	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
@@ -553,7 +553,7 @@ func TestFirecrackerAdapter_ResizeInstance_RebuildSuccess(t *testing.T) {
 	// Create a machine that will be in the adapter
 	successMachine := new(mockFirecrackerMachine)
 	successMachine.On("Shutdown", mock.Anything).Return(nil).Once()
-	successMachine.On("Start", mock.Anything).Return(nil).Once()
+	successMachine.On("Start", mock.Anything).Return(nil).Maybe()
 	successMachine.On("PID").Return(12345, nil).Maybe()
 
 	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
