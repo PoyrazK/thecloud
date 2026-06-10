@@ -23,7 +23,7 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:         ":8089",
+		Addr:        ":8089",
 		Handler:     handler,
 		ReadTimeout: 10 * time.Second,
 		// WriteTimeout is set via context deadline
