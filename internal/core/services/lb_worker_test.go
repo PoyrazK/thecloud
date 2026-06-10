@@ -9,10 +9,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+// tenantMatcher returns a matcher that verifies the context carries the expected TenantID.
+func tenantMatcher(expectedTenantID uuid.UUID) func(any) bool {
+	return func(arg any) bool {
+		ctx, ok := arg.(context.Context)
+		if !ok {
+			return false
+		}
+		return appcontext.TenantIDFromContext(ctx) == expectedTenantID
+	}
+}
 
 type mockDialer struct {
 	err error
@@ -162,19 +174,19 @@ func TestLBWorkerProcessCreatingLBs(t *testing.T) {
 
 	ctx := context.Background()
 	lbID := uuid.New()
-	userID := uuid.New()
+	tenantID := uuid.New()
 	lb := &domain.LoadBalancer{
-		ID:     lbID,
-		UserID: userID,
-		Status: domain.LBStatusCreating,
+		ID:       lbID,
+		TenantID: tenantID,
+		Status:   domain.LBStatusCreating,
 	}
 
 	lbRepo.On("ListByStatus", mock.Anything, string(domain.LBStatusCreating), 100, 0).Return([]*domain.LoadBalancer{lb}, nil)
-	lbRepo.On("ListTargets", mock.Anything, lbID).Return([]*domain.LBTarget{}, nil)
+	lbRepo.On("ListTargets", mock.MatchedBy(tenantMatcher(tenantID)), lbID).Return([]*domain.LBTarget{}, nil).Once()
 	proxy.On("DeployProxy", mock.Anything, lb, []*domain.LBTarget{}).Return("http://lb-url", nil)
-	lbRepo.On("Update", mock.Anything, mock.MatchedBy(func(l *domain.LoadBalancer) bool {
+	lbRepo.On("Update", mock.MatchedBy(tenantMatcher(tenantID)), mock.MatchedBy(func(l *domain.LoadBalancer) bool {
 		return l.ID == lbID && l.Status == domain.LBStatusActive
-	})).Return(nil)
+	})).Return(nil).Once()
 
 	worker.processCreatingLBs(ctx)
 
@@ -191,15 +203,16 @@ func TestLBWorkerProcessDeletingLBs(t *testing.T) {
 
 	ctx := context.Background()
 	lbID := uuid.New()
+	tenantID := uuid.New()
 	lb := &domain.LoadBalancer{
-		ID:     lbID,
-		UserID: uuid.New(),
-		Status: domain.LBStatusDeleted,
+		ID:       lbID,
+		TenantID: tenantID,
+		Status:   domain.LBStatusDeleted,
 	}
 
 	lbRepo.On("ListByStatus", mock.Anything, string(domain.LBStatusDeleted), 100, 0).Return([]*domain.LoadBalancer{lb}, nil)
-	proxy.On("RemoveProxy", mock.Anything, lbID).Return(nil)
-	lbRepo.On("Delete", mock.Anything, lbID).Return(nil)
+	proxy.On("RemoveProxy", mock.MatchedBy(tenantMatcher(tenantID)), lbID).Return(nil).Once()
+	lbRepo.On("Delete", mock.MatchedBy(tenantMatcher(tenantID)), lbID).Return(nil).Once()
 
 	worker.processDeletingLBs(ctx)
 
@@ -216,19 +229,21 @@ func TestLBWorkerProcessActiveLBs(t *testing.T) {
 
 	ctx := context.Background()
 	lbID := uuid.New()
+	tenantID := uuid.New()
 	lb := &domain.LoadBalancer{
-		ID:     lbID,
-		UserID: uuid.New(),
-		Status: domain.LBStatusActive,
+		ID:       lbID,
+		TenantID: tenantID,
+		Status:   domain.LBStatusActive,
 	}
 
 	lbRepo.On("ListByStatus", mock.Anything, string(domain.LBStatusActive), 100, 0).Return([]*domain.LoadBalancer{lb}, nil)
-	lbRepo.On("ListTargets", mock.Anything, lbID).Return([]*domain.LBTarget{}, nil)
-	proxy.On("UpdateProxyConfig", mock.Anything, lb, []*domain.LBTarget{}).Return(nil)
+	lbRepo.On("ListTargets", mock.MatchedBy(tenantMatcher(tenantID)), lbID).Return([]*domain.LBTarget{}, nil).Once()
+	proxy.On("UpdateProxyConfig", mock.MatchedBy(tenantMatcher(tenantID)), lb, []*domain.LBTarget{}).Return(nil).Once()
 
 	worker.processActiveLBs(ctx)
 
 	proxy.AssertExpectations(t)
+	lbRepo.AssertExpectations(t)
 }
 
 func TestLBWorkerProcessHealthChecks(t *testing.T) {
@@ -241,10 +256,11 @@ func TestLBWorkerProcessHealthChecks(t *testing.T) {
 	ctx := context.Background()
 	lbID := uuid.New()
 	instID := uuid.New()
+	tenantID := uuid.New()
 	lb := &domain.LoadBalancer{
-		ID:     lbID,
-		UserID: uuid.New(),
-		Status: domain.LBStatusActive,
+		ID:       lbID,
+		TenantID: tenantID,
+		Status:   domain.LBStatusActive,
 	}
 
 	target := &domain.LBTarget{
@@ -259,8 +275,8 @@ func TestLBWorkerProcessHealthChecks(t *testing.T) {
 	}
 
 	lbRepo.On("ListByStatus", mock.Anything, string(domain.LBStatusActive), 100, 0).Return([]*domain.LoadBalancer{lb}, nil)
-	lbRepo.On("ListTargets", mock.Anything, lbID).Return([]*domain.LBTarget{target}, nil)
-	instRepo.On("GetByID", mock.Anything, instID).Return(inst, nil)
+	lbRepo.On("ListTargets", mock.MatchedBy(tenantMatcher(tenantID)), lbID).Return([]*domain.LBTarget{target}, nil).Once()
+	instRepo.On("GetByID", mock.MatchedBy(tenantMatcher(tenantID)), instID).Return(inst, nil).Once()
 
 	// Since we are mocking, we cannot easily mock net.Dial from within isPortOpen since it's hardcoded.
 	// But we can test that it TRIES to update if health status changes.
@@ -300,9 +316,11 @@ func TestLBWorkerCheckTargetHealthUpdates(t *testing.T) {
 	ctx := context.Background()
 	lbID := uuid.New()
 	instID := uuid.New()
+	tenantID := uuid.New()
+	ctx = appcontext.WithTenantID(ctx, tenantID)
 
-	instRepo.On("GetByID", ctx, instID).Return(&domain.Instance{ID: instID, Ports: "8080:80"}, nil)
-	lbRepo.On("UpdateTargetHealth", ctx, lbID, instID, "healthy").Return(nil).Once()
+	instRepo.On("GetByID", mock.MatchedBy(tenantMatcher(tenantID)), instID).Return(&domain.Instance{ID: instID, Ports: "8080:80"}, nil)
+	lbRepo.On("UpdateTargetHealth", mock.MatchedBy(tenantMatcher(tenantID)), lbID, instID, "healthy").Return(nil).Once()
 
 	changed := worker.checkTargetHealth(ctx, &domain.LoadBalancer{ID: lbID}, &domain.LBTarget{
 		InstanceID: instID,
