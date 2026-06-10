@@ -426,13 +426,13 @@ func (a *FirecrackerAdapter) CreateNetwork(ctx context.Context, name string) (st
 	// Set MAC address
 	if err := exec.CommandContext(ctx, "ip", "link", "set", tapName, "address", mac).Run(); err != nil {
 		// Clean up TAP device on failure
-		exec.CommandContext(ctx, "ip", "tuntap", "del", "dev", tapName).Run()
+		_ = exec.CommandContext(ctx, "ip", "tuntap", "del", "dev", tapName).Run()
 		return "", fmt.Errorf("failed to set MAC address: %w", err)
 	}
 
 	// Bring up the device
 	if err := exec.CommandContext(ctx, "ip", "link", "set", tapName, "up").Run(); err != nil {
-		exec.CommandContext(ctx, "ip", "tuntap", "del", "dev", tapName).Run()
+		_ = exec.CommandContext(ctx, "ip", "tuntap", "del", "dev", tapName).Run()
 		return "", fmt.Errorf("failed to bring up TAP device: %w", err)
 	}
 
