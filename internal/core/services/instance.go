@@ -246,6 +246,10 @@ func (s *InstanceService) LaunchInstance(ctx context.Context, params ports.Launc
 		// Rollback quota reservation on enqueue failure
 		_ = s.tenantSvc.DecrementUsage(ctx, tenantID, "vcpus", it.VCPUs)
 		_ = s.tenantSvc.DecrementUsage(ctx, tenantID, "memory", it.MemoryMB/1024)
+		// Rollback database record creation
+		if delErr := s.repo.Delete(ctx, inst.ID); delErr != nil {
+			s.logger.Error("failed to delete instance record after enqueue failure", "instance_id", inst.ID, "error", delErr)
+		}
 		return nil, errors.Wrap(errors.Internal, "failed to enqueue provisioning task", err)
 	}
 
@@ -313,6 +317,10 @@ func (s *InstanceService) LaunchInstanceWithOptions(ctx context.Context, opts po
 
 	if err := s.taskQueue.Enqueue(ctx, "provision_queue", job); err != nil {
 		s.logger.Error("failed to enqueue provision job", "instance_id", inst.ID, "error", err)
+		// Rollback database record creation
+		if delErr := s.repo.Delete(ctx, inst.ID); delErr != nil {
+			s.logger.Error("failed to delete instance record after enqueue failure", "instance_id", inst.ID, "error", delErr)
+		}
 		return nil, errors.Wrap(errors.Internal, "failed to enqueue provisioning task", err)
 	}
 

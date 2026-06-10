@@ -371,7 +371,9 @@ func (s *VpcService) cascadeDeleteDependencies(ctx context.Context, vpcID uuid.U
 	}
 	for _, lb := range lbs {
 		if lb.VpcID == vpcID {
-			if err := s.lbRepo.Delete(ctx, lb.ID); err != nil {
+			// Use the LB's own TenantID for deletion (not the VPC's)
+			lbCtx := appcontext.WithTenantID(ctx, lb.TenantID)
+			if err := s.lbRepo.Delete(lbCtx, lb.ID); err != nil {
 				delErrs = append(delErrs, fmt.Errorf("load balancer %s: %w", lb.ID, err))
 			}
 		}

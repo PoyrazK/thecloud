@@ -220,6 +220,160 @@ func testInstanceServiceLaunchInstanceUnit(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "quota exceeded")
 	})
+
+	t.Run("EnqueueFailure", func(t *testing.T) {
+		params := ports.LaunchParams{
+			Name:         "enqueue-fail-inst",
+			Image:        "alpine",
+			InstanceType: "t2.micro",
+		}
+
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		typeRepo.On("GetByID", mock.Anything, "t2.micro").Return(&domain.InstanceType{
+			ID: "t2.micro", VCPUs: 1, MemoryMB: 1024,
+		}, nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "instances", 1).Return(nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+		tenantSvc.On("IncrementUsage", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("IncrementUsage", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+
+		var createdID uuid.UUID
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(i *domain.Instance) bool {
+			createdID = i.ID
+			return i.Name == params.Name && i.UserID == userID
+		})).Return(nil).Once()
+
+		taskQueue.On("Enqueue", mock.Anything, "provision_queue", mock.Anything).Return(errors.New("enqueue error")).Once()
+		tenantSvc.On("DecrementUsage", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("DecrementUsage", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+		repo.On("Delete", mock.Anything, mock.MatchedBy(func(id uuid.UUID) bool {
+			return id == createdID
+		})).Return(nil).Once()
+
+		_, err := svc.LaunchInstance(ctx, params)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to enqueue provisioning task")
+
+		repo.AssertExpectations(t)
+		tenantSvc.AssertExpectations(t)
+		taskQueue.AssertExpectations(t)
+	})
+
+	t.Run("EnqueueAndRollbackFailure", func(t *testing.T) {
+		params := ports.LaunchParams{
+			Name:         "enqueue-fail-inst-rollback-fail",
+			Image:        "alpine",
+			InstanceType: "t2.micro",
+		}
+
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		typeRepo.On("GetByID", mock.Anything, "t2.micro").Return(&domain.InstanceType{
+			ID: "t2.micro", VCPUs: 1, MemoryMB: 1024,
+		}, nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "instances", 1).Return(nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+		tenantSvc.On("IncrementUsage", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("IncrementUsage", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+
+		var createdID uuid.UUID
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(i *domain.Instance) bool {
+			createdID = i.ID
+			return i.Name == params.Name && i.UserID == userID
+		})).Return(nil).Once()
+
+		taskQueue.On("Enqueue", mock.Anything, "provision_queue", mock.Anything).Return(errors.New("enqueue error")).Once()
+		tenantSvc.On("DecrementUsage", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("DecrementUsage", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+		repo.On("Delete", mock.Anything, mock.MatchedBy(func(id uuid.UUID) bool {
+			return id == createdID
+		})).Return(errors.New("delete error")).Once()
+
+		_, err := svc.LaunchInstance(ctx, params)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to enqueue provisioning task")
+		assert.NotContains(t, err.Error(), "delete error")
+
+		repo.AssertExpectations(t)
+		tenantSvc.AssertExpectations(t)
+		taskQueue.AssertExpectations(t)
+	})
+
+	t.Run("LaunchInstanceWithOptions_Success", func(t *testing.T) {
+		opts := ports.CreateInstanceOptions{
+			Name:      "opts-success",
+			ImageName: "alpine",
+			Ports:     []string{"80:80"},
+		}
+
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(i *domain.Instance) bool {
+			return i.Name == opts.Name
+		})).Return(nil).Once()
+		taskQueue.On("Enqueue", mock.Anything, "provision_queue", mock.Anything).Return(nil).Once()
+
+		inst, err := svc.LaunchInstanceWithOptions(ctx, opts)
+		require.NoError(t, err)
+		assert.NotNil(t, inst)
+		assert.Equal(t, opts.Name, inst.Name)
+
+		repo.AssertExpectations(t)
+		taskQueue.AssertExpectations(t)
+	})
+
+	t.Run("LaunchInstanceWithOptions_EnqueueFailure", func(t *testing.T) {
+		opts := ports.CreateInstanceOptions{
+			Name:      "opts-fail",
+			ImageName: "alpine",
+			Ports:     []string{"80:80"},
+		}
+
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		var createdID uuid.UUID
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(i *domain.Instance) bool {
+			createdID = i.ID
+			return i.Name == opts.Name
+		})).Return(nil).Once()
+		taskQueue.On("Enqueue", mock.Anything, "provision_queue", mock.Anything).Return(errors.New("enqueue error")).Once()
+		repo.On("Delete", mock.Anything, mock.MatchedBy(func(id uuid.UUID) bool {
+			return id == createdID
+		})).Return(nil).Once()
+
+		_, err := svc.LaunchInstanceWithOptions(ctx, opts)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to enqueue provisioning task")
+
+		repo.AssertExpectations(t)
+		taskQueue.AssertExpectations(t)
+	})
+
+	t.Run("LaunchInstanceWithOptions_EnqueueAndRollbackFailure", func(t *testing.T) {
+		opts := ports.CreateInstanceOptions{
+			Name:      "opts-fail-rollback-fail",
+			ImageName: "alpine",
+			Ports:     []string{"80:80"},
+		}
+
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		var createdID uuid.UUID
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(i *domain.Instance) bool {
+			createdID = i.ID
+			return i.Name == opts.Name
+		})).Return(nil).Once()
+		taskQueue.On("Enqueue", mock.Anything, "provision_queue", mock.Anything).Return(errors.New("enqueue error")).Once()
+		repo.On("Delete", mock.Anything, mock.MatchedBy(func(id uuid.UUID) bool {
+			return id == createdID
+		})).Return(errors.New("delete error")).Once()
+
+		_, err := svc.LaunchInstanceWithOptions(ctx, opts)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to enqueue provisioning task")
+		assert.NotContains(t, err.Error(), "delete error")
+
+		repo.AssertExpectations(t)
+		taskQueue.AssertExpectations(t)
+	})
 }
 
 func testInstanceServiceLifecycleUnit(t *testing.T) {
