@@ -82,6 +82,9 @@ func (c *Coordinator) SyncClusterState(ctx context.Context) {
 	for _, cl := range c.clients {
 		clients = append(clients, cl)
 	}
+	if len(clients) == 0 {
+		return
+	}
 
 	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(clients))))
 	if err != nil {

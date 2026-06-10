@@ -545,6 +545,21 @@ func TestDriver_Utils(t *testing.T) {
 		_, _, err = parseEndpoint("invalid")
 		require.Error(t, err)
 	})
+
+	t.Run("parseEndpoint bad inputs do not panic", func(t *testing.T) {
+		// Regression for #651: previously read parts[1] without bounds check.
+		// All of these inputs that previously could panic must now return
+		// an error instead.
+		for _, in := range []string{"", "unix", "tcp", "unix://", "tcp://", "http://x"} {
+			_, _, err := parseEndpoint(in)
+			require.Errorf(t, err, "expected error for %q", in)
+		}
+
+		s, a, err := parseEndpoint("tcp://127.0.0.1:9000")
+		require.NoError(t, err)
+		assert.Equal(t, "tcp", s)
+		assert.Equal(t, "127.0.0.1:9000", a)
+	})
 }
 
 func TestLinuxMounter_Implementation(t *testing.T) {

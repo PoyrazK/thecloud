@@ -183,9 +183,10 @@ func (h *InstanceHandler) mapLaunchRequest(req LaunchRequest) (*uuid.UUID, *uuid
 
 	if req.SubnetID != "" {
 		id, err := uuid.Parse(req.SubnetID)
-		if err == nil {
-			subnetUUID = &id
+		if err != nil {
+			return nil, nil, nil, errors.New(errors.InvalidInput, "invalid subnet_id format")
 		}
+		subnetUUID = &id
 	}
 
 	volumes := make([]domain.VolumeAttachment, 0, len(req.Volumes))

@@ -184,6 +184,10 @@ func (h *StorageHandler) Download(c *gin.Context) {
 		httputil.Error(c, err)
 		return
 	}
+	if obj == nil || reader == nil {
+		httputil.Error(c, errors.New(errors.NotFound, "object not found"))
+		return
+	}
 	defer func() { _ = reader.Close() }()
 
 	// Set headers
