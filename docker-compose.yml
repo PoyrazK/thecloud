@@ -117,7 +117,7 @@ services:
     networks:
       - cloud-network
 
- mockhttpserver:
+  mockhttpserver:
     build:
       context: .
       dockerfile: cmd/mockhttpserver/Dockerfile
