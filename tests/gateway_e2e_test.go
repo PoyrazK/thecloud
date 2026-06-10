@@ -17,13 +17,35 @@ import (
 
 const gatewayRoutesPath = "/gateway/routes"
 
-// gatewayMockServerURL returns the mock server URL from environment or a default.
-// In CI, this is provided via GATEWAY_MOCK_SERVER_URL env var.
-func gatewayMockServerURL() string {
+const (
+	// httpbinURL is the real external service - used first for real-world testing
+	httpbinURL = "https://httpbin.org"
+)
+
+// gatewayTargetURL returns the target URL for gateway tests.
+// It prefers httpbin.org (real external service) but falls back to the mock server
+// if httpbin.org returns errors (503, connection issues, etc.).
+// This ensures tests are reliable in CI while still testing real external connectivity when available.
+func gatewayTargetURL() string {
+	// If GATEWAY_MOCK_ONLY is set, skip httpbin.org entirely (useful for offline testing)
+	if os.Getenv("GATEWAY_MOCK_ONLY") != "" {
+		return os.Getenv("GATEWAY_MOCK_SERVER_URL")
+	}
+
+	// Check if httpbin.org is available by making a quick probe request
+	// If it returns 503 or other errors, fall back to mock server
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(httpbinURL + "/status/200")
+	if err == nil {
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			return httpbinURL
+		}
+	}
+	// Fall back to mock server (either unreachable or returned error)
 	if url := os.Getenv("GATEWAY_MOCK_SERVER_URL"); url != "" {
 		return url
 	}
-	// Fallback for local development - use a local mock server
 	return "http://localhost:8089"
 }
 
@@ -55,7 +77,7 @@ func TestGatewayE2E(t *testing.T) {
 		t.Fatalf("Failing Gateway E2E test: %v", err)
 	}
 
-	mockURL := gatewayMockServerURL()
+	mockURL := gatewayTargetURL()
 
 	client := &http.Client{Timeout: 15 * time.Second}
 	token := registerAndLogin(t, client, "gateway-tester@thecloud.local", "Gateway Tester")
