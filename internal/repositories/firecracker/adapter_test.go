@@ -505,26 +505,32 @@ func TestFirecrackerAdapter_AttachVolume_RebuildFailure_Rollback(t *testing.T) {
 	// Create a machine that will be in the adapter
 	originalMachine := new(mockFirecrackerMachine)
 	originalMachine.On("Shutdown", mock.Anything).Return(nil).Once()
-	originalMachine.On("Start", mock.Anything).Return(nil).Once()
+	originalMachine.On("Start", mock.Anything).Return(nil).Maybe()
 	originalMachine.On("PID").Return(12345, nil).Maybe()
 
-	// Fail machine creation
-	failMachineFn := func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
-		return nil, errors.New("failed to create machine")
-	}
+	// First set up a working machine for launch
+	successMachine := new(mockFirecrackerMachine)
+	successMachine.On("Shutdown", mock.Anything).Return(nil).Maybe()
+	successMachine.On("Start", mock.Anything).Return(nil).Maybe()
+	successMachine.On("PID").Return(12345, nil).Maybe()
 
 	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
-		return failMachineFn(ctx, cfg, opts...)
+		return successMachine, nil
 	}
 
 	// Launch the instance first
 	id, _, err := adapter.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{Name: "test"})
 	require.NoError(t, err)
 
-	// Set the original machine in the map (LaunchInstanceWithOptions uses successMachine via newMachineFn)
+	// Set the original machine in the map
 	adapter.mu.Lock()
 	adapter.machines[id] = originalMachine
 	adapter.mu.Unlock()
+
+	// Now replace newMachineFn to fail - AttachVolume will use this
+	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return nil, errors.New("failed to create machine")
+	}
 
 	// Test AttachVolume - should fail, trigger rollback, and return error
 	_, _, err = adapter.AttachVolume(ctx, id, "/path/to/volume.qcow2")
