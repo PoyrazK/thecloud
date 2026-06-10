@@ -343,6 +343,21 @@ func TestVolumeServiceUnit(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "being deleted")
 		})
+
+		t.Run("DBUpdateFails_RollbackBackend", func(t *testing.T) {
+			vol := &domain.Volume{ID: volID, SizeGB: 10, UserID: userID}
+			mockRepo.On("GetByID", mock.Anything, volID).Return(vol, nil).Once()
+			mockStorage.On("ResizeVolume", mock.Anything, mock.Anything, 20).Return(nil).Once()
+			// DB update fails
+			mockRepo.On("Update", mock.Anything, mock.Anything).Return(errors.New("db error")).Once()
+			// Rollback called with old size
+			mockStorage.On("ResizeVolume", mock.Anything, mock.Anything, 10).Return(nil).Once()
+
+			err := svc.ResizeVolume(ctx, volID.String(), 20)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "db error")
+			mockStorage.AssertCalled(t, "ResizeVolume", mock.Anything, mock.Anything, 10)
+		})
 	})
 
 	t.Run("AttachErrors", func(t *testing.T) {
