@@ -76,6 +76,7 @@ func (m *MockDNSService) UnregisterInstance(ctx context.Context, id uuid.UUID) e
 
 func TestInstanceService_Unit(t *testing.T) {
 	t.Run("LaunchInstance", testInstanceServiceLaunchInstanceUnit)
+	t.Run("LaunchInstanceWithOptions", testInstanceServiceLaunchInstanceWithOptionsUnit)
 	t.Run("Lifecycle", testInstanceServiceLifecycleUnit)
 	t.Run("Exec", testInstanceServiceExecUnit)
 	t.Run("ProvisionFinalize", testInstanceServiceProvisionFinalize)
@@ -219,6 +220,114 @@ func testInstanceServiceLaunchInstanceUnit(t *testing.T) {
 		_, err := svc.LaunchInstance(ctx, params)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "quota exceeded")
+	})
+
+	t.Run("EnqueueFails_RollbackDBRecord", func(t *testing.T) {
+		params := ports.LaunchParams{
+			Name:         "enqueue-fail",
+			Image:        "alpine",
+			InstanceType: "t2.micro",
+		}
+
+		rbacSvc.On("Authorize", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+		typeRepo.On("GetByID", mock.Anything, "t2.micro").Return(&domain.InstanceType{
+			ID: "t2.micro", VCPUs: 1, MemoryMB: 1024,
+		}, nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "instances", 1).Return(nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("CheckQuota", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+		tenantSvc.On("IncrementUsage", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("IncrementUsage", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+
+		instID := uuid.New()
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(i *domain.Instance) bool {
+			return i.Name == params.Name && i.UserID == userID
+		})).Run(func(args mock.Arguments) {
+			inst := args.Get(1).(*domain.Instance)
+			inst.ID = instID
+		}).Return(nil).Once()
+
+		taskQueue.On("Enqueue", mock.Anything, "provision_queue", mock.Anything).Return(errors.New("queue unavailable")).Once()
+		repo.On("Delete", mock.Anything, mock.MatchedBy(func(id uuid.UUID) bool {
+			return id == instID
+		})).Return(nil).Once()
+		tenantSvc.On("DecrementUsage", mock.Anything, tenantID, "vcpus", 1).Return(nil).Once()
+		tenantSvc.On("DecrementUsage", mock.Anything, tenantID, "memory", 1).Return(nil).Once()
+
+		_, err := svc.LaunchInstance(ctx, params)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "enqueue")
+		repo.AssertExpectations(t)
+	})
+}
+
+func testInstanceServiceLaunchInstanceWithOptionsUnit(t *testing.T) {
+	repo := new(MockInstanceRepo)
+	vpcRepo := new(MockVpcRepo)
+	subnetRepo := new(MockSubnetRepo)
+	volRepo := new(MockVolumeRepo)
+	typeRepo := new(MockInstanceTypeRepo)
+	compute := new(MockComputeBackend)
+	network := new(MockNetworkBackend)
+	rbacSvc := new(MockRBACService)
+	eventSvc := new(MockEventService)
+	auditSvc := new(MockAuditService)
+	dnsSvc := new(MockDNSService)
+	taskQueue := new(MockTaskQueue)
+	tenantSvc := new(MockTenantService)
+	sshKeySvc := new(MockSSHKeyService)
+
+	svc := services.NewInstanceService(services.InstanceServiceParams{
+		Repo:             repo,
+		VpcRepo:          vpcRepo,
+		SubnetRepo:       subnetRepo,
+		VolumeRepo:       volRepo,
+		InstanceTypeRepo: typeRepo,
+		Compute:          compute,
+		Network:          network,
+		RBAC:             rbacSvc,
+		EventSvc:         eventSvc,
+		AuditSvc:         auditSvc,
+		DNSSvc:           dnsSvc,
+		TaskQueue:        taskQueue,
+		TenantSvc:        tenantSvc,
+		SSHKeySvc:        sshKeySvc,
+		DockerNetwork:    "bridge",
+		Logger:           slog.Default(),
+	})
+
+	ctx := context.Background()
+	userID := uuid.New()
+	tenantID := uuid.New()
+	ctx = appcontext.WithUserID(ctx, userID)
+	ctx = appcontext.WithTenantID(ctx, tenantID)
+
+	t.Run("EnqueueFails_RollbackDBRecord", func(t *testing.T) {
+		opts := ports.CreateInstanceOptions{
+			Name:      "opts-rollback",
+			ImageName: "alpine",
+			Ports:     []string{"8080:80"},
+		}
+
+		rbacSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionInstanceLaunch, "*").Return(nil).Once()
+
+		instID := uuid.New()
+		repo.On("Create", mock.Anything, mock.MatchedBy(func(i *domain.Instance) bool {
+			return i.Name == opts.Name
+		})).Run(func(args mock.Arguments) {
+			inst := args.Get(1).(*domain.Instance)
+			inst.ID = instID
+		}).Return(nil).Once()
+
+		taskQueue.On("Enqueue", mock.Anything, "provision_queue", mock.Anything).Return(errors.New("queue unavailable")).Once()
+		repo.On("Delete", mock.Anything, mock.MatchedBy(func(id uuid.UUID) bool {
+			return id == instID
+		})).Return(nil).Once()
+
+		_, err := svc.LaunchInstanceWithOptions(ctx, opts)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "enqueue")
+		repo.AssertExpectations(t)
 	})
 }
 
