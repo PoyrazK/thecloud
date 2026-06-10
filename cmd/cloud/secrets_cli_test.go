@@ -85,10 +85,12 @@ func TestSecretsCreateCmd(t *testing.T) {
 		opts.APIKey = oldKey
 	}()
 
+	_ = secretsCreateCmd.Flags().Set("name", secretsTestName)
+	_ = secretsCreateCmd.Flags().Set("value", "secret-value")
 	_ = secretsCreateCmd.Flags().Set("description", "token")
 
 	out := captureStdout(t, func() {
-		secretsCreateCmd.Run(secretsCreateCmd, []string{secretsTestName, "secret-value"})
+		secretsCreateCmd.Run(secretsCreateCmd, []string{})
 	})
 	if !strings.Contains(out, "Secret") || !strings.Contains(out, secretsTestName) {
 		t.Fatalf("expected success output, got: %s", out)

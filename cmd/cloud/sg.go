@@ -244,13 +244,20 @@ func resolveSGID(idOrName string, client *sdk.Client) string {
 	if _, err := uuid.Parse(idOrName); err == nil {
 		return idOrName
 	}
-	groups, err := client.ListSecurityGroups("")
+	// Try to find by name - list all VPCs and check each for the security group
+	vpcs, err := client.ListVPCs()
 	if err != nil {
 		return idOrName
 	}
-	for _, g := range groups {
-		if g.Name == idOrName {
-			return g.ID
+	for _, vpc := range vpcs {
+		groups, err := client.ListSecurityGroups(vpc.ID)
+		if err != nil {
+			continue
+		}
+		for _, g := range groups {
+			if g.Name == idOrName {
+				return g.ID
+			}
 		}
 	}
 	return idOrName

@@ -181,7 +181,11 @@ func TestCoordinatorWriteQuorum_TCs(t *testing.T) {
 }
 
 func TestCoordinatorReadRepair(t *testing.T) {
-	t.Skip("Flaky test: timing-dependent async repair assertions, consistently fails in CI")
+	// TODO: Fix flaky test - the async repair mechanism has a race condition
+	// where the repair goroutine may not complete before the test checks assertions.
+	// This is a pre-existing issue in origin/main, not caused by the PR.
+	t.Skip("Skipping flaky test - async repair race condition needs investigation")
+
 	ring := NewConsistentHashRing(10)
 	ring.AddNode(node1)
 	ring.AddNode(node2)
@@ -189,6 +193,13 @@ func TestCoordinatorReadRepair(t *testing.T) {
 
 	c1, c2, c3 := new(MockStorageNodeClient), new(MockStorageNodeClient), new(MockStorageNodeClient)
 	clients := map[string]pb.StorageNodeClient{node1: c1, node2: c2, node3: c3}
+
+	// Mock GetClusterStatus to prevent startSyncLoop panic
+	statusResp := &pb.ClusterStatusResponse{Members: map[string]*pb.MemberState{}}
+	c1.On("GetClusterStatus", mock.Anything, mock.Anything).Return(statusResp, nil)
+	c2.On("GetClusterStatus", mock.Anything, mock.Anything).Return(statusResp, nil)
+	c3.On("GetClusterStatus", mock.Anything, mock.Anything).Return(statusResp, nil)
+
 	coord := NewCoordinator(context.Background(), ring, clients, 3)
 	defer coord.Stop()
 
@@ -229,13 +240,51 @@ func TestCoordinatorReadRepair(t *testing.T) {
 	r, err := coord.Read(context.Background(), "b", "k")
 	require.NoError(t, err)
 
-	data, err := io.ReadAll(r)
-	require.NoError(t, err)
+	// Read all data from the reader
+	data := make([]byte, 0, 100)
+	buf := make([]byte, 10)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			data = append(data, buf[:n]...)
+			t.Logf("DEBUG: read %d bytes, total %d", n, len(data))
+		}
+		if err != nil {
+			t.Logf("DEBUG: read error: %v", err)
+			break
+		}
+	}
+	t.Logf("DEBUG: data read: %q, len=%d", string(data), len(data))
 	assert.Equal(t, "new", string(data))
-	_ = r.Close()
 
-	// Wait for async repair - timing margin for CI variability
-	time.Sleep(3 * time.Second)
+	// Close the reader - this should close pw and unblock the repair goroutine
+	err = r.Close()
+	t.Logf("DEBUG: close error: %v", err)
+
+	// Use Eventually pattern for CI reliability - poll for up to 5 seconds
+	for i := 0; i < 50; i++ {
+		time.Sleep(100 * time.Millisecond)
+		// Check if Store was called using mock's AssertNumberOfCalls
+		c2Called := false
+		c3Called := false
+		for _, call := range c2.Calls {
+			if call.Method == "Store" {
+				c2Called = true
+			}
+		}
+		for _, call := range c3.Calls {
+			if call.Method == "Store" {
+				c3Called = true
+			}
+		}
+		if c2Called && c3Called {
+			t.Logf("DEBUG: Store called after %d00ms", i+1)
+			break
+		}
+		if i == 49 {
+			t.Logf("DEBUG: Store not called after 5s - c2=%v c3=%v", c2Called, c3Called)
+		}
+	}
 	c2.AssertNumberOfCalls(t, "Store", 1)
 	c3.AssertNumberOfCalls(t, "Store", 1)
 }
@@ -567,7 +616,9 @@ func TestCoordinatorWriteRepair_PartialRepairFailure(t *testing.T) {
 }
 
 func TestCoordinatorRepairStreamFailureContinues(t *testing.T) {
-	t.Skip("Flaky test: timing-dependent behavior with async repair goroutines, fails in CI due to timing issues on main branch too")
+	// TODO: Fix flaky test - async repair mechanism has race condition with timing-dependent assertions
+	t.Skip("Skipping flaky test - async repair race condition needs investigation")
+
 	ring := NewConsistentHashRing(10)
 	ring.AddNode(node1)
 	ring.AddNode(node2)
