@@ -236,13 +236,13 @@ func TestFirecrackerBackend_E2E(t *testing.T) {
 	t.Run("ResizeInstance_NotFound", func(t *testing.T) {
 		err := adapter.ResizeInstance(ctx, "nonexistent-fc-id", 2, 1024)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "resize not supported on firecracker")
+		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("AttachVolume_NotFound", func(t *testing.T) {
 		_, _, err := adapter.AttachVolume(ctx, "nonexistent-fc-id", "/path/to/vol")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not implemented")
+		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("CreateAndRestoreSnapshot", func(t *testing.T) {

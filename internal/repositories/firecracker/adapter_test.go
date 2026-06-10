@@ -397,7 +397,7 @@ func TestFirecrackerAdapter_ResizeInstance_NotSupported(t *testing.T) {
 	ctx := context.Background()
 	err = adapter.ResizeInstance(ctx, "any-id", 2, 1024)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "resize not supported on firecracker")
+	assert.Contains(t, err.Error(), "resize not implemented in mock mode")
 }
 
 func TestFirecrackerAdapter_ResizeInstance_RealMode_NotFound(t *testing.T) {
@@ -413,7 +413,7 @@ func TestFirecrackerAdapter_ResizeInstance_RealMode_NotFound(t *testing.T) {
 	ctx := context.Background()
 	err = adapter.ResizeInstance(ctx, "nonexistent", 2, 1024)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "resize not supported on firecracker")
+	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestFirecrackerAdapter_AttachVolume_MockMode(t *testing.T) {
@@ -446,7 +446,7 @@ func TestFirecrackerAdapter_AttachVolume_RealMode_NotFound(t *testing.T) {
 	ctx := context.Background()
 	_, _, err = adapter.AttachVolume(ctx, "nonexistent", "/path/to/volume.qcow2")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestFirecrackerAdapter_AttachVolume_RebuildSuccess(t *testing.T) {
