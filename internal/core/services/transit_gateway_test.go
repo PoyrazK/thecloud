@@ -135,7 +135,7 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 	t.Run("AttachVPC_Success", func(t *testing.T) {
 		tgID := uuid.New()
 		vpcID := uuid.New()
-		vpc := &domain.VPC{ID: vpcID, Name: "my-vpc", CIDRBlock: "10.0.0.0/16"}
+		vpc := &domain.VPC{ID: vpcID, Name: "my-vpc", CIDRBlock: "10.0.0.0/16", TenantID: tenantID}
 		tg := &domain.TransitGateway{ID: tgID, OwnerTenantID: tenantID}
 		subnets := []*domain.Subnet{{ID: uuid.New(), CIDRBlock: "10.0.0.0/24"}}
 		defaultRT := &domain.TransitGatewayRouteTable{ID: uuid.New(), DefaultRouteTable: true}
@@ -159,7 +159,7 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 	t.Run("AttachVPC_Duplicate", func(t *testing.T) {
 		tgID := uuid.New()
 		vpcID := uuid.New()
-		vpc := &domain.VPC{ID: vpcID, Name: "my-vpc", CIDRBlock: "10.0.0.0/16"}
+		vpc := &domain.VPC{ID: vpcID, Name: "my-vpc", CIDRBlock: "10.0.0.0/16", TenantID: tenantID}
 		tg := &domain.TransitGateway{ID: tgID, OwnerTenantID: tenantID}
 		existingAtt := &domain.TransitGatewayAttachment{ID: uuid.New(), VPCID: vpcID}
 
@@ -192,6 +192,7 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcDelete, attID.String()).Return(nil).Once()
 		mockRepo.On("GetAttachment", mock.Anything, attID).Return(att, nil).Once()
 		mockRepo.On("ListRouteTables", mock.Anything, tgID).Return([]*domain.TransitGatewayRouteTable{}, nil).Once()
+		mockRepo.On("RemoveAttachmentAssociations", mock.Anything, attID).Return(nil).Once()
 		mockRepo.On("RemoveAttachment", mock.Anything, attID).Return(nil).Once()
 		mockAuditSvc.On("Log", mock.Anything, userID, "transit_gateway.detach_vpc", "transit_gateway", tgID.String(), mock.Anything).Return(nil).Once()
 

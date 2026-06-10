@@ -18,6 +18,7 @@ type TransitGatewayRepository interface {
 	// Attachment operations
 	AddAttachment(ctx context.Context, att *domain.TransitGatewayAttachment) error
 	RemoveAttachment(ctx context.Context, id uuid.UUID) error
+	RemoveAttachmentAssociations(ctx context.Context, attID uuid.UUID) error
 	ListAttachments(ctx context.Context, tgID uuid.UUID) ([]*domain.TransitGatewayAttachment, error)
 	GetAttachment(ctx context.Context, id uuid.UUID) (*domain.TransitGatewayAttachment, error)
 

@@ -217,6 +217,11 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 		return nil, errors.Wrap(errors.NotFound, "VPC not found", err)
 	}
 
+	// Validate VPC belongs to calling tenant
+	if vpc.TenantID != tenantID {
+		return nil, errors.New(errors.Forbidden, "VPC belongs to another tenant")
+	}
+
 	// Check for existing attachment
 	existing, err := s.repo.ListAttachments(ctx, tgID)
 	if err != nil {
@@ -311,6 +316,11 @@ func (s *TransitGatewayService) detachVPC(ctx context.Context, att *domain.Trans
 				}
 			}
 		}
+	}
+
+	// Remove route table associations
+	if err := s.repo.RemoveAttachmentAssociations(ctx, att.ID); err != nil {
+		return errors.Wrap(errors.Internal, "failed to remove attachment associations", err)
 	}
 
 	if err := s.repo.RemoveAttachment(ctx, att.ID); err != nil {

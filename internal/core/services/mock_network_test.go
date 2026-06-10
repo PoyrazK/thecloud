@@ -574,6 +574,9 @@ func (m *MockTransitGatewayRepo) AddAttachment(ctx context.Context, att *domain.
 func (m *MockTransitGatewayRepo) RemoveAttachment(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }
+func (m *MockTransitGatewayRepo) RemoveAttachmentAssociations(ctx context.Context, attID uuid.UUID) error {
+	return m.Called(ctx, attID).Error(0)
+}
 func (m *MockTransitGatewayRepo) ListAttachments(ctx context.Context, tgID uuid.UUID) ([]*domain.TransitGatewayAttachment, error) {
 	args := m.Called(ctx, tgID)
 	if args.Get(0) == nil {

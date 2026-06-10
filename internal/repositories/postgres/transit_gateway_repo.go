@@ -92,6 +92,14 @@ func (r *TransitGatewayRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 	if err != nil {
 		return nil, err
 	}
+	// Load routes for each route table
+	for _, rt := range rts {
+		routes, err := r.ListRoutes(ctx, rt.ID)
+		if err != nil {
+			return nil, err
+		}
+		rt.Routes = routes
+	}
 	tg.RouteTables = rts
 
 	// Load attachments
@@ -188,6 +196,16 @@ func (r *TransitGatewayRepository) RemoveAttachment(ctx context.Context, id uuid
 	return nil
 }
 
+// RemoveAttachmentAssociations deletes association records for an attachment.
+func (r *TransitGatewayRepository) RemoveAttachmentAssociations(ctx context.Context, attID uuid.UUID) error {
+	query := `DELETE FROM transit_gateway_rt_associations WHERE attachment_id = $1`
+	_, err := r.db.Exec(ctx, query, attID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to remove attachment associations", err)
+	}
+	return nil
+}
+
 // ListAttachments returns all attachments for a Transit Gateway.
 func (r *TransitGatewayRepository) ListAttachments(ctx context.Context, tgID uuid.UUID) ([]*domain.TransitGatewayAttachment, error) {
 	query := `
@@ -266,6 +284,12 @@ func (r *TransitGatewayRepository) GetRouteTable(ctx context.Context, id uuid.UU
 		}
 		return nil, errors.Wrap(errors.Internal, "failed to scan route table", err)
 	}
+	// Load routes for this route table
+	routes, err := r.ListRoutes(ctx, rt.ID)
+	if err != nil {
+		return nil, err
+	}
+	rt.Routes = routes
 	return &rt, nil
 }
 
