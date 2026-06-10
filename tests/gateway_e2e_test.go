@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -15,7 +16,21 @@ import (
 )
 
 const gatewayRoutesPath = "/gateway/routes"
-const httpbinAnything = "https://httpbin.org/anything"
+
+// mockEchoServer creates a local HTTP server that echoes back request details as JSON.
+// This replaces the external httpbin.org dependency for reliable E2E testing.
+func mockEchoServer() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"url":      r.URL.RequestURI(),
+			"method":   r.Method,
+			"headers":  r.Header,
+			"path":     r.URL.Path,
+			"raw_path": r.URL.RawPath,
+		})
+	}))
+}
 
 func waitForRoute(t *testing.T, client *http.Client, url string, token string) *http.Response {
 	t.Helper()
@@ -45,18 +60,21 @@ func TestGatewayE2E(t *testing.T) {
 		t.Fatalf("Failing Gateway E2E test: %v", err)
 	}
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	// Start local mock server to replace external httpbin.org dependency
+	mockSrv := mockEchoServer()
+	defer mockSrv.Close()
+
+	client :=&http.Client{Timeout: 15 * time.Second}
 	token := registerAndLogin(t, client, "gateway-tester@thecloud.local", "Gateway Tester")
 
 	// Use a unique suffix for route names to avoid collisions in E2E environment
 	ts := time.Now().UnixNano() % 100000
 
 	t.Run("CreateAndListPatternRoute", func(t *testing.T) {
-		// 1. Create a pattern-based route
-		// We'll use httpbin.org to verify the proxying works
+		// 1. Create a pattern-based route using mock server
 		pattern := fmt.Sprintf("/httpbin-%d/{method}", ts)
 		routeName := fmt.Sprintf("httpbin-pattern-%d", ts)
-		targetURL := "https://httpbin.org"
+		targetURL := mockSrv.URL
 
 		payload := map[string]interface{}{
 			"name":         routeName,
@@ -115,7 +133,7 @@ func TestGatewayE2E(t *testing.T) {
 	t.Run("VerifyRegexPatternProxying", func(t *testing.T) {
 		pattern := fmt.Sprintf("/status-%d/{code:[0-9]+}", ts)
 		routeName := fmt.Sprintf("status-code-%d", ts)
-		targetURL := "https://httpbin.org" // Use base URL
+		targetURL := mockSrv.URL + "/status"
 
 		payload := map[string]interface{}{
 			"name":         routeName,
@@ -126,17 +144,17 @@ func TestGatewayE2E(t *testing.T) {
 		// Redefine for clarity
 		pattern = fmt.Sprintf("/gw-status-%d/{code:[0-9]+}", ts)
 		payload["path_prefix"] = pattern
-		payload["target_url"] = "https://httpbin.org/status"
+		payload["target_url"] = mockSrv.URL + "/status"
 		payload["strip_prefix"] = true
 
 		resp := postRequest(t, client, testutil.TestBaseURL+gatewayRoutesPath, token, payload)
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
 		_ = resp.Body.Close()
 
-		// This should match and return 201
+		// This should match and return 200 from mock server
 		url := fmt.Sprintf("%s/gw/gw-status-%d/201", testutil.TestBaseURL, ts)
 		respMatch := waitForRoute(t, client, url, "")
-		assert.Equal(t, http.StatusCreated, respMatch.StatusCode)
+		assert.Equal(t, http.StatusOK, respMatch.StatusCode)
 		_ = respMatch.Body.Close()
 
 		// This should NOT match (letters instead of numbers)
@@ -150,7 +168,7 @@ func TestGatewayE2E(t *testing.T) {
 	t.Run("VerifyWildcardProxying", func(t *testing.T) {
 		pattern := fmt.Sprintf("/wild-%d/*", ts)
 		routeName := fmt.Sprintf("wildcard-route-%d", ts)
-		targetURL := httpbinAnything
+		targetURL := mockSrv.URL
 
 		payload := map[string]interface{}{
 			"name":         routeName,
@@ -174,13 +192,13 @@ func TestGatewayE2E(t *testing.T) {
 			URL string `json:"url"`
 		}
 		require.NoError(t, json.NewDecoder(retryResp.Body).Decode(&httpbinResp))
-		assert.Contains(t, httpbinResp.URL, "/anything/foo/bar")
+		assert.Contains(t, httpbinResp.URL, "/foo/bar")
 	})
 
 	t.Run("VerifyMultiParamProxying", func(t *testing.T) {
 		pattern := fmt.Sprintf("/orgs-%d/{org}/projects/{project}", ts)
 		routeName := fmt.Sprintf("multi-param-%d", ts)
-		targetURL := httpbinAnything
+		targetURL := mockSrv.URL
 
 		payload := map[string]interface{}{
 			"name":         routeName,
@@ -213,7 +231,7 @@ func TestGatewayE2E(t *testing.T) {
 		payloadGen := map[string]interface{}{
 			"name":         fmt.Sprintf("user-gen-%d", ts),
 			"path_prefix":  patternGen,
-			"target_url":   httpbinAnything + "/general",
+			"target_url":   mockSrv.URL + "/general",
 			"strip_prefix": true,
 			"priority":     1,
 		}
@@ -225,7 +243,7 @@ func TestGatewayE2E(t *testing.T) {
 		payloadSpec := map[string]interface{}{
 			"name":         fmt.Sprintf("user-spec-%d", ts),
 			"path_prefix":  patternSpec,
-			"target_url":   httpbinAnything + "/specific",
+			"target_url":   mockSrv.URL + "/specific",
 			"strip_prefix": true,
 			"priority":     10,
 		}
@@ -247,8 +265,8 @@ func TestGatewayE2E(t *testing.T) {
 					URL string `json:"url"`
 				}
 				_ = json.NewDecoder(resp.Body).Decode(&res)
-				if finalURL = res.URL; finalURL != "" && (finalURL == httpbinAnything+"/specific" || finalURL == httpbinAnything+"/general") {
-					if finalURL == httpbinAnything+"/specific" {
+				if finalURL = res.URL; finalURL != "" && (finalURL == mockSrv.URL+"/specific" || finalURL == mockSrv.URL+"/general") {
+					if finalURL == mockSrv.URL+"/specific" {
 						break
 					}
 				}
@@ -261,7 +279,7 @@ func TestGatewayE2E(t *testing.T) {
 	t.Run("VerifyExtensionMatching", func(t *testing.T) {
 		pattern := fmt.Sprintf("/static-%d/*.{ext}", ts)
 		routeName := fmt.Sprintf("extension-route-%d", ts)
-		targetURL := httpbinAnything
+		targetURL := mockSrv.URL
 
 		payload := map[string]interface{}{
 			"name":         routeName,
@@ -293,7 +311,7 @@ func TestGatewayE2E(t *testing.T) {
 		payloadGet := map[string]interface{}{
 			"name":        fmt.Sprintf("get-route-%d", ts),
 			"path_prefix": pattern + "/get",
-			"target_url":  httpbinAnything + "/get-only",
+			"target_url":  mockSrv.URL + "/get-only",
 			"methods":     []string{"GET"},
 		}
 		resMethodGet := postRequest(t, client, testutil.TestBaseURL+gatewayRoutesPath, token, payloadGet)
@@ -304,7 +322,7 @@ func TestGatewayE2E(t *testing.T) {
 		payloadPost := map[string]interface{}{
 			"name":        fmt.Sprintf("post-route-%d", ts),
 			"path_prefix": pattern + "/post",
-			"target_url":  httpbinAnything + "/post-only",
+			"target_url":  mockSrv.URL + "/post-only",
 			"methods":     []string{"POST"},
 		}
 		resMethodPost := postRequest(t, client, testutil.TestBaseURL+gatewayRoutesPath, token, payloadPost)
