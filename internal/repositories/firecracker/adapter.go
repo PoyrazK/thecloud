@@ -59,9 +59,7 @@ type FirecrackerAdapter struct {
 	machines map[string]Machine
 	// machineConfigs stores the firecracker config per instance for rebuilds (AttachVolume, ResizeInstance)
 	machineConfigs map[string]firecracker.Config
-	// attachedVolumes tracks volumes attached to each instance
-	attachedVolumes map[string][]string
-	mu              sync.RWMutex
+	mu sync.RWMutex
 }
 
 // NewFirecrackerAdapter creates a new FirecrackerAdapter.
@@ -74,11 +72,10 @@ func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter
 	}
 
 	return &FirecrackerAdapter{
-		cfg:              cfg,
+		cfg:             cfg,
 		logger:          logger,
 		machines:        make(map[string]Machine),
 		machineConfigs:  make(map[string]firecracker.Config),
-		attachedVolumes: make(map[string][]string),
 	}, nil
 }
 
@@ -236,7 +233,6 @@ func (a *FirecrackerAdapter) DeleteInstance(ctx context.Context, id string) erro
 	}
 	delete(a.machines, id)
 	delete(a.machineConfigs, id)
-	delete(a.attachedVolumes, id)
 	a.mu.Unlock()
 
 	if !a.cfg.MockMode {
@@ -326,7 +322,7 @@ func (a *FirecrackerAdapter) collectStats(pid int) (io.ReadCloser, error) {
 			}
 		}
 		if strings.HasPrefix(line, "VmSize:") {
-			if _, err := fmt.Sscanf(line, "VmSize:\t%d kB", &memLimit); err == nil {
+			if _, err := fmt.Sscanf(line, "VmSize:\t%d kB",&memLimit); err == nil {
 				memLimit *= 1024 // Convert to bytes
 			}
 		}
@@ -418,10 +414,7 @@ func (a *FirecrackerAdapter) CreateNetwork(ctx context.Context, name string) (st
 		return uuid.New().String(), nil
 	}
 
-	tapName := "fc-" + name[:8]
-	if len(tapName) > 14 {
-		tapName = tapName[:14]
-	}
+	tapName := "fc-" + uuid.New().String()[:8]
 	mac := generateMAC(name)
 
 	// Create TAP device
@@ -500,6 +493,10 @@ func (a *FirecrackerAdapter) AttachVolume(ctx context.Context, id string, volume
 
 	newMachine, err := newMachineFn(ctx, newCfg, firecracker.WithProcessRunner(cmd))
 	if err != nil {
+		a.logger.Warn("rebuilding VM failed, attempting rollback", "instance_id", id, "error", err)
+		if rollbackErr := a.rebuildFromConfig(ctx, id, cfg); rollbackErr != nil {
+			a.logger.Error("rollback failed, VM may be in inconsistent state", "instance_id", id, "err", rollbackErr)
+		}
 		a.mu.Unlock()
 		return "", "", fmt.Errorf("failed to create machine with additional drive: %w", err)
 	}
@@ -512,7 +509,6 @@ func (a *FirecrackerAdapter) AttachVolume(ctx context.Context, id string, volume
 	// Update tracking
 	a.machines[id] = newMachine
 	a.machineConfigs[id] = newCfg
-	a.attachedVolumes[id] = append(a.attachedVolumes[id], volumePath)
 	a.mu.Unlock()
 
 	return "/dev/vdb", "", nil
@@ -556,6 +552,10 @@ func (a *FirecrackerAdapter) DetachVolume(ctx context.Context, id string, volume
 
 	newMachine, err := newMachineFn(ctx, newCfg, firecracker.WithProcessRunner(cmd))
 	if err != nil {
+		a.logger.Warn("rebuilding VM failed, attempting rollback", "instance_id", id, "error", err)
+		if rollbackErr := a.rebuildFromConfig(ctx, id, cfg); rollbackErr != nil {
+			a.logger.Error("rollback failed, VM may be in inconsistent state", "instance_id", id, "err", rollbackErr)
+		}
 		a.mu.Unlock()
 		return "", fmt.Errorf("failed to create machine after volume detach: %w", err)
 	}
@@ -565,18 +565,8 @@ func (a *FirecrackerAdapter) DetachVolume(ctx context.Context, id string, volume
 		return "", fmt.Errorf("failed to start VM after volume detach: %w", err)
 	}
 
-	// Update tracking - remove from attachedVolumes
 	a.machines[id] = newMachine
 	a.machineConfigs[id] = newCfg
-	if volumes, ok := a.attachedVolumes[id]; ok {
-		newVolumes := make([]string, 0, len(volumes))
-		for _, v := range volumes {
-			if v != volumePath {
-				newVolumes = append(newVolumes, v)
-			}
-		}
-		a.attachedVolumes[id] = newVolumes
-	}
 	a.mu.Unlock()
 
 	return "", nil
@@ -626,6 +616,10 @@ func (a *FirecrackerAdapter) ResizeInstance(ctx context.Context, id string, cpu,
 
 	newMachine, err := newMachineFn(ctx, newCfg, firecracker.WithProcessRunner(cmd))
 	if err != nil {
+		a.logger.Warn("rebuilding VM failed, attempting rollback", "instance_id", id, "error", err)
+		if rollbackErr := a.rebuildFromConfig(ctx, id, cfg); rollbackErr != nil {
+			a.logger.Error("rollback failed, VM may be in inconsistent state", "instance_id", id, "err", rollbackErr)
+		}
 		a.mu.Unlock()
 		return fmt.Errorf("failed to create machine with new size: %w", err)
 	}
@@ -658,3 +652,18 @@ func (a *FirecrackerAdapter) DeleteSnapshot(ctx context.Context, id, name string
 // ResetCircuitBreaker is a no-op for the raw Firecracker adapter.
 // The circuit breaker lives in ResilientCompute wrapping this backend.
 func (a *FirecrackerAdapter) ResetCircuitBreaker() {}
+
+// rebuildFromConfig recreates a machine from stored config after a failed rebuild.
+// Used for rollback when AttachVolume/DetachVolume/ResizeInstance fails mid-operation.
+func (a *FirecrackerAdapter) rebuildFromConfig(ctx context.Context, id string, cfg firecracker.Config) error {
+	socketPath := filepath.Join(a.cfg.SocketDir, id+".socket")
+	cmd := firecracker.VMCommandBuilder{}.
+		WithBin(a.cfg.BinaryPath).
+		WithSocketPath(socketPath).
+		Build(ctx)
+	m, err := newMachineFn(ctx, cfg, firecracker.WithProcessRunner(cmd))
+	if err != nil {
+		return err
+	}
+	return m.Start(ctx)
+}

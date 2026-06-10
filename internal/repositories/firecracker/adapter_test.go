@@ -448,3 +448,140 @@ func TestFirecrackerAdapter_AttachVolume_RealMode_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not implemented")
 }
+
+func TestFirecrackerAdapter_AttachVolume_RebuildSuccess(t *testing.T) {
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir:  t.TempDir(),
+		MockMode:   false,
+		BinaryPath: "/usr/local/bin/firecracker",
+		KernelPath: "/var/lib/thecloud/vmlinux",
+		RootfsPath: "/var/lib/thecloud/rootfs.ext4",
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	origNewMachineFn := newMachineFn
+	t.Cleanup(func() { newMachineFn = origNewMachineFn })
+
+	// Create a machine that will be in the adapter
+	successMachine := new(mockFirecrackerMachine)
+	successMachine.On("Shutdown", mock.Anything).Return(nil).Once()
+	successMachine.On("Start", mock.Anything).Return(nil).Once()
+	successMachine.On("PID").Return(12345, nil).Maybe()
+
+	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return successMachine, nil
+	}
+
+	// Launch the instance first
+	id, _, err := adapter.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{Name: "test"})
+	require.NoError(t, err)
+
+	// Now test AttachVolume
+	_, _, err = adapter.AttachVolume(ctx, id, "/path/to/volume.qcow2")
+	require.NoError(t, err)
+
+	successMachine.AssertExpectations(t)
+}
+
+func TestFirecrackerAdapter_AttachVolume_RebuildFailure_Rollback(t *testing.T) {
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir:  t.TempDir(),
+		MockMode:   false,
+		BinaryPath: "/usr/local/bin/firecracker",
+		KernelPath: "/var/lib/thecloud/vmlinux",
+		RootfsPath: "/var/lib/thecloud/rootfs.ext4",
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	origNewMachineFn := newMachineFn
+	t.Cleanup(func() { newMachineFn = origNewMachineFn })
+
+	// Create a machine that will be in the adapter
+	originalMachine := new(mockFirecrackerMachine)
+	originalMachine.On("Shutdown", mock.Anything).Return(nil).Once()
+	originalMachine.On("Start", mock.Anything).Return(nil).Once()
+	originalMachine.On("PID").Return(12345, nil).Maybe()
+
+	// Fail machine creation
+	failMachineFn := func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return nil, errors.New("failed to create machine")
+	}
+
+	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return failMachineFn(ctx, cfg, opts...)
+	}
+
+	// Launch the instance first
+	id, _, err := adapter.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{Name: "test"})
+	require.NoError(t, err)
+
+	// Set the original machine in the map (LaunchInstanceWithOptions uses successMachine via newMachineFn)
+	adapter.mu.Lock()
+	adapter.machines[id] = originalMachine
+	adapter.mu.Unlock()
+
+	// Test AttachVolume - should fail, trigger rollback, and return error
+	_, _, err = adapter.AttachVolume(ctx, id, "/path/to/volume.qcow2")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create machine")
+
+	originalMachine.AssertExpectations(t)
+}
+
+func TestFirecrackerAdapter_ResizeInstance_RebuildSuccess(t *testing.T) {
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir:  t.TempDir(),
+		MockMode:   false,
+		BinaryPath: "/usr/local/bin/firecracker",
+		KernelPath: "/var/lib/thecloud/vmlinux",
+		RootfsPath: "/var/lib/thecloud/rootfs.ext4",
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	origNewMachineFn := newMachineFn
+	t.Cleanup(func() { newMachineFn = origNewMachineFn })
+
+	// Create a machine that will be in the adapter
+	successMachine := new(mockFirecrackerMachine)
+	successMachine.On("Shutdown", mock.Anything).Return(nil).Once()
+	successMachine.On("Start", mock.Anything).Return(nil).Once()
+	successMachine.On("PID").Return(12345, nil).Maybe()
+
+	newMachineFn = func(ctx context.Context, cfg firecracker.Config, opts ...firecracker.Opt) (Machine, error) {
+		return successMachine, nil
+	}
+
+	// Launch the instance first
+	id, _, err := adapter.LaunchInstanceWithOptions(ctx, ports.CreateInstanceOptions{Name: "test"})
+	require.NoError(t, err)
+
+	// Now test ResizeInstance
+	err = adapter.ResizeInstance(ctx, id, 2, 256*1024*1024)
+	require.NoError(t, err)
+
+	successMachine.AssertExpectations(t)
+}
+
+func TestFirecrackerAdapter_ResizeInstance_InstanceNotFound(t *testing.T) {
+	logger := slog.Default()
+	cfg := Config{
+		SocketDir: t.TempDir(),
+		MockMode:  false,
+	}
+	adapter, err := NewFirecrackerAdapter(logger, cfg)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = adapter.ResizeInstance(ctx, "nonexistent-id", 2, 256*1024*1024)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
