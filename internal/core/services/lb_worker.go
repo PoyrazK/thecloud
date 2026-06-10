@@ -94,7 +94,7 @@ func (w *LBWorker) processCreatingLBs(ctx context.Context) {
 			return
 		}
 		for _, lb := range lbs {
-			gCtx := appcontext.WithUserID(ctx, lb.UserID)
+			gCtx := appcontext.WithTenantID(ctx, lb.TenantID)
 			w.deployLB(gCtx, lb)
 		}
 		if len(lbs) < w.batchLimit {
@@ -174,7 +174,7 @@ func (w *LBWorker) processActiveLBs(ctx context.Context) {
 			return
 		}
 		for _, lb := range lbs {
-			gCtx := appcontext.WithUserID(ctx, lb.UserID)
+			gCtx := appcontext.WithTenantID(ctx, lb.TenantID)
 			targets, err := w.lbRepo.ListTargets(gCtx, lb.ID)
 			if err != nil {
 				continue
@@ -201,7 +201,7 @@ func (w *LBWorker) processHealthChecks(ctx context.Context) {
 			return
 		}
 		for _, lb := range lbs {
-			gCtx := appcontext.WithUserID(ctx, lb.UserID)
+			gCtx := appcontext.WithTenantID(ctx, lb.TenantID)
 			w.checkLBHealth(gCtx, lb)
 		}
 		if len(lbs) < w.batchLimit {

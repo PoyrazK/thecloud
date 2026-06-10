@@ -183,8 +183,9 @@ func (s *LBService) Delete(ctx context.Context, idOrName string) error {
 		return err
 	}
 
+	lbCtx := appcontext.WithTenantID(ctx, lb.TenantID)
 	lb.Status = domain.LBStatusDeleted
-	if err := s.lbRepo.Update(ctx, lb); err != nil {
+	if err := s.lbRepo.Update(lbCtx, lb); err != nil {
 		return err
 	}
 
