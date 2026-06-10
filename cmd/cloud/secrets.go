@@ -124,5 +124,5 @@ func init() {
 
 	secretsCreateCmd.Flags().StringP("name", "n", "", "Unique name of the secret")
 	secretsCreateCmd.Flags().StringP("value", "v", "", "Value to encrypt")
-	secretsCreateCmd.Flags().StringP("description", "d", "", "Optional description")
+	secretsCreateCmd.Flags().String("description", "", "Optional description")
 }
