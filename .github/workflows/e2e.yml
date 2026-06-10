@@ -111,9 +111,9 @@ jobs:
           # Ensure Docker socket has proper permissions for API to create containers
           sudo chmod 666 /var/run/docker.sock
 
-          # Start API using the pulled/cached image
-          docker compose up -d api
-          
+          # Start API and mock server using the pulled/cached image
+          docker compose up -d api mockhttpserver
+
           # Wait for API to be ready
           echo "Waiting for API to be ready..."
           timeout 90 bash -c 'until curl -sf http://localhost:8080/health > /dev/null; do sleep 2; done' || {
@@ -121,7 +121,7 @@ jobs:
             docker compose logs api
             exit 1
           }
-          
+
           # Check if API is running
           docker compose ps
 
@@ -132,13 +132,15 @@ jobs:
           DATABASE_URL: postgres://cloud:cloud@127.0.0.1:5433/cloud?sslmode=disable
           TEST_DOCKER_NETWORK: cloud-network
           COMPOSE_PROJECT_NAME: thecloud-${{ github.run_id }}
+          # Mock HTTP server URL for gateway E2E tests (runs in Docker)
+          GATEWAY_MOCK_SERVER_URL: http://mockhttpserver:8089
         run: |
           # Run tests in parallel to achieve maximum speed.
           # The 'sync.Once' logic in helpers_test.go ensures they won't all wait redundantly.
           # We use -p 8 to allow high parallelism within the package.
           # 1. Run standard parallel tests (excluding chaos tests due to build tag)
           go test -v -p 8 -timeout 10m ./tests/...
-          
+
           # 2. Run chaos tests sequentially (uses package path to include helpers)
           # Note: Chaos tests are destructive and restart containers, so they run last
           go test -v -tags=chaos -timeout 5m ./tests/...
