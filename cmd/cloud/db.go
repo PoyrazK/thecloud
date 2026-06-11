@@ -206,7 +206,7 @@ var dbRmCmd = &cobra.Command{
 	},
 }
 
-var dbConnCmd =&cobra.Command{
+var dbConnCmd = &cobra.Command{
 	Use:   "connection [id]",
 	Short: "Get database connection string",
 	Args:  cobra.ExactArgs(1),
@@ -237,7 +237,7 @@ var dbRotateCmd = &cobra.Command{
 	},
 }
 
-var dbResizeCmd =&cobra.Command{
+var dbResizeCmd = &cobra.Command{
 	Use:   "resize [id] [sizeGB]",
 	Short: "Resize database allocated storage",
 	Args:  cobra.ExactArgs(2),
