@@ -80,6 +80,11 @@ func (s *GatewayService) CreateRoute(ctx context.Context, params ports.CreateRou
 		paramNames = matcher.ParamNames
 	}
 
+	// Validate target URL to prevent SSRF attacks
+	if err := isAllowedTarget(params.Target); err != nil {
+		return nil, fmt.Errorf("invalid target: %w", err)
+	}
+
 	route := &domain.GatewayRoute{
 		ID:                      uuid.New(),
 		UserID:                  userID,
@@ -619,4 +624,53 @@ func (rt *retryTransport) jitter(max time.Duration) time.Duration {
 	val := float64(rand.Uint()) / float64(1<<64) * float64(math.MaxUint64)
 	frac := val / float64(math.MaxUint64)
 	return time.Duration(float64(max) * frac)
+}
+
+// isAllowedTarget validates that a target URL doesn't point to internal/private networks.
+// This prevents SSRF attacks where an attacker could route requests to cloud metadata
+// endpoints (169.254.169.254), localhost, or private IP ranges.
+func isAllowedTarget(targetURL string) error {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return fmt.Errorf("invalid target URL: %w", err)
+	}
+
+	host := u.Hostname()
+	ip := net.ParseIP(host)
+
+	// Check for localhost
+	if host == "localhost" || host == "127.0.0.1" {
+		return fmt.Errorf("localhost targets not allowed")
+	}
+
+	// Check for loopback IP
+	if ip != nil && ip.IsLoopback() {
+		return fmt.Errorf("loopback targets not allowed")
+	}
+
+	// Check for link-local (169.254.x.x - Azure/AWS metadata)
+	if ip != nil && ip.IsLinkLocalUnicast() {
+		return fmt.Errorf("link-local addresses not allowed")
+	}
+
+	// Check for private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+	if ip != nil && ip.IsPrivate() {
+		return fmt.Errorf("private IP targets not allowed")
+	}
+
+	// Check for reserved metadata addresses (169.254.0.0/16)
+	if ip != nil && isReservedIP(ip) {
+		return fmt.Errorf("reserved IP targets not allowed")
+	}
+
+	return nil
+}
+
+// isReservedIP checks for IP addresses used by cloud metadata services.
+func isReservedIP(ip net.IP) bool {
+	// 169.254.0.0/16 - Azure/AWS/gcp metadata endpoints
+	if len(ip) >= 2 && ip[0] == 169 && ip[1] == 254 {
+		return true
+	}
+	return false
 }
