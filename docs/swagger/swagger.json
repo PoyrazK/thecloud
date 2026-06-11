@@ -10472,8 +10472,12 @@
                     "type": "string"
                 },
                 "tls_skip_verify": {
-                    "description": "Skip TLS verification for backend",
+                    "description": "Deprecated: use TrustedCA instead",
                     "type": "boolean"
+                },
+                "trusted_ca": {
+                    "description": "Path to PEM-encoded CA certificate for TLS verification",
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string"
