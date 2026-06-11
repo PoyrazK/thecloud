@@ -299,7 +299,12 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 		}
 		pr.SetXForwarded()
 		pr.Out.Host = target.Host
-		pr.Out.URL.Scheme = target.Scheme
+		// Ensure scheme is set (default to http if target URL had no scheme)
+		if target.Scheme == "" {
+			pr.Out.URL.Scheme = "http"
+		} else {
+			pr.Out.URL.Scheme = target.Scheme
+		}
 	}
 
 	return proxy, nil
@@ -542,7 +547,9 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		}
 
 		if !rt.isRetryableError(err) {
-			_ = resp.Body.Close()
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
 			return nil, err
 		}
 		// Close previous lastResp body before assigning new one to prevent leaks

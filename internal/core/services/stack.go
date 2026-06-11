@@ -99,7 +99,10 @@ func (s *stackService) processStack(ctx context.Context, stack *domain.Stack) {
 	// Check for context cancellation (e.g., from GoWithTimeout)
 	select {
 	case <-ctx.Done():
-		s.updateStackStatus(ctx, stack, domain.StackStatusCreateFailed, "context cancelled: "+ctx.Err().Error())
+		// Use background context since ctx is cancelled - we still want to update status
+		updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.updateStackStatus(updateCtx, stack, domain.StackStatusCreateFailed, "context cancelled: "+ctx.Err().Error())
 		return
 	default:
 	}
