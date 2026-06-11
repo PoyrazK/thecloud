@@ -196,10 +196,33 @@ func (r *TransitGatewayRepository) RemoveAttachment(ctx context.Context, id uuid
 	return nil
 }
 
+// UpdateAttachmentStatus updates the status of an attachment.
+func (r *TransitGatewayRepository) UpdateAttachmentStatus(ctx context.Context, id uuid.UUID, status string) error {
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `UPDATE transit_gateway_attachments SET status = $1 WHERE id = $2 AND tenant_id = $3`
+	cmd, err := r.db.Exec(ctx, query, status, id, tenantID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to update attachment status", err)
+	}
+	if cmd.RowsAffected() == 0 {
+		return errors.New(errors.NotFound, errAttNotFound)
+	}
+	return nil
+}
+
 // RemoveAttachmentAssociations deletes association records for an attachment.
 func (r *TransitGatewayRepository) RemoveAttachmentAssociations(ctx context.Context, attID uuid.UUID) error {
-	query := `DELETE FROM transit_gateway_rt_associations WHERE attachment_id = $1`
-	_, err := r.db.Exec(ctx, query, attID)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+	query := `
+		DELETE FROM transit_gateway_rt_associations
+		WHERE attachment_id = $1
+		AND route_table_id IN (
+			SELECT rt.id FROM transit_gateway_route_tables rt
+			JOIN transit_gateways tgw ON rt.transit_gateway_id = tgw.id
+			WHERE tgw.owner_tenant_id = $2
+		)
+	`
+	_, err := r.db.Exec(ctx, query, attID, tenantID)
 	if err != nil {
 		return errors.Wrap(errors.Internal, "failed to remove attachment associations", err)
 	}
@@ -374,13 +397,19 @@ func (r *TransitGatewayRepository) RemoveRoute(ctx context.Context, rtID, routeI
 
 // ListRoutes returns all routes in a TGW route table.
 func (r *TransitGatewayRepository) ListRoutes(ctx context.Context, rtID uuid.UUID) ([]*domain.TransitGatewayRoute, error) {
+	tenantID := appcontext.TenantIDFromContext(ctx)
 	query := `
-		SELECT ` + tgwRouteColumns + `
-		FROM transit_gateway_routes
-		WHERE transit_gateway_rt_id = $1
-		ORDER BY created_at DESC
+		SELECT r.` + tgwRouteColumns + `
+		FROM transit_gateway_routes r
+		WHERE r.transit_gateway_rt_id = $1
+		AND r.transit_gateway_rt_id IN (
+			SELECT rt.id FROM transit_gateway_route_tables rt
+			JOIN transit_gateways tgw ON rt.transit_gateway_id = tgw.id
+			WHERE tgw.owner_tenant_id = $2
+		)
+		ORDER BY r.created_at DESC
 	`
-	rows, err := r.db.Query(ctx, query, rtID)
+	rows, err := r.db.Query(ctx, query, rtID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list routes", err)
 	}

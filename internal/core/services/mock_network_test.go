@@ -571,6 +571,9 @@ func (m *MockTransitGatewayRepo) Delete(ctx context.Context, id uuid.UUID) error
 func (m *MockTransitGatewayRepo) AddAttachment(ctx context.Context, att *domain.TransitGatewayAttachment) error {
 	return m.Called(ctx, att).Error(0)
 }
+func (m *MockTransitGatewayRepo) UpdateAttachmentStatus(ctx context.Context, id uuid.UUID, status string) error {
+	return m.Called(ctx, id, status).Error(0)
+}
 func (m *MockTransitGatewayRepo) RemoveAttachment(ctx context.Context, id uuid.UUID) error {
 	return m.Called(ctx, id).Error(0)
 }

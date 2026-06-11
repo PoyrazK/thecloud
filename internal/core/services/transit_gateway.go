@@ -75,6 +75,7 @@ func (s *TransitGatewayService) CreateTransitGateway(ctx context.Context, name s
 	}
 
 	tgID := uuid.New()
+	// TODO: Use configurable cloud partition instead of "local" (MVP limitation)
 	arn := fmt.Sprintf("arn:thecloud:transit-gateway:local:%s:transit-gateway/%s", tenantID.String(), tgID.String())
 
 	tg := &domain.TransitGateway{
@@ -201,7 +202,7 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
 
-	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcCreate, "*"); err != nil {
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcCreate, tgID.String()); err != nil {
 		return nil, err
 	}
 
@@ -239,7 +240,7 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 		TransitGatewayID: tgID,
 		VPCID:            vpcID,
 		TenantID:         tenantID,
-		Status:           "attached",
+		Status:           "propagating",
 		AttachmentType:   "vpc",
 	}
 
@@ -249,10 +250,18 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 
 	// Propagate VPC subnet routes to TGW route tables
 	if err := s.propagateSubnetRoutes(ctx, tg, vpc, attID); err != nil {
+		if updErr := s.repo.UpdateAttachmentStatus(ctx, attID, "failed_propagation"); updErr != nil {
+			s.logger.Error("failed to update attachment status to failed_propagation", "att_id", attID, "error", updErr)
+		}
 		if remErr := s.repo.RemoveAttachment(ctx, attID); remErr != nil {
 			s.logger.Error("failed to rollback attachment after route propagation failure", "att_id", attID, "error", remErr)
 		}
 		return nil, errors.Wrap(errors.Internal, "failed to propagate subnet routes for attachment", err)
+	}
+
+	// Update status to attached after successful route propagation
+	if err := s.repo.UpdateAttachmentStatus(ctx, attID, "attached"); err != nil {
+		s.logger.Warn("failed to update attachment status to attached", "att_id", attID, "error", err)
 	}
 
 	if err := s.auditSvc.Log(ctx, userID, "transit_gateway.attach_vpc", "transit_gateway", tgID.String(), map[string]interface{}{
