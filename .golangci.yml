@@ -58,9 +58,6 @@ issues:
       linters:
         - gosec
         - revive
-    - path: internal/repositories/libvirt/
-      linters:
-        - gosec
     - path: internal/repositories/ovs/
       linters:
         - gosec

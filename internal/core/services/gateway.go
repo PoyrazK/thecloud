@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	stderrors "errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -266,6 +268,11 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 		idleConnTimeout = 90 * time.Second
 	}
 
+	tlsCfg, err := s.buildTLSConfig(route)
+	if err != nil {
+		return nil, err
+	}
+
 	baseTransport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   dialTimeout,
@@ -273,41 +280,57 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 		}).DialContext,
 		ResponseHeaderTimeout: responseHeaderTimeout,
 		IdleConnTimeout:       idleConnTimeout,
-		TLSClientConfig:       s.buildTLSConfig(route),
+		TLSClientConfig:       tlsCfg,
 		TLSHandshakeTimeout:   10 * time.Second,
 	}
 
 	proxy.Transport = newRetryTransport(baseTransport, route, s.logger)
 
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
+	proxy.Rewrite = func(pr *httputil.ProxyRequest) {
 		if route.StripPrefix {
 			prefix := route.PathPrefix
 			if route.PatternType == "pattern" {
 				prefix = routing.GetLiteralPrefix(route.PathPattern)
 			}
-			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/gw"+prefix)
-			if !strings.HasPrefix(req.URL.Path, "/") {
-				req.URL.Path = "/" + req.URL.Path
+			pr.Out.URL.Path = strings.TrimPrefix(pr.In.URL.Path, "/gw"+prefix)
+			if !strings.HasPrefix(pr.Out.URL.Path, "/") {
+				pr.Out.URL.Path = "/" + pr.Out.URL.Path
 			}
 		}
-		originalDirector(req)
-		req.Host = target.Host
+		pr.SetXForwarded()
+		pr.Out.Host = target.Host
 	}
 
 	return proxy, nil
 }
 
-func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) *tls.Config {
+func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) (*tls.Config, error) {
 	cfg := &tls.Config{
-		InsecureSkipVerify: route.TLSSkipVerify, //nolint:gosec // User-controlled option for development/testing
+		InsecureSkipVerify: false,
 	}
+
+	// Handle TrustedCA (recommended) or deprecated TLSSkipVerify
+	if route.TrustedCA != "" {
+		caCert, err := os.ReadFile(route.TrustedCA)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA certificate from %s: %w", route.TrustedCA, err)
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate from %s", route.TrustedCA)
+		}
+		cfg.RootCAs = caCertPool
+	} else if route.TLSSkipVerify {
+		s.logger.Warn("TLSSkipVerify is deprecated, use TrustedCA instead")
+		cfg.InsecureSkipVerify = true
+	}
+
 	// Always set baseline TLS 1.2, raise to 1.3 if RequireTLS
 	cfg.MinVersion = tls.VersionTLS12
 	if route.RequireTLS {
 		cfg.MinVersion = tls.VersionTLS13
 	}
-	return cfg
+	return cfg, nil
 }
 
 func (s *GatewayService) sortRoutes(routes []*domain.GatewayRoute) {
@@ -461,11 +484,10 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	type result struct {
+	var r struct {
 		resp *http.Response
 		err  error
 	}
-	var r result
 	cbErr := rt.cb.Execute(func() error {
 		r.resp, r.err = rt.doRoundTrip(req) //nolint:bodyclose
 		return r.err
@@ -519,6 +541,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		}
 
 		if !rt.isRetryableError(err) {
+			_ = resp.Body.Close()
 			return nil, err
 		}
 		lastResp = resp

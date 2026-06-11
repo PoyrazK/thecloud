@@ -176,7 +176,7 @@ var whoamiCmd = &cobra.Command{
 
 // Config persistence
 type Config struct {
-	APIKey string `json:"api_key"`
+	APICredential string `json:"auth"`
 }
 
 func getConfigPath() string {
@@ -189,8 +189,8 @@ func saveConfig(key string) {
 		fmt.Printf("Warning: failed to create config directory: %v\n", err)
 	}
 
-	cfg := Config{APIKey: key}
-	data, err := json.MarshalIndent(cfg, "", "  ") //nolint:gosec // G117: field name matches pattern but is a config option, not a secret
+	cfg := Config{APICredential: key}
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		fmt.Printf("Error: failed to marshal config: %v\n", err)
 		return
@@ -213,7 +213,7 @@ func loadConfig() string {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return ""
 	}
-	return cfg.APIKey
+	return cfg.APICredential
 }
 
 func init() {

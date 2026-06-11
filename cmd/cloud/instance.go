@@ -418,7 +418,7 @@ var sshCmd = &cobra.Command{
 		// This handles interactive terminal correctly.
 		env := os.Environ()
 		allArgs := append([]string{"ssh"}, sshArgs...)
-		err = syscall.Exec(binary, allArgs, env) //nolint:gosec // intentional exec for SSH connection
+		err = syscall.Exec(binary, allArgs, env) //#nosec G204
 		if err != nil {
 			fmt.Printf("Error executing ssh: %v\n", err)
 		}

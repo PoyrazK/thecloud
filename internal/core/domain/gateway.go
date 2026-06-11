@@ -25,7 +25,8 @@ type GatewayRoute struct {
 	DialTimeout             int64        `json:"dial_timeout,omitempty"`              // TCP dial timeout in milliseconds
 	ResponseHeaderTimeout   int64        `json:"response_header_timeout,omitempty"`   // Time to receive headers in milliseconds
 	IdleConnTimeout         int64        `json:"idle_conn_timeout,omitempty"`         // Idle connection timeout in milliseconds
-	TLSSkipVerify           bool         `json:"tls_skip_verify,omitempty"`           // Skip TLS verification for backend
+	TLSSkipVerify           bool         `json:"tls_skip_verify,omitempty"`           // Deprecated: use TrustedCA instead
+	TrustedCA               string       `json:"trusted_ca,omitempty"`                // Path to PEM-encoded CA certificate for TLS verification
 	RequireTLS              bool         `json:"require_tls,omitempty"`               // Force HTTPS for backend
 	AllowedCIDRs            []string     `json:"allowed_cidrs,omitempty"`             // IPs allowed to access (empty = all)
 	AllowedIPNets           []*net.IPNet `json:"-"`                                   // pre-parsed at creation/refresh for fast lookup

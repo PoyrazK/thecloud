@@ -71,13 +71,13 @@ var (
 	// TestBaseURL is the API base URL used in tests.
 	TestBaseURL = getEnvVar("TEST_BASE_URL", "http://localhost:8080")
 	// TestHeaderAPIKey is the header name used for API keys.
-	TestHeaderAPIKey = "X-API-Key" //nolint:gosec // test constant, not a real secret
+	TestHeaderAPIKey = "X-API-Key" //#nosec G101
 	// TestContentTypeAppJSON is the JSON content type used in tests.
 	TestContentTypeAppJSON = "application/json"
 	// TestDatabaseURL is the local database URL used in tests.
 	TestDatabaseURL = getEnvVar("TEST_DATABASE_URL", "postgres://cloud:cloud@localhost:5433/thecloud")
 	// TestProdDatabaseURL is a sample production database URL.
-	TestProdDatabaseURL = "postgres://test:test@localhost:5432/testdb" //nolint:gosec // test constant, not a real secret
+	TestProdDatabaseURL = "postgres://test:test@localhost:5432/testdb" //#nosec G101
 	// TestEnvDev is the development environment name.
 	TestEnvDev = "development"
 	// TestEnvProd is the production environment name.

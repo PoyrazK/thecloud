@@ -17,6 +17,18 @@ const (
 	detailRow   = "%-15s %v\n"
 )
 
+// dbJSONOutput is used for JSON output to avoid G117 warnings about Password field
+type dbJSONOutput struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Engine   string `json:"engine"`
+	Version  string `json:"version"`
+	Status   string `json:"status"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	// Password intentionally excluded - never shown in JSON output
+}
+
 var dbCmd = &cobra.Command{
 	Use:   "db",
 	Short: "Manage managed database instances (RDS)",
@@ -34,7 +46,20 @@ var dbListCmd = &cobra.Command{
 		}
 
 		if opts.JSON {
-			data, _ := json.MarshalIndent(databases, "", "  ") //nolint:gosec // field names match patterns but are config, not secrets
+			// Convert to safe output format without sensitive fields
+			out := make([]dbJSONOutput, len(databases))
+			for i, db := range databases {
+				out[i] = dbJSONOutput{
+					ID:       db.ID,
+					Name:     db.Name,
+					Engine:   db.Engine,
+					Version:  db.Version,
+					Status:   db.Status,
+					Port:     db.Port,
+					Username: db.Username,
+				}
+			}
+			data, _ := json.MarshalIndent(out, "", "  ")
 			fmt.Println(string(data))
 			return
 		}
@@ -93,10 +118,17 @@ var dbCreateCmd = &cobra.Command{
 
 		fmt.Printf("[SUCCESS] Database %s created successfully!\n", name)
 		if opts.JSON {
-			// Mask password for JSON output
-			dbCopy := *db
-			dbCopy.Password = "********"
-			data, _ := json.MarshalIndent(dbCopy, "", "  ") //nolint:gosec // field names match patterns but are config, not secrets
+			// Use safe output format without password
+			out := dbJSONOutput{
+				ID:       db.ID,
+				Name:     db.Name,
+				Engine:   db.Engine,
+				Version:  db.Version,
+				Status:   db.Status,
+				Port:     db.Port,
+				Username: db.Username,
+			}
+			data, _ := json.MarshalIndent(out, "", "  ")
 			fmt.Println(string(data))
 		} else {
 			fmt.Printf("ID:       %s\n", db.ID)

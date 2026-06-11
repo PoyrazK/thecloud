@@ -24,6 +24,7 @@ import (
 	"github.com/digitalocean/go-libvirt"
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/pkg/safehelper"
 	apierrors "github.com/poyrazk/thecloud/internal/errors"
 )
 
@@ -121,12 +122,12 @@ func NewLibvirtAdapter(logger *slog.Logger, uri string) (*LibvirtAdapter, error)
 	}
 
 	// Connect to libvirt socket
-	c, err := net.DialTimeout("unix", uri, 2*time.Second) //nolint:gosec // intentional libvirt socket connection with timeout
+	c, err := net.DialTimeout("unix", uri, 2*time.Second) //#nosec G704
 	if err != nil {
 		// Fallback to session mode if system socket fails
 		if !strings.Contains(uri, "session") {
 			sessionUri := filepath.Join(os.Getenv("HOME"), ".cache/libvirt/libvirt-sock")
-			if c2, err2 := net.DialTimeout("unix", sessionUri, 2*time.Second); err2 == nil { //nolint:gosec // intentional libvirt socket connection with timeout
+			if c2, err2 := net.DialTimeout("unix", sessionUri, 2*time.Second); err2 == nil { //#nosec G704
 				c = c2
 				uri = sessionUri
 			} else {
@@ -137,6 +138,10 @@ func NewLibvirtAdapter(logger *slog.Logger, uri string) (*LibvirtAdapter, error)
 		}
 	}
 
+	// SA1019: libvirt.New is deprecated but NewWithDialer requires a new connection via dialer.
+	// We already have an established net.Conn from DialTimeout, so reusing it via New(c)
+	// avoids creating a redundant connection. The libvirt client handles connection errors
+	// lazily on use rather than at construction time.
 	//nolint:staticcheck
 	l := libvirt.New(c)
 
@@ -420,7 +425,9 @@ func (a *LibvirtAdapter) LaunchInstanceWithOptions(ctx context.Context, opts por
 	}
 
 	if len(allocatedPorts) > 0 {
-		go a.setupPortForwarding(name, allocatedPorts) //nolint:gosec // G118: fire-and-forget port forwarding with its own timeout
+		safehelper.GoWithTimeout(2*time.Minute, func(ctx context.Context) {
+			a.setupPortForwarding(name, allocatedPorts)
+		})
 	}
 
 	return name, allocatedPorts, nil
@@ -1191,7 +1198,7 @@ func (a *LibvirtAdapter) getNextNetworkRange() (gateway, rangeStart, rangeEnd st
 	offset := a.networkCounter * 256
 	for i := len(baseIP) - 1; i >= 0 && offset > 0; i-- {
 		sum := int(baseIP[i]) + offset
-		baseIP[i] = byte(sum % 256) //nolint:gosec // safe: sum%256 is always 0-255
+		baseIP[i] = safehelper.SafeByte(sum % 256)
 		offset = sum / 256
 	}
 

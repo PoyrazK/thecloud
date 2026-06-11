@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const secretsErrorFormat = "Error: %v\n" //nolint:gosec // format string for error output, not a credential
+const secretsErrorFormat = "Error: %v\n" //#nosec G101
 
 var secretsCmd = &cobra.Command{
 	Use:   "secrets",

@@ -20,7 +20,7 @@ type realExecer struct {
 }
 
 func (r *realExecer) Run(name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(r.ctx, name, args...) //nolint:gosec // LVM commands (lvcreate, lvs, etc.) with validated paths
+	cmd := exec.CommandContext(r.ctx, name, args...) //#nosec G204
 	return cmd.CombinedOutput()
 }
 

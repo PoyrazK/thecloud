@@ -14,6 +14,7 @@ import (
 
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/platform"
+	"github.com/poyrazk/thecloud/pkg/safehelper"
 	"github.com/poyrazk/thecloud/internal/storage/node"
 	pb "github.com/poyrazk/thecloud/internal/storage/protocol"
 )
@@ -133,14 +134,14 @@ func (c *Coordinator) SyncClusterState(ctx context.Context) {
 
 	// Trigger rebalance if topology changed (node death or join)
 	if hasChanges {
-		go func() { //nolint:gosec // G118: background goroutine for cluster rebalancing
+		safehelper.GoWithTimeout(5*time.Minute, func(ctx context.Context) {
 			// Rebalance all known buckets (in production this may be configurable)
 			for _, bucket := range []string{"default"} {
-				if err := c.Rebalance(context.Background(), bucket); err != nil {
+				if err := c.Rebalance(ctx, bucket); err != nil {
 					slog.Warn("rebalance failed", "bucket", bucket, "error", err)
 				}
 			}
-		}()
+		})
 	}
 }
 
@@ -322,14 +323,14 @@ func (c *Coordinator) Write(ctx context.Context, bucket, key string, r io.Reader
 		for id := range failedNodes {
 			repairNodes = append(repairNodes, id)
 		}
-		go func() { //nolint:gosec // G118: background goroutine for write repair
+		safehelper.GoWithTimeout(30*time.Second, func(ctx context.Context) {
 			defer func() {
 				if r := recover(); r != nil {
 					platform.StorageOperations.WithLabelValues("write_repair", bucket, "panic").Inc()
 				}
 			}()
-			c.writeRepair(context.Background(), bucket, key, repairNodes, goodNodes)
-		}()
+			c.writeRepair(ctx, bucket, key, repairNodes, goodNodes)
+		})
 	}
 
 	platform.StorageOperations.WithLabelValues("cluster_write", bucket, "success").Inc()

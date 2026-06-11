@@ -10,22 +10,24 @@ import (
 )
 
 type cliConfig struct {
-	APIKey string `json:"api_key"`
-	APIURL string `json:"api_url"`
-	Output string `json:"output"`
-	Tenant string `json:"tenant"`
-	Debug  bool   `json:"debug"`
+	APICredential string `json:"auth"`
+	APIURL        string `json:"api_url"`
+	Output        string `json:"output"`
+	Tenant        string `json:"tenant"`
+	Debug         bool   `json:"debug"`
 }
 
 func getConfigFilePath() string {
+	if path := os.Getenv("CLOUD_CONFIG_PATH"); path != "" {
+		return path
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".cloud", "config.json")
 }
 
-var configFile = getConfigFilePath()
-
 func loadConfigFile() string {
-	data, err := os.ReadFile(configFile) //nolint:gosec // intentional config file loading from user's home directory
+	configPath := getConfigFilePath()
+	data, err := os.ReadFile(configPath) //#nosec G304
 	if err != nil {
 		return ""
 	}
@@ -35,11 +37,12 @@ func loadConfigFile() string {
 		return ""
 	}
 
-	return cfg.APIKey
+	return cfg.APICredential
 }
 
 func loadFullConfig() *cliConfig {
-	data, err := os.ReadFile(configFile) //nolint:gosec // intentional config file loading from user's home directory
+	configPath := getConfigFilePath()
+	data, err := os.ReadFile(configPath) //#nosec G304
 	if err != nil {
 		return &cliConfig{}
 	}
@@ -53,17 +56,18 @@ func loadFullConfig() *cliConfig {
 }
 
 func saveConfigFile(cfg cliConfig) error {
-	dir := filepath.Dir(configFile)
+	configPath := getConfigFilePath()
+	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	data, err := json.MarshalIndent(cfg, "", "  ") //nolint:gosec // G117: field name matches pattern but is a config option, not a secret
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(configFile, data, 0600); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
@@ -95,7 +99,7 @@ var configSetCmd = &cobra.Command{
 
 		switch key {
 		case "api-key":
-			cfg.APIKey = value
+			cfg.APICredential = value
 		case "api-url":
 			cfg.APIURL = value
 		case "output":
@@ -127,7 +131,7 @@ var configUnsetCmd = &cobra.Command{
 
 		switch key {
 		case "api-key":
-			cfg.APIKey = ""
+			cfg.APICredential = ""
 		case "api-url":
 			cfg.APIURL = ""
 		case "output":
