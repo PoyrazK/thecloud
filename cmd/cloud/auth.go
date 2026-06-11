@@ -177,6 +177,24 @@ var whoamiCmd = &cobra.Command{
 // Config persistence
 type Config struct {
 	APICredential string `json:"auth"`
+	// LegacyAPIKey for backward compatibility with existing config files
+	LegacyAPIKey string `json:"api_key,omitempty"` //#nosec G117
+}
+
+// UnmarshalJSON handles both old ("api_key") and new ("auth") JSON tags
+func (c *Config) UnmarshalJSON(data []byte) error {
+	type alias Config
+	tmp := struct {
+		*alias
+		LegacyAPIKey string `json:"api_key,omitempty"`
+	}{alias: (*alias)(c)}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	if c.APICredential == "" && tmp.LegacyAPIKey != "" {
+		c.APICredential = tmp.LegacyAPIKey
+	}
+	return nil
 }
 
 func getConfigPath() string {
@@ -190,7 +208,7 @@ func saveConfig(key string) {
 	}
 
 	cfg := Config{APICredential: key}
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ") //#nosec G117
 	if err != nil {
 		fmt.Printf("Error: failed to marshal config: %v\n", err)
 		return

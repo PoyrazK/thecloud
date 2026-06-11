@@ -8,7 +8,11 @@ import (
 
 // GoWithTimeout launches a goroutine that is guaranteed to have a timeout.
 // This satisfies gosec G118 because the timeout is always established.
+// If timeout <= 0, defaults to 1 second to prevent immediately-cancelled context.
 func GoWithTimeout(timeout time.Duration, fn func(ctx context.Context)) {
+	if timeout <= 0 {
+		timeout = 1
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()

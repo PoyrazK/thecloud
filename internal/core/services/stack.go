@@ -96,6 +96,14 @@ func (s *stackService) CreateStack(ctx context.Context, name, templateStr string
 }
 
 func (s *stackService) processStack(ctx context.Context, stack *domain.Stack) {
+	// Check for context cancellation (e.g., from GoWithTimeout)
+	select {
+	case <-ctx.Done():
+		s.updateStackStatus(ctx, stack, domain.StackStatusCreateFailed, "context cancelled: "+ctx.Err().Error())
+		return
+	default:
+	}
+
 	var t Template
 	if err := yaml.Unmarshal([]byte(stack.Template), &t); err != nil {
 		s.updateStackStatus(ctx, stack, domain.StackStatusCreateFailed, "Invalid template YAML")

@@ -15,6 +15,24 @@ type cliConfig struct {
 	Output        string `json:"output"`
 	Tenant        string `json:"tenant"`
 	Debug         bool   `json:"debug"`
+	// LegacyAPIKey for backward compatibility with existing config files
+	LegacyAPIKey string `json:"api_key,omitempty"` //#nosec G117
+}
+
+// UnmarshalJSON handles both old ("api_key") and new ("auth") JSON tags
+func (c *cliConfig) UnmarshalJSON(data []byte) error {
+	type alias cliConfig
+	tmp := struct {
+		*alias
+		LegacyAPIKey string `json:"api_key,omitempty"`
+	}{alias: (*alias)(c)}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	if c.APICredential == "" && tmp.LegacyAPIKey != "" {
+		c.APICredential = tmp.LegacyAPIKey
+	}
+	return nil
 }
 
 func getConfigFilePath() string {
@@ -62,7 +80,7 @@ func saveConfigFile(cfg cliConfig) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", "  ") //#nosec G117
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
