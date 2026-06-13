@@ -204,8 +204,11 @@ func SetupRouter(cfg *platform.Config, logger *slog.Logger, handlers *Handlers, 
 	registerAdminRoutes(r, handlers, services)
 	registerLogRoutes(r, handlers, services)
 
-	// The actual Gateway Proxy (Public)
-	r.Any("/gw/*proxy", handlers.Gateway.Proxy)
+	// The actual Gateway Proxy (authenticated)
+	r.Any("/gw/*proxy",
+		httputil.Auth(services.Identity, services.Tenant),
+		handlers.Gateway.Proxy,
+	)
 	r.POST("/pipelines/:id/webhook/:provider", handlers.Pipeline.WebhookTrigger)
 
 	// DNS Routes
@@ -769,6 +772,10 @@ func registerAdminRoutes(r *gin.Engine, handlers *Handlers, svcs *Services) {
 
 	// Internal admin endpoints (E2E test support)
 	internalGroup := r.Group("/internal/admin")
+	internalGroup.Use(
+		httputil.Auth(svcs.Identity, svcs.Tenant),
+		httputil.Permission(svcs.RBAC, domain.PermissionFullAccess),
+	)
 	{
 		internalGroup.POST("/reset-circuit-breakers", handlers.Admin.ResetCircuitBreakers)
 	}
