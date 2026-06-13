@@ -70,7 +70,7 @@ issues:
     - path: internal/repositories/ovs/
       linters:
         - gosec
-    - path: internal/core/domain/condition\.go
+    - path: internal/core/domain/condition.go
       linters:
         - revive
     - path: internal/repositories/k8s/
