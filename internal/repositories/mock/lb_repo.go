@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
@@ -9,6 +10,7 @@ import (
 )
 
 type MockLBRepo struct {
+	mu  sync.RWMutex
 	LBs map[uuid.UUID]*domain.LoadBalancer
 }
 
@@ -19,46 +21,63 @@ func NewMockLBRepo() *MockLBRepo {
 }
 
 func (m *MockLBRepo) Create(ctx context.Context, lb *domain.LoadBalancer) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.LBs[lb.ID] = lb
 	return nil
 }
 
 func (m *MockLBRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.LoadBalancer, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if lb, ok := m.LBs[id]; ok {
-		return lb, nil
+		lbCopy := *lb
+		return &lbCopy, nil
 	}
 	return nil, nil
 }
 
 func (m *MockLBRepo) GetByName(ctx context.Context, name string) (*domain.LoadBalancer, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	for _, lb := range m.LBs {
 		if lb.Name == name {
-			return lb, nil
+			lbCopy := *lb
+			return &lbCopy, nil
 		}
 	}
 	return nil, nil
 }
 
 func (m *MockLBRepo) Update(ctx context.Context, lb *domain.LoadBalancer) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.LBs[lb.ID] = lb
 	return nil
 }
 
 func (m *MockLBRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.LBs, id)
 	return nil
 }
 
 func (m *MockLBRepo) GetByIdempotencyKey(ctx context.Context, key string) (*domain.LoadBalancer, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	for _, lb := range m.LBs {
 		if lb.IdempotencyKey == key {
-			return lb, nil
+			lbCopy := *lb
+			return &lbCopy, nil
 		}
 	}
 	return nil, nil
 }
 
 func (m *MockLBRepo) List(ctx context.Context) ([]*domain.LoadBalancer, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	list := make([]*domain.LoadBalancer, 0, len(m.LBs))
 	for _, lb := range m.LBs {
 		list = append(list, lb)

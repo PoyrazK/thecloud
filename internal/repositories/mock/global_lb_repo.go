@@ -3,6 +3,7 @@ package mock
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/domain"
@@ -11,6 +12,7 @@ import (
 
 // MockGlobalLBRepo is a mock implementation of the GlobalLBRepository port.
 type MockGlobalLBRepo struct {
+	mu        sync.RWMutex
 	GLBs      map[uuid.UUID]*domain.GlobalLoadBalancer
 	Endpoints map[uuid.UUID][]*domain.GlobalEndpoint
 }
@@ -24,28 +26,37 @@ func NewMockGlobalLBRepo() *MockGlobalLBRepo {
 }
 
 func (m *MockGlobalLBRepo) Create(ctx context.Context, glb *domain.GlobalLoadBalancer) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.GLBs[glb.ID] = glb
 	return nil
 }
 
 func (m *MockGlobalLBRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.GlobalLoadBalancer, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if glb, ok := m.GLBs[id]; ok {
-		// return copy
-		return glb, nil
+		glbCopy := *glb
+		return &glbCopy, nil
 	}
-	return nil, nil // simplified
+	return nil, nil
 }
 
 func (m *MockGlobalLBRepo) GetByHostname(ctx context.Context, hostname string) (*domain.GlobalLoadBalancer, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	for _, glb := range m.GLBs {
 		if glb.Hostname == hostname {
-			return glb, nil
+			glbCopy := *glb
+			return &glbCopy, nil
 		}
 	}
 	return nil, nil
 }
 
 func (m *MockGlobalLBRepo) List(ctx context.Context, userID uuid.UUID) ([]*domain.GlobalLoadBalancer, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	var list []*domain.GlobalLoadBalancer
 	for _, glb := range m.GLBs {
 		if glb.UserID == userID {
@@ -56,11 +67,15 @@ func (m *MockGlobalLBRepo) List(ctx context.Context, userID uuid.UUID) ([]*domai
 }
 
 func (m *MockGlobalLBRepo) Update(ctx context.Context, glb *domain.GlobalLoadBalancer) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.GLBs[glb.ID] = glb
 	return nil
 }
 
 func (m *MockGlobalLBRepo) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if glb, ok := m.GLBs[id]; ok && glb.UserID == userID {
 		delete(m.GLBs, id)
 	}
@@ -68,11 +83,15 @@ func (m *MockGlobalLBRepo) Delete(ctx context.Context, id uuid.UUID, userID uuid
 }
 
 func (m *MockGlobalLBRepo) AddEndpoint(ctx context.Context, ep *domain.GlobalEndpoint) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Endpoints[ep.GlobalLBID] = append(m.Endpoints[ep.GlobalLBID], ep)
 	return nil
 }
 
 func (m *MockGlobalLBRepo) RemoveEndpoint(ctx context.Context, endpointID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	// inefficient but mock
 	for glbID, eps := range m.Endpoints {
 		var newEps []*domain.GlobalEndpoint
@@ -87,10 +106,13 @@ func (m *MockGlobalLBRepo) RemoveEndpoint(ctx context.Context, endpointID uuid.U
 }
 
 func (m *MockGlobalLBRepo) GetEndpointByID(ctx context.Context, endpointID uuid.UUID) (*domain.GlobalEndpoint, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	for _, eps := range m.Endpoints {
 		for _, ep := range eps {
 			if ep.ID == endpointID {
-				return ep, nil
+				epCopy := *ep
+				return &epCopy, nil
 			}
 		}
 	}
@@ -98,10 +120,17 @@ func (m *MockGlobalLBRepo) GetEndpointByID(ctx context.Context, endpointID uuid.
 }
 
 func (m *MockGlobalLBRepo) ListEndpoints(ctx context.Context, glbID uuid.UUID) ([]*domain.GlobalEndpoint, error) {
-	return m.Endpoints[glbID], nil
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	eps := m.Endpoints[glbID]
+	epsCopy := make([]*domain.GlobalEndpoint, len(eps))
+	copy(epsCopy, eps)
+	return epsCopy, nil
 }
 
 func (m *MockGlobalLBRepo) UpdateEndpointHealth(ctx context.Context, epID uuid.UUID, healthy bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, eps := range m.Endpoints {
 		for _, ep := range eps {
 			if ep.ID == epID {
