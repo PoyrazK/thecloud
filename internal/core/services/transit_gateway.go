@@ -169,7 +169,7 @@ func (s *TransitGatewayService) DeleteTransitGateway(ctx context.Context, id uui
 	}
 	for _, att := range attachments {
 		if err := s.detachVPC(ctx, att); err != nil {
-			s.logger.Error("failed to detach VPC during TGW deletion", "attachment_id", att.ID, "error", err)
+			return errors.Wrap(errors.Internal, "failed to detach VPC during TGW deletion", err)
 		}
 	}
 

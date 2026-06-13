@@ -2,6 +2,7 @@ package safehelper
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -23,6 +24,7 @@ func GoWithTimeout(timeout time.Duration, fn func(ctx context.Context)) {
 // GoWithErrorChannel launches a goroutine with timeout and error reporting.
 // Use this when you need to capture errors from the goroutine.
 // The errCh must be buffered to avoid blocking.
+// If the channel is full, the error is logged as a warning.
 func GoWithErrorChannel(timeout time.Duration, errCh chan<- error, fn func(ctx context.Context) error) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -31,6 +33,8 @@ func GoWithErrorChannel(timeout time.Duration, errCh chan<- error, fn func(ctx c
 			select {
 			case errCh <- err:
 			default:
+				// Channel full — log instead of silently dropping
+				slog.Warn("error channel full, dropping error", "error", err)
 			}
 		}
 	}()

@@ -29,7 +29,11 @@ const (
 func gatewayTargetURL() string {
 	// If GATEWAY_MOCK_ONLY is set, skip httpbin.org entirely (useful for offline testing)
 	if os.Getenv("GATEWAY_MOCK_ONLY") != "" {
-		return os.Getenv("GATEWAY_MOCK_SERVER_URL")
+		url := os.Getenv("GATEWAY_MOCK_SERVER_URL")
+		if url == "" {
+			panic("GATEWAY_MOCK_SERVER_URL must be set when GATEWAY_MOCK_ONLY is enabled")
+		}
+		return url
 	}
 
 	// Check if httpbin.org is available by making a quick probe request
@@ -46,7 +50,8 @@ func gatewayTargetURL() string {
 	if url := os.Getenv("GATEWAY_MOCK_SERVER_URL"); url != "" {
 		return url
 	}
-	return "http://localhost:8089"
+	// Fail fast - don't silently use wrong localhost endpoint in CI/Docker
+	panic("GATEWAY_MOCK_SERVER_URL must be set when httpbin.org is unavailable (required for E2E tests)")
 }
 
 func waitForRoute(t *testing.T, client *http.Client, url string, token string) *http.Response {
