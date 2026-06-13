@@ -1,0 +1,429 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
+	appcontext "github.com/poyrazk/thecloud/internal/core/context"
+	"github.com/poyrazk/thecloud/internal/core/domain"
+	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/internal/errors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+const transitGatewayTracer = "transit-gateway-service"
+
+// TransitGatewayService manages the lifecycle of Transit Gateways.
+type TransitGatewayService struct {
+	repo       ports.TransitGatewayRepository
+	vpcRepo    ports.VpcRepository
+	subnetRepo ports.SubnetRepository
+	network    ports.NetworkBackend
+	rbacSvc    ports.RBACService
+	auditSvc   ports.AuditService
+	logger     *slog.Logger
+}
+
+// TransitGatewayServiceParams holds dependencies for TransitGatewayService.
+type TransitGatewayServiceParams struct {
+	Repo       ports.TransitGatewayRepository
+	VpcRepo    ports.VpcRepository
+	SubnetRepo ports.SubnetRepository
+	Network    ports.NetworkBackend
+	RBACSvc    ports.RBACService
+	AuditSvc   ports.AuditService
+	Logger     *slog.Logger
+}
+
+// NewTransitGatewayService constructs a TransitGatewayService with its dependencies.
+func NewTransitGatewayService(params TransitGatewayServiceParams) *TransitGatewayService {
+	logger := params.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &TransitGatewayService{
+		repo:       params.Repo,
+		vpcRepo:    params.VpcRepo,
+		subnetRepo: params.SubnetRepo,
+		network:    params.Network,
+		rbacSvc:    params.RBACSvc,
+		auditSvc:   params.AuditSvc,
+		logger:     logger,
+	}
+}
+
+// CreateTransitGateway creates a new Transit Gateway with a default route table.
+func (s *TransitGatewayService) CreateTransitGateway(ctx context.Context, name string) (*domain.TransitGateway, error) {
+	ctx, span := otel.Tracer(transitGatewayTracer).Start(ctx, "CreateTransitGateway")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("name", name))
+
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcCreate, "*"); err != nil {
+		return nil, err
+	}
+
+	if name == "" {
+		return nil, errors.New(errors.InvalidInput, "name is required")
+	}
+
+	tgID := uuid.New()
+	// TODO: Use configurable cloud partition instead of "local" (MVP limitation)
+	arn := fmt.Sprintf("arn:thecloud:transit-gateway:local:%s:transit-gateway/%s", tenantID.String(), tgID.String())
+
+	tg := &domain.TransitGateway{
+		ID:            tgID,
+		Name:          name,
+		OwnerTenantID: tenantID,
+		Status:        domain.TransitGatewayStatusPending,
+		ARN:           arn,
+		CreatedAt:     time.Now().UTC(),
+	}
+
+	// Create default route table
+	defaultRT := &domain.TransitGatewayRouteTable{
+		ID:                 uuid.New(),
+		TransitGatewayID:   tgID,
+		Name:               "default",
+		DefaultRouteTable:  true,
+		PropagationEnabled: true,
+		Routes:             []*domain.TransitGatewayRoute{},
+		CreatedAt:          time.Now().UTC(),
+	}
+	tg.RouteTables = []*domain.TransitGatewayRouteTable{defaultRT}
+
+	if err := s.repo.Create(ctx, tg); err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to create transit gateway", err)
+	}
+
+	// Mark as available
+	tg.Status = domain.TransitGatewayStatusAvailable
+	if err := s.repo.Update(ctx, tg); err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to persist transit gateway status to available", err)
+	}
+
+	if err := s.auditSvc.Log(ctx, userID, "transit_gateway.create", "transit_gateway", tgID.String(), map[string]interface{}{
+		"name": name,
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "error", err)
+	}
+
+	s.logger.Info("transit gateway created", "id", tgID, "name", name)
+	return tg, nil
+}
+
+// GetTransitGateway retrieves a Transit Gateway by ID.
+func (s *TransitGatewayService) GetTransitGateway(ctx context.Context, id uuid.UUID) (*domain.TransitGateway, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcRead, id.String()); err != nil {
+		return nil, err
+	}
+
+	return s.repo.GetByID(ctx, id)
+}
+
+// ListTransitGateways returns all Transit Gateways for the current tenant.
+func (s *TransitGatewayService) ListTransitGateways(ctx context.Context) ([]*domain.TransitGateway, error) {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcRead, "*"); err != nil {
+		return nil, err
+	}
+	return s.repo.List(ctx, tenantID)
+}
+
+// DeleteTransitGateway removes a Transit Gateway and all its attachments.
+func (s *TransitGatewayService) DeleteTransitGateway(ctx context.Context, id uuid.UUID) error {
+	ctx, span := otel.Tracer(transitGatewayTracer).Start(ctx, "DeleteTransitGateway")
+	defer span.End()
+
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcDelete, id.String()); err != nil {
+		return err
+	}
+
+	tg, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return errors.Wrap(errors.NotFound, "transit gateway not found", err)
+	}
+	if tg.OwnerTenantID != tenantID {
+		return errors.New(errors.Forbidden, "transit gateway belongs to another tenant")
+	}
+
+	// Get attachments to clean up OVS flows
+	attachments, err := s.repo.ListAttachments(ctx, id, tenantID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to list attachments during TGW deletion", err)
+	}
+	for _, att := range attachments {
+		if err := s.detachVPC(ctx, att); err != nil {
+			return errors.Wrap(errors.Internal, "failed to detach VPC during TGW deletion", err)
+		}
+	}
+
+	// Delete route tables
+	rts, err := s.repo.ListRouteTables(ctx, id)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to list route tables during TGW deletion", err)
+	}
+	for _, rt := range rts {
+		if err := s.repo.DeleteRouteTable(ctx, rt.ID); err != nil {
+			s.logger.Warn("failed to delete route table during TGW deletion", "rt_id", rt.ID, "error", err)
+		}
+	}
+
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return errors.Wrap(errors.Internal, "failed to delete transit gateway", err)
+	}
+
+	if err := s.auditSvc.Log(ctx, userID, "transit_gateway.delete", "transit_gateway", id.String(), nil); err != nil {
+		s.logger.Warn("failed to log audit event", "error", err)
+	}
+
+	s.logger.Info("transit gateway deleted", "id", id)
+	return nil
+}
+
+// AttachVPC attaches a VPC to the Transit Gateway.
+func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.UUID) (*domain.TransitGatewayAttachment, error) {
+	ctx, span := otel.Tracer(transitGatewayTracer).Start(ctx, "AttachVPC")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("tg_id", tgID.String()),
+		attribute.String("vpc_id", vpcID.String()),
+	)
+
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcCreate, tgID.String()); err != nil {
+		return nil, err
+	}
+
+	// Get TGW
+	tg, err := s.repo.GetByID(ctx, tgID)
+	if err != nil {
+		return nil, errors.Wrap(errors.NotFound, "transit gateway not found", err)
+	}
+
+	// Get VPC
+	vpc, err := s.vpcRepo.GetByID(ctx, vpcID)
+	if err != nil {
+		return nil, errors.Wrap(errors.NotFound, "VPC not found", err)
+	}
+
+	// Validate VPC belongs to calling tenant
+	if vpc.TenantID != tenantID {
+		return nil, errors.New(errors.Forbidden, "VPC belongs to another tenant")
+	}
+
+	// Check for existing attachment
+	existing, err := s.repo.ListAttachments(ctx, tgID, tenantID)
+	if err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to list existing attachments", err)
+	}
+	for _, att := range existing {
+		if att.VPCID == vpcID {
+			return nil, errors.New(errors.Conflict, "VPC is already attached to this transit gateway")
+		}
+	}
+
+	attID := uuid.New()
+	att := &domain.TransitGatewayAttachment{
+		ID:               attID,
+		TransitGatewayID: tgID,
+		VPCID:            vpcID,
+		TenantID:         tenantID,
+		Status:           "propagating",
+		AttachmentType:   "vpc",
+	}
+
+	if err := s.repo.AddAttachment(ctx, att); err != nil {
+		return nil, errors.Wrap(errors.Internal, "failed to create attachment", err)
+	}
+
+	// Propagate VPC subnet routes to TGW route tables
+	if err := s.propagateSubnetRoutes(ctx, tg, vpc, attID); err != nil {
+		if updErr := s.repo.UpdateAttachmentStatus(ctx, attID, "failed_propagation"); updErr != nil {
+			s.logger.Error("failed to update attachment status to failed_propagation", "att_id", attID, "error", updErr)
+		}
+		if remErr := s.repo.RemoveAttachment(ctx, attID); remErr != nil {
+			s.logger.Error("failed to rollback attachment after route propagation failure", "att_id", attID, "error", remErr)
+		}
+		return nil, errors.Wrap(errors.Internal, "failed to propagate subnet routes for attachment", err)
+	}
+
+	// Update status to attached after successful route propagation
+	if err := s.repo.UpdateAttachmentStatus(ctx, attID, "attached"); err != nil {
+		s.logger.Warn("failed to update attachment status to attached", "att_id", attID, "error", err)
+	}
+
+	if err := s.auditSvc.Log(ctx, userID, "transit_gateway.attach_vpc", "transit_gateway", tgID.String(), map[string]interface{}{
+		"vpc_id": vpcID.String(),
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "error", err)
+	}
+
+	s.logger.Info("VPC attached to transit gateway", "tg_id", tgID, "vpc_id", vpcID, "att_id", attID)
+	return att, nil
+}
+
+// DetachVPC detaches a VPC from the Transit Gateway.
+func (s *TransitGatewayService) DetachVPC(ctx context.Context, attID uuid.UUID) error {
+	ctx, span := otel.Tracer(transitGatewayTracer).Start(ctx, "DetachVPC")
+	defer span.End()
+
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcDelete, attID.String()); err != nil {
+		return err
+	}
+
+	att, err := s.repo.GetAttachment(ctx, attID)
+	if err != nil {
+		return errors.Wrap(errors.NotFound, "attachment not found", err)
+	}
+
+	// Verify TGW ownership
+	tg, err := s.repo.GetByID(ctx, att.TransitGatewayID)
+	if err != nil {
+		return errors.Wrap(errors.NotFound, "transit gateway not found", err)
+	}
+	if tg.OwnerTenantID != tenantID {
+		return errors.New(errors.Forbidden, "transit gateway belongs to another tenant")
+	}
+
+	if err := s.detachVPC(ctx, att); err != nil {
+		return err
+	}
+
+	if err := s.auditSvc.Log(ctx, userID, "transit_gateway.detach_vpc", "transit_gateway", att.TransitGatewayID.String(), map[string]interface{}{
+		"vpc_id": att.VPCID.String(),
+	}); err != nil {
+		s.logger.Warn("failed to log audit event", "error", err)
+	}
+
+	s.logger.Info("VPC detached from transit gateway", "att_id", attID)
+	return nil
+}
+
+// detachVPC removes the attachment and cleans up OVS flows.
+func (s *TransitGatewayService) detachVPC(ctx context.Context, att *domain.TransitGatewayAttachment) error {
+	// Remove propagated routes from TGW route tables
+	rts, err := s.repo.ListRouteTables(ctx, att.TransitGatewayID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to list route tables during detachment", err)
+	}
+	for _, rt := range rts {
+		routes, err := s.repo.ListRoutes(ctx, rt.ID)
+		if err != nil {
+			s.logger.Warn("failed to list routes during detachment", "rt_id", rt.ID, "error", err)
+			continue
+		}
+		for _, r := range routes {
+			if r.TargetType == domain.TransitGatewayTargetAttachment && r.TargetID != nil && *r.TargetID == att.ID {
+				if err := s.repo.RemoveRoute(ctx, rt.ID, r.ID); err != nil {
+					s.logger.Warn("failed to remove propagated route during detachment", "route_id", r.ID, "error", err)
+				}
+			}
+		}
+	}
+
+	// Remove route table associations
+	if err := s.repo.RemoveAttachmentAssociations(ctx, att.ID); err != nil {
+		return errors.Wrap(errors.Internal, "failed to remove attachment associations", err)
+	}
+
+	if err := s.repo.RemoveAttachment(ctx, att.ID); err != nil {
+		return errors.Wrap(errors.Internal, "failed to remove attachment", err)
+	}
+
+	s.logger.Info("attachment cleaned up", "att_id", att.ID)
+	return nil
+}
+
+// propagateSubnetRoutes propagates a VPC's subnet CIDRs as routes in the TGW route tables.
+func (s *TransitGatewayService) propagateSubnetRoutes(ctx context.Context, tg *domain.TransitGateway, vpc *domain.VPC, attID uuid.UUID) error {
+	subnets, err := s.subnetRepo.ListByVPC(ctx, vpc.ID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to list subnets for route propagation", err)
+	}
+
+	rts, err := s.repo.ListRouteTables(ctx, tg.ID)
+	if err != nil {
+		return errors.Wrap(errors.Internal, "failed to list TGW route tables", err)
+	}
+
+	var failedRoutes []string
+	var lastErr error
+	for _, rt := range rts {
+		for _, sn := range subnets {
+			route := &domain.TransitGatewayRoute{
+				ID:                 uuid.New(),
+				TransitGatewayRTID: rt.ID,
+				DestinationCIDR:    sn.CIDRBlock,
+				TargetType:         domain.TransitGatewayTargetAttachment,
+				TargetID:           &attID,
+				TargetName:         fmt.Sprintf("vpc-%s", vpc.ID.String()[:8]),
+			}
+			if err := s.repo.AddRoute(ctx, rt.ID, route); err != nil {
+				s.logger.Warn("failed to propagate subnet route", "rt_id", rt.ID, "subnet", sn.CIDRBlock, "error", err)
+				failedRoutes = append(failedRoutes, sn.CIDRBlock)
+				lastErr = err
+			}
+		}
+	}
+
+	if len(failedRoutes) > 0 {
+		return errors.Wrap(errors.Internal, fmt.Sprintf("failed to propagate %d routes: %v", len(failedRoutes), failedRoutes), lastErr)
+	}
+	return nil
+}
+
+// AssociateRouteTable associates an attachment with a TGW route table.
+func (s *TransitGatewayService) AssociateRouteTable(ctx context.Context, rtID, attID uuid.UUID) error {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcUpdate, rtID.String()); err != nil {
+		return err
+	}
+
+	if err := s.repo.AssociateAttachment(ctx, rtID, attID); err != nil {
+		return errors.Wrap(errors.Internal, "failed to associate attachment", err)
+	}
+
+	s.logger.Info("attachment associated with route table", "rt_id", rtID, "att_id", attID)
+	return nil
+}
+
+// EnableRoutePropagation enables automatic route propagation from an attachment to a RT.
+func (s *TransitGatewayService) EnableRoutePropagation(ctx context.Context, rtID, attID uuid.UUID) error {
+	userID := appcontext.UserIDFromContext(ctx)
+	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcUpdate, rtID.String()); err != nil {
+		return err
+	}
+
+	if err := s.repo.EnablePropagation(ctx, rtID, attID); err != nil {
+		return errors.Wrap(errors.Internal, "failed to enable route propagation", err)
+	}
+
+	s.logger.Info("route propagation enabled", "rt_id", rtID, "att_id", attID)
+	return nil
+}

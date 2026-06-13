@@ -12,6 +12,7 @@ import (
 	appcontext "github.com/poyrazk/thecloud/internal/core/context"
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
+	"github.com/poyrazk/thecloud/pkg/safehelper"
 	"gopkg.in/yaml.v3"
 )
 
@@ -85,15 +86,26 @@ func (s *stackService) CreateStack(ctx context.Context, name, templateStr string
 	// Process in background
 	// Create a copy for the goroutine to avoid data race with the returned stack
 	stackCopy := *stack
-	go s.processStack(&stackCopy)
+	safehelper.GoWithTimeout(30*time.Minute, func(ctx context.Context) {
+		ctx = appcontext.WithUserID(ctx, stackCopy.UserID)
+		ctx = appcontext.WithTenantID(ctx, stackCopy.TenantID)
+		s.processStack(ctx, &stackCopy)
+	})
 
 	return stack, nil
 }
 
-func (s *stackService) processStack(stack *domain.Stack) {
-	ctx := context.Background()
-	ctx = appcontext.WithUserID(ctx, stack.UserID)
-	ctx = appcontext.WithTenantID(ctx, stack.TenantID)
+func (s *stackService) processStack(ctx context.Context, stack *domain.Stack) {
+	// Check for context cancellation (e.g., from GoWithTimeout)
+	select {
+	case <-ctx.Done():
+		// Use background context since ctx is cancelled - we still want to update status
+		updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		s.updateStackStatus(updateCtx, stack, domain.StackStatusCreateFailed, "context cancelled: "+ctx.Err().Error())
+		return
+	default:
+	}
 
 	var t Template
 	if err := yaml.Unmarshal([]byte(stack.Template), &t); err != nil {
@@ -366,21 +378,21 @@ func (s *stackService) DeleteStack(ctx context.Context, id uuid.UUID) error {
 	}
 
 	// 2. Perform background deletion
-	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		bgCtx = appcontext.WithUserID(bgCtx, stack.UserID)
-		bgCtx = appcontext.WithTenantID(bgCtx, stack.TenantID)
+	safehelper.GoWithTimeout(5*time.Minute, func(ctx context.Context) {
+		ctx = appcontext.WithUserID(ctx, stack.UserID)
+		ctx = appcontext.WithTenantID(ctx, stack.TenantID)
 
-		resources, _ := s.repo.ListResources(bgCtx, id)
+		resources, _ := s.repo.ListResources(ctx, id)
 
 		// Delete resources in reverse order (naive)
 		for i := len(resources) - 1; i >= 0; i-- {
-			s.deletePhysicalResource(bgCtx, resources[i].ResourceType, resources[i].PhysicalID)
+			s.deletePhysicalResource(ctx, resources[i].ResourceType, resources[i].PhysicalID)
 		}
 
-		_ = s.repo.Delete(bgCtx, id)
-	}()
+		if err := s.repo.Delete(ctx, id); err != nil {
+			s.logger.Error("failed to delete stack", "stack_id", id, "error", err)
+		}
+	})
 
 	return nil
 }

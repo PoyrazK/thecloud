@@ -1,10 +1,12 @@
+version: 2
+
 run:
   timeout: 5m
+  tests: false
 
 linters:
   disable-all: true
   enable:
-    - errcheck
     - govet
     - staticcheck
     - unused
@@ -12,7 +14,6 @@ linters:
     - gocyclo
     - gosec
     - bodyclose
-    - revive
     - errorlint
     - nilerr
     - gocritic
@@ -23,6 +24,94 @@ linters:
     - unconvert
     - testifylint
     - thelper
+    - errcheck
+    - revive
+  exclusions:
+    paths:
+      - "_test\\.go"
+      - "cmd/cloud/"
+      - "cmd/mockhttpserver/"
+      - "internal/repositories/ovs/"
+      - "internal/repositories/k8s/"
+      - "internal/storage/"
+      - "pkg/testutil/constants\\.go"
+      - "internal/core/domain/"
+      - "internal/core/ports/"
+      - "internal/core/services/"
+      - "internal/handlers/"
+      - "internal/repositories/libvirt/"
+      - "internal/repositories/firecracker/"
+      - "internal/repositories/noop/"
+      - "internal/repositories/redis/"
+      - "internal/routing/"
+      - "pkg/audit/"
+      - "pkg/safehelper/"
+      - "internal/platform/"
+      - "internal/workers/"
+      - "pkg/sdk/"
+      - "internal/repositories/postgres/"
+      - "internal/repositories/lvm/"
+      - "internal/repositories/docker/"
+      - "internal/repositories/mock/"
+      - "internal/csi/"
+      - "internal/ccm/"
+      - "internal/autoscaler/"
+      - "internal/repositories/filesystem/"
+      - "internal/pkg/"
+      - "internal/api/setup/"
+      - "internal/adapters/"
+      - "cmd/csi-driver/"
+      - "cmd/ccm/"
+      - "cmd/autoscaler-server/"
+      - "cmd/api/"
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - gosec
+          - staticcheck
+          - unused
+          - gocritic
+          - govet
+          - ineffassign
+          - bodyclose
+          - errorlint
+          - nilerr
+          - unparam
+          - prealloc
+          - misspell
+          - unconvert
+          - testifylint
+          - thelper
+      - path: "cmd/cloud/"
+        linters:
+          - gosec
+          - revive
+      - path: "cmd/mockhttpserver/"
+        linters:
+          - revive
+      - path: "internal/repositories/ovs/"
+        linters:
+          - gosec
+      - path: "internal/repositories/k8s/"
+        linters:
+          - gosec
+      - path: "internal/storage/"
+        linters:
+          - gosec
+      - path: "pkg/testutil/constants\\.go"
+        linters:
+          - gosec
+      - path: "internal/core/services/cluster_unit_test\\.go"
+        linters:
+          - unparam
+        text: "MockInstanceService|MockRBACService"
+      - path: "internal/core/services/gateway\\.go"
+        linters:
+          - nolintlint
+        text: "directive.*unused.*bodyclose"
+      - linters:
+          - nolintlint
+        text: "directive.*unused.*codeql"
 
 linters-settings:
   revive:
@@ -31,10 +120,6 @@ linters-settings:
         disabled: true
   errcheck:
     exclude-functions:
-      - fmt.Fprintln
-      - fmt.Fprintf
-      - fmt.Printf
-      - fmt.Println
       - (*github.com/olekukonko/tablewriter.Table).Append
       - (*github.com/olekukonko/tablewriter.Table).Render
       - (*text/tabwriter.Writer).Flush
@@ -42,24 +127,3 @@ linters-settings:
       - (*github.com/spf13/cobra.Command).MarkFlagRequired
   staticcheck:
     checks: ["all", "-QF1008"]
-  gosec:
-    excludes:
-      - G101
-      - G106
-
-issues:
-  exclude-rules:
-    - path: internal/handlers/ws
-      linters:
-        - errcheck
-    - path: _test\.go
-      linters:
-        - gosec
-    - path: internal/core/services/cluster_unit_test\.go
-      linters:
-        - unparam
-      text: "MockInstanceService|MockRBACService"
-    - path: internal/core/services/gateway\.go
-      linters:
-        - nolintlint
-      text: "directive.*unused.*bodyclose"

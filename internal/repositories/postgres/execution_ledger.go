@@ -128,8 +128,7 @@ func (l *PgExecutionLedger) MarkFailed(ctx context.Context, jobKey string, reaso
 
 // GetStatus returns the current status, result and start time of a job.
 func (l *PgExecutionLedger) GetStatus(ctx context.Context, jobKey string) (status string, result string, startedAt time.Time, err error) {
-	var res pgx.Row
-	res = l.db.QueryRow(ctx, `
+	res := l.db.QueryRow(ctx, `
 		SELECT status, COALESCE(result, ''), started_at FROM job_executions WHERE job_key = $1
 	`, jobKey)
 

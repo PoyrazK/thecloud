@@ -57,7 +57,7 @@ var listDeploymentsCmd = &cobra.Command{
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"ID", "NAME", "IMAGE", "REPLICAS", "CURRENT", "STATUS"})
 		for _, d := range deps {
-			table.Append([]string{
+			_ = table.Append([]string{
 				d.ID,
 				d.Name,
 				d.Image,
@@ -66,7 +66,7 @@ var listDeploymentsCmd = &cobra.Command{
 				d.Status,
 			})
 		}
-		table.Render()
+		_ = table.Render()
 
 		if meta != nil {
 			fmt.Printf("\nShowing %d of %d total", len(deps), meta.TotalCount)

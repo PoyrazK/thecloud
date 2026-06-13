@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	stdlib_errors "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -26,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	apierrors "github.com/poyrazk/thecloud/internal/errors"
+	"github.com/poyrazk/thecloud/pkg/safehelper"
 )
 
 var domainNameSanitizeRe = regexp.MustCompile(`[^a-zA-Z0-9-]`)
@@ -122,12 +122,12 @@ func NewLibvirtAdapter(logger *slog.Logger, uri string) (*LibvirtAdapter, error)
 	}
 
 	// Connect to libvirt socket
-	c, err := net.DialTimeout("unix", uri, 2*time.Second)
+	c, err := net.DialTimeout("unix", uri, 2*time.Second) //#nosec G704
 	if err != nil {
 		// Fallback to session mode if system socket fails
 		if !strings.Contains(uri, "session") {
 			sessionUri := filepath.Join(os.Getenv("HOME"), ".cache/libvirt/libvirt-sock")
-			if c2, err2 := net.DialTimeout("unix", sessionUri, 2*time.Second); err2 == nil {
+			if c2, err2 := net.DialTimeout("unix", sessionUri, 2*time.Second); err2 == nil { //#nosec G704
 				c = c2
 				uri = sessionUri
 			} else {
@@ -138,6 +138,10 @@ func NewLibvirtAdapter(logger *slog.Logger, uri string) (*LibvirtAdapter, error)
 		}
 	}
 
+	// SA1019: libvirt.New is deprecated but NewWithDialer requires a new connection via dialer.
+	// We already have an established net.Conn from DialTimeout, so reusing it via New(c)
+	// avoids creating a redundant connection. The libvirt client handles connection errors
+	// lazily on use rather than at construction time.
 	//nolint:staticcheck
 	l := libvirt.New(c)
 
@@ -421,7 +425,9 @@ func (a *LibvirtAdapter) LaunchInstanceWithOptions(ctx context.Context, opts por
 	}
 
 	if len(allocatedPorts) > 0 {
-		go a.setupPortForwarding(name, allocatedPorts)
+		safehelper.GoWithTimeout(2*time.Minute, func(ctx context.Context) {
+			a.setupPortForwarding(name, allocatedPorts)
+		})
 	}
 
 	return name, allocatedPorts, nil
@@ -1152,14 +1158,14 @@ func (a *LibvirtAdapter) generateUserData(env, cmd []string, userDataRaw string)
 		userData.WriteString("  - path: /etc/profile.d/cloud-env.sh\n")
 		userData.WriteString("    content: |\n")
 		for _, e := range env {
-			userData.WriteString(fmt.Sprintf("      export %s\n", e))
+			fmt.Fprintf(&userData, "      export %s\n", e)
 		}
 	}
 
 	if len(cmd) > 0 {
 		userData.WriteString("runcmd:\n")
 		for _, c := range cmd {
-			userData.WriteString(fmt.Sprintf("  - [ sh, -c, %q ]\n", c))
+			fmt.Fprintf(&userData, "  - [ sh, -c, %q ]\n", c)
 		}
 	}
 	return userData.Bytes()
@@ -1192,7 +1198,7 @@ func (a *LibvirtAdapter) getNextNetworkRange() (gateway, rangeStart, rangeEnd st
 	offset := a.networkCounter * 256
 	for i := len(baseIP) - 1; i >= 0 && offset > 0; i-- {
 		sum := int(baseIP[i]) + offset
-		baseIP[i] = byte(sum % 256)
+		baseIP[i] = safehelper.SafeByte(sum % 256)
 		offset = sum / 256
 	}
 
@@ -1346,7 +1352,7 @@ func findFreePort() (int, error) {
 	defer func() { _ = l.Close() }()
 	tcpAddr, ok := l.Addr().(*net.TCPAddr)
 	if !ok {
-		return 0, stdlib_errors.New("failed to get TCP address")
+		return 0, errors.New("failed to get TCP address")
 	}
 	return tcpAddr.Port, nil
 }
@@ -1356,7 +1362,7 @@ func (a *LibvirtAdapter) isNotFound(err error) bool {
 		return false
 	}
 	var libvirtErr libvirt.Error
-	if stdlib_errors.As(err, &libvirtErr) {
+	if errors.As(err, &libvirtErr) {
 		// 42: Domain not found, 43: Network not found, 45: Storage vol not found
 		return libvirtErr.Code == 42 || libvirtErr.Code == 43 || libvirtErr.Code == 45
 	}

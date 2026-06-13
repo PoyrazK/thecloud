@@ -8525,6 +8525,397 @@ const docTemplate = `{
                 }
             }
         },
+        "/transit-gateways": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "List Transit Gateways",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/domain.TransitGateway"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "Create Transit Gateway",
+                "parameters": [
+                    {
+                        "description": "Create Transit Gateway",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.CreateTransitGatewayRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.TransitGateway"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/transit-gateways/attachments/{id}/detach": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "Detach VPC from Transit Gateway",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Attachment ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/transit-gateways/route-tables/{id}/associate": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "Associate Route Table",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Route Table ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Associate Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.AssociateRTRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/transit-gateways/route-tables/{id}/propagation": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "Enable Route Propagation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Route Table ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Enable Propagation Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.AssociateRTRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/transit-gateways/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "Get Transit Gateway",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transit Gateway ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/domain.TransitGateway"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "Delete Transit Gateway",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transit Gateway ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/transit-gateways/{id}/attach": {
+            "post": {
+                "security": [
+                    {
+                        "APIKeyAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "transit-gateways"
+                ],
+                "summary": "Attach VPC to Transit Gateway",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transit Gateway ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Attach VPC Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/httphandlers.AttachVPCRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/domain.TransitGatewayAttachment"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httputil.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/volumes": {
             "get": {
                 "security": [
@@ -10089,8 +10480,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tls_skip_verify": {
-                    "description": "Skip TLS verification for backend",
+                    "description": "Deprecated: use TrustedCA instead",
                     "type": "boolean"
+                },
+                "trusted_ca": {
+                    "description": "Path to PEM-encoded CA certificate for TLS verification",
+                    "type": "string"
                 },
                 "updated_at": {
                     "type": "string"
@@ -11346,13 +11741,15 @@ const docTemplate = `{
                 "local",
                 "igw",
                 "nat",
-                "peering"
+                "peering",
+                "transit"
             ],
             "x-enum-varnames": [
                 "RouteTargetLocal",
                 "RouteTargetIGW",
                 "RouteTargetNAT",
-                "RouteTargetPeering"
+                "RouteTargetPeering",
+                "RouteTargetTransit"
             ]
         },
         "domain.RoutingPolicy": {
@@ -11960,6 +12357,155 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.TransitGateway": {
+            "type": "object",
+            "properties": {
+                "arn": {
+                    "type": "string"
+                },
+                "attachments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.TransitGatewayAttachment"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_tenant_id": {
+                    "type": "string"
+                },
+                "route_tables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.TransitGatewayRouteTable"
+                    }
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.TransitGatewayStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.TransitGatewayAttachment": {
+            "type": "object",
+            "properties": {
+                "attachment_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "tenant_id": {
+                    "type": "string"
+                },
+                "transit_gateway_id": {
+                    "type": "string"
+                },
+                "vpc_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.TransitGatewayRoute": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "destination_cidr": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "target_id": {
+                    "type": "string"
+                },
+                "target_name": {
+                    "type": "string"
+                },
+                "target_type": {
+                    "$ref": "#/definitions/domain.TransitGatewayTargetType"
+                },
+                "transit_gateway_rt_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.TransitGatewayRouteTable": {
+            "type": "object",
+            "properties": {
+                "associations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "default_route_table": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "propagation_enabled": {
+                    "type": "boolean"
+                },
+                "routes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.TransitGatewayRoute"
+                    }
+                },
+                "transit_gateway_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.TransitGatewayStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "available",
+                "deleting"
+            ],
+            "x-enum-varnames": [
+                "TransitGatewayStatusPending",
+                "TransitGatewayStatusAvailable",
+                "TransitGatewayStatusDeleting"
+            ]
+        },
+        "domain.TransitGatewayTargetType": {
+            "type": "string",
+            "enum": [
+                "attachment",
+                "local"
+            ],
+            "x-enum-varnames": [
+                "TransitGatewayTargetAttachment",
+                "TransitGatewayTargetLocal"
+            ]
+        },
         "domain.UploadStatus": {
             "type": "string",
             "enum": [
@@ -12262,6 +12808,17 @@ const docTemplate = `{
                 }
             }
         },
+        "httphandlers.AssociateRTRequest": {
+            "type": "object",
+            "required": [
+                "attachment_id"
+            ],
+            "properties": {
+                "attachment_id": {
+                    "type": "string"
+                }
+            }
+        },
         "httphandlers.AssociateSubnetRequest": {
             "type": "object",
             "required": [
@@ -12302,6 +12859,17 @@ const docTemplate = `{
                 "mount_path": {
                     "type": "string",
                     "minLength": 1
+                }
+            }
+        },
+        "httphandlers.AttachVPCRequest": {
+            "type": "object",
+            "required": [
+                "vpc_id"
+            ],
+            "properties": {
+                "vpc_id": {
+                    "type": "string"
                 }
             }
         },
@@ -12768,6 +13336,17 @@ const docTemplate = `{
                     }
                 },
                 "template": {
+                    "type": "string"
+                }
+            }
+        },
+        "httphandlers.CreateTransitGatewayRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
                     "type": "string"
                 }
             }

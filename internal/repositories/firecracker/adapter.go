@@ -67,7 +67,7 @@ func NewFirecrackerAdapter(logger *slog.Logger, cfg Config) (*FirecrackerAdapter
 	if cfg.SocketDir == "" {
 		cfg.SocketDir = defaultSocketDir
 	}
-	if err := os.MkdirAll(cfg.SocketDir, 0755); err != nil {
+	if err := os.MkdirAll(cfg.SocketDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create socket directory %s: %w", cfg.SocketDir, err)
 	}
 
@@ -142,6 +142,8 @@ func (a *FirecrackerAdapter) LaunchInstanceWithOptions(ctx context.Context, opts
 
 // generateMAC creates a deterministic MAC address from instance ID
 // TODO(cni): wire up to CreateNetwork once TAP device networking is integrated
+//
+//nolint:unused
 func generateMAC(instanceID string) string {
 	h := uuid.NewMD5(uuid.NameSpaceDNS, []byte(instanceID))
 	macBytes := h[:]

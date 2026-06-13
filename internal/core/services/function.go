@@ -22,6 +22,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/poyrazk/thecloud/internal/platform"
+	"github.com/poyrazk/thecloud/pkg/safehelper"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -233,13 +234,11 @@ func (s *FunctionService) DeleteFunction(ctx context.Context, id uuid.UUID) erro
 	s.bulkheadMu.Unlock()
 
 	// Async delete from file store
-	go func() {
-		delCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if err := s.fileStore.Delete(delCtx, "functions", f.CodePath); err != nil {
+	safehelper.GoWithTimeout(30*time.Second, func(ctx context.Context) {
+		if err := s.fileStore.Delete(ctx, "functions", f.CodePath); err != nil {
 			s.logger.Warn("failed to delete function code from storage", "code_path", f.CodePath, "error", err)
 		}
-	}()
+	})
 	if err := s.auditSvc.Log(ctx, f.UserID, "function.delete", "function", f.ID.String(), map[string]interface{}{
 		"name": f.Name,
 	}); err != nil {
@@ -641,16 +640,9 @@ func (s *FunctionService) extractZipFile(file *zip.File, tmpDir string) error {
 	if err != nil {
 		return fmt.Errorf("resolve extraction root: %w", err)
 	}
-	//nolint:gosec // G305: Path sanitization is performed via the IsLocal +
-	// filepath.Rel check below.
-	path := filepath.Join(cleanTmpDir, file.Name)
-	absPath, err := filepath.Abs(path)
+	path, err := safehelper.SafeJoin(cleanTmpDir, file.Name)
 	if err != nil {
-		return fmt.Errorf("resolve extraction target: %w", err)
-	}
-	rel, err := filepath.Rel(cleanTmpDir, absPath)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		return fmt.Errorf("invalid file path in zip: %q (resolved to %s)", file.Name, absPath)
+		return fmt.Errorf("invalid file path in zip: %q", file.Name)
 	}
 
 	if file.FileInfo().IsDir() {

@@ -103,14 +103,14 @@ var igwListCmd = &cobra.Command{
 			if igw.VPCID != nil {
 				vpcIDStr = truncateID(*igw.VPCID)
 			}
-			table.Append([]string{
+			_ = table.Append([]string{
 				truncateID(igw.ID),
 				vpcIDStr,
 				string(igw.Status),
 				igw.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
-		table.Render()
+		_ = table.Render()
 	},
 }
 

@@ -79,7 +79,7 @@ func NewSSHExecutor(ip, user, key, hostPublicKey string) *SSHExecutor {
 
 func (e *SSHExecutor) hostKeyCallback() (ssh.HostKeyCallback, error) {
 	if strings.TrimSpace(e.hostPublicKey) == "" {
-		return ssh.InsecureIgnoreHostKey(), nil
+		return nil, fmt.Errorf("hostPublicKey is required for SSH connections: cannot use insecure mode in production")
 	}
 	pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(e.hostPublicKey))
 	if err != nil {

@@ -20,7 +20,7 @@ type realExecer struct {
 }
 
 func (r *realExecer) Run(name string, args ...string) ([]byte, error) {
-	cmd := exec.CommandContext(r.ctx, name, args...)
+	cmd := exec.CommandContext(r.ctx, name, args...) //#nosec G204
 	return cmd.CombinedOutput()
 }
 

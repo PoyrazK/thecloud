@@ -76,9 +76,9 @@ var listFnCmd = &cobra.Command{
 		table := tablewriter.NewWriter(os.Stdout)
 		table.Header([]string{"ID", "Name", "Runtime", "Status", "Created At"})
 		for _, f := range functions {
-			table.Append([]string{f.ID, f.Name, f.Runtime, f.Status, f.CreatedAt.Format("2006-01-02 15:04:05")})
+			_ = table.Append([]string{f.ID, f.Name, f.Runtime, f.Status, f.CreatedAt.Format("2006-01-02 15:04:05")})
 		}
-		table.Render()
+		_ = table.Render()
 
 		if meta != nil {
 			fmt.Printf("\nShowing %d of %d total", len(functions), meta.TotalCount)

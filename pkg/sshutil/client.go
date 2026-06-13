@@ -80,7 +80,7 @@ func NewClientWithKeyAndCallback(host, user, privateKey string, cb ssh.HostKeyCa
 
 func resolveHostKeyCallback() (ssh.HostKeyCallback, error) {
 	if v := os.Getenv(envInsecureHostKey); v == "1" || v == "true" {
-		return ssh.InsecureIgnoreHostKey(), nil
+		return ssh.InsecureIgnoreHostKey(), nil //#nosec G106
 	}
 
 	candidates := make([]string, 0, 2)
@@ -91,7 +91,7 @@ func resolveHostKeyCallback() (ssh.HostKeyCallback, error) {
 		candidates = append(candidates, filepath.Join(home, ".ssh", "known_hosts"))
 	}
 	for _, p := range candidates {
-		if _, statErr := os.Stat(p); statErr != nil {
+		if _, statErr := os.Stat(p); statErr != nil { //#nosec G703
 			continue
 		}
 		cb, err := knownhosts.New(p)

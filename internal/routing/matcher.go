@@ -69,7 +69,7 @@ func CompilePattern(pattern string) (*PatternMatcher, error) {
 			customRegex = "[^/]+"
 		}
 
-		res.WriteString(fmt.Sprintf("(?P<%s>%s)", name, customRegex))
+		fmt.Fprintf(&res, "(?P<%s>%s)", name, customRegex)
 		lastIndex = m[1]
 	}
 

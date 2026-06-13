@@ -13,6 +13,7 @@ import (
 	"github.com/poyrazk/thecloud/internal/core/domain"
 	"github.com/poyrazk/thecloud/internal/core/ports"
 	"github.com/poyrazk/thecloud/internal/errors"
+	"github.com/poyrazk/thecloud/pkg/safehelper"
 )
 
 // SnapshotService manages volume snapshots and storage interactions.
@@ -96,10 +97,8 @@ func (s *SnapshotService) CreateSnapshot(ctx context.Context, volumeID uuid.UUID
 	s.asyncResults[snapshot.ID] = errCh
 	s.mu.Unlock()
 
-	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		err := s.performSnapshot(bgCtx, vol, &asyncSnap)
+	safehelper.GoWithTimeout(10*time.Minute, func(ctx context.Context) {
+		err := s.performSnapshot(ctx, vol, &asyncSnap)
 		if err != nil {
 			s.logger.Error("failed to perform snapshot", "snapshot_id", snapshot.ID, "error", err)
 			asyncSnap.Status = domain.SnapshotStatusError
@@ -107,7 +106,7 @@ func (s *SnapshotService) CreateSnapshot(ctx context.Context, volumeID uuid.UUID
 		} else {
 			asyncSnap.Status = domain.SnapshotStatusAvailable
 		}
-		if updateErr := s.repo.Update(bgCtx, &asyncSnap); updateErr != nil {
+		if updateErr := s.repo.Update(ctx, &asyncSnap); updateErr != nil {
 			s.logger.Error("failed to update snapshot status", "snapshot_id", snapshot.ID, "error", updateErr)
 			// Propagate Update failure so callers don't think snapshot succeeded
 			// when it remains stuck in CREATING. Only send if performSnapshot
@@ -123,7 +122,7 @@ func (s *SnapshotService) CreateSnapshot(ctx context.Context, volumeID uuid.UUID
 		s.mu.Unlock()
 
 		close(errCh)
-	}()
+	})
 
 	if err := s.eventSvc.RecordEvent(ctx, "SNAPSHOT_CREATE", snapshot.ID.String(), "SNAPSHOT", map[string]interface{}{
 		"volume_id": volumeID.String(),

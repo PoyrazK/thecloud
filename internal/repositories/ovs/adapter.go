@@ -43,7 +43,7 @@ type osExecer struct{}
 func (osExecer) LookPath(file string) (string, error) { return exec.LookPath(file) }
 
 func (osExecer) CommandContext(ctx context.Context, name string, args ...string) cmd {
-	return exec.CommandContext(ctx, name, args...)
+	return exec.CommandContext(ctx, name, args...) //#nosec G204
 }
 
 // NewOvsAdapter creates an OvsAdapter with required binaries resolved.

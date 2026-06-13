@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	stderrors "errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -76,6 +78,11 @@ func (s *GatewayService) CreateRoute(ctx context.Context, params ports.CreateRou
 			return nil, fmt.Errorf("invalid pattern: %w", err)
 		}
 		paramNames = matcher.ParamNames
+	}
+
+	// Validate target URL to prevent SSRF attacks
+	if err := isAllowedTarget(params.Target); err != nil {
+		return nil, fmt.Errorf("invalid target: %w", err)
 	}
 
 	route := &domain.GatewayRoute{
@@ -266,6 +273,11 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 		idleConnTimeout = 90 * time.Second
 	}
 
+	tlsCfg, err := s.buildTLSConfig(route)
+	if err != nil {
+		return nil, err
+	}
+
 	baseTransport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   dialTimeout,
@@ -273,41 +285,63 @@ func (s *GatewayService) createReverseProxy(route *domain.GatewayRoute) (*httput
 		}).DialContext,
 		ResponseHeaderTimeout: responseHeaderTimeout,
 		IdleConnTimeout:       idleConnTimeout,
-		TLSClientConfig:       s.buildTLSConfig(route),
+		TLSClientConfig:       tlsCfg,
 		TLSHandshakeTimeout:   10 * time.Second,
 	}
 
 	proxy.Transport = newRetryTransport(baseTransport, route, s.logger)
 
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
+	proxy.Rewrite = func(pr *httputil.ProxyRequest) {
 		if route.StripPrefix {
 			prefix := route.PathPrefix
 			if route.PatternType == "pattern" {
 				prefix = routing.GetLiteralPrefix(route.PathPattern)
 			}
-			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/gw"+prefix)
-			if !strings.HasPrefix(req.URL.Path, "/") {
-				req.URL.Path = "/" + req.URL.Path
+			pr.Out.URL.Path = strings.TrimPrefix(pr.In.URL.Path, "/gw"+prefix)
+			if !strings.HasPrefix(pr.Out.URL.Path, "/") {
+				pr.Out.URL.Path = "/" + pr.Out.URL.Path
 			}
 		}
-		originalDirector(req)
-		req.Host = target.Host
+		pr.SetXForwarded()
+		pr.Out.Host = target.Host
+		// Ensure scheme is set (default to http if target URL had no scheme)
+		if target.Scheme == "" {
+			pr.Out.URL.Scheme = "http"
+		} else {
+			pr.Out.URL.Scheme = target.Scheme
+		}
 	}
 
 	return proxy, nil
 }
 
-func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) *tls.Config {
+func (s *GatewayService) buildTLSConfig(route *domain.GatewayRoute) (*tls.Config, error) {
 	cfg := &tls.Config{
-		InsecureSkipVerify: route.TLSSkipVerify, //nolint:gosec // User-controlled option for development/testing
+		InsecureSkipVerify: false,
 	}
+
+	// Handle TrustedCA (recommended) or deprecated TLSSkipVerify
+	if route.TrustedCA != "" {
+		caCert, err := os.ReadFile(route.TrustedCA)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA certificate from %s: %w", route.TrustedCA, err)
+		}
+		caCertPool := x509.NewCertPool()
+		if !caCertPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to parse CA certificate from %s", route.TrustedCA)
+		}
+		cfg.RootCAs = caCertPool
+	} else if route.TLSSkipVerify {
+		s.logger.Warn("TLSSkipVerify is deprecated, use TrustedCA instead")
+		cfg.InsecureSkipVerify = true
+	}
+
 	// Always set baseline TLS 1.2, raise to 1.3 if RequireTLS
 	cfg.MinVersion = tls.VersionTLS12
 	if route.RequireTLS {
 		cfg.MinVersion = tls.VersionTLS13
 	}
-	return cfg
+	return cfg, nil
 }
 
 func (s *GatewayService) sortRoutes(routes []*domain.GatewayRoute) {
@@ -456,16 +490,15 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		resp, err := rt.doRoundTrip(req)
 		var se *retryableStatusError
 		if stderrors.As(err, &se) && se.resp != nil {
-			return se.resp, nil //nolint:bodyclose
+			return se.resp, nil
 		}
 		return resp, err
 	}
 
-	type result struct {
+	var r struct {
 		resp *http.Response
 		err  error
 	}
-	var r result
 	cbErr := rt.cb.Execute(func() error {
 		r.resp, r.err = rt.doRoundTrip(req) //nolint:bodyclose
 		return r.err
@@ -476,11 +509,11 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if r.err != nil {
 		var se *retryableStatusError
 		if stderrors.As(r.err, &se) && se.resp != nil {
-			return se.resp, nil //nolint:bodyclose
+			return se.resp, nil
 		}
 		return nil, r.err
 	}
-	return r.resp, nil //nolint:bodyclose
+	return r.resp, nil
 }
 
 func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error) {
@@ -509,7 +542,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		resp, err := rt.base.RoundTrip(req)
 		if err == nil {
 			if !rt.isRetryableStatus(resp.StatusCode) {
-				return resp, nil //nolint:bodyclose
+				return resp, nil
 			}
 			// drain and close body so connection can be reused, then retry
 			_, _ = io.Copy(io.Discard, resp.Body)
@@ -519,7 +552,14 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 		}
 
 		if !rt.isRetryableError(err) {
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
 			return nil, err
+		}
+		// Close previous lastResp body before assigning new one to prevent leaks
+		if lastResp != nil {
+			_ = lastResp.Body.Close()
 		}
 		lastResp = resp
 
@@ -540,7 +580,7 @@ func (rt *retryTransport) doRoundTrip(req *http.Request) (*http.Response, error)
 	if lastResp != nil && rt.isRetryableStatus(lastResp.StatusCode) {
 		return nil, &retryableStatusError{resp: lastResp}
 	}
-	return lastResp, nil //nolint:bodyclose
+	return lastResp, nil
 }
 
 func (rt *retryTransport) isRetryableStatus(code int) bool {
@@ -584,4 +624,53 @@ func (rt *retryTransport) jitter(max time.Duration) time.Duration {
 	val := float64(rand.Uint()) / float64(1<<64) * float64(math.MaxUint64)
 	frac := val / float64(math.MaxUint64)
 	return time.Duration(float64(max) * frac)
+}
+
+// isAllowedTarget validates that a target URL doesn't point to internal/private networks.
+// This prevents SSRF attacks where an attacker could route requests to cloud metadata
+// endpoints (169.254.169.254), localhost, or private IP ranges.
+func isAllowedTarget(targetURL string) error {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return fmt.Errorf("invalid target URL: %w", err)
+	}
+
+	host := u.Hostname()
+	ip := net.ParseIP(host)
+
+	// Check for localhost
+	if host == "localhost" || host == "127.0.0.1" {
+		return fmt.Errorf("localhost targets not allowed")
+	}
+
+	// Check for loopback IP
+	if ip != nil && ip.IsLoopback() {
+		return fmt.Errorf("loopback targets not allowed")
+	}
+
+	// Check for link-local (169.254.x.x - Azure/AWS metadata)
+	if ip != nil && ip.IsLinkLocalUnicast() {
+		return fmt.Errorf("link-local addresses not allowed")
+	}
+
+	// Check for private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+	if ip != nil && ip.IsPrivate() {
+		return fmt.Errorf("private IP targets not allowed")
+	}
+
+	// Check for reserved metadata addresses (169.254.0.0/16)
+	if ip != nil && isReservedIP(ip) {
+		return fmt.Errorf("reserved IP targets not allowed")
+	}
+
+	return nil
+}
+
+// isReservedIP checks for IP addresses used by cloud metadata services.
+func isReservedIP(ip net.IP) bool {
+	// 169.254.0.0/16 - Azure/AWS/gcp metadata endpoints
+	if len(ip) >= 2 && ip[0] == 169 && ip[1] == 254 {
+		return true
+	}
+	return false
 }
