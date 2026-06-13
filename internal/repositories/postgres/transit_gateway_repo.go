@@ -103,7 +103,7 @@ func (r *TransitGatewayRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 	tg.RouteTables = rts
 
 	// Load attachments
-	atts, err := r.ListAttachments(ctx, tg.ID)
+	atts, err := r.ListAttachments(ctx, tg.ID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -230,14 +230,15 @@ func (r *TransitGatewayRepository) RemoveAttachmentAssociations(ctx context.Cont
 }
 
 // ListAttachments returns all attachments for a Transit Gateway.
-func (r *TransitGatewayRepository) ListAttachments(ctx context.Context, tgID uuid.UUID) ([]*domain.TransitGatewayAttachment, error) {
+func (r *TransitGatewayRepository) ListAttachments(ctx context.Context, tgID, tenantID uuid.UUID) ([]*domain.TransitGatewayAttachment, error) {
 	query := `
-		SELECT ` + tgwAttachmentColumns + `
-		FROM transit_gateway_attachments
-		WHERE transit_gateway_id = $1
-		ORDER BY created_at DESC
+		SELECT a.` + tgwAttachmentColumns + `
+		FROM transit_gateway_attachments a
+		JOIN transit_gateways tgw ON a.transit_gateway_id = tgw.id
+		WHERE a.transit_gateway_id = $1 AND tgw.owner_tenant_id = $2
+		ORDER BY a.created_at DESC
 	`
-	rows, err := r.db.Query(ctx, query, tgID)
+	rows, err := r.db.Query(ctx, query, tgID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list attachments", err)
 	}

@@ -101,6 +101,7 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 			{ID: uuid.New(), Name: "tgw-1", OwnerTenantID: tenantID},
 			{ID: uuid.New(), Name: "tgw-2", OwnerTenantID: tenantID},
 		}
+		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcRead, "*").Return(nil).Once()
 		mockRepo.On("List", mock.Anything, tenantID).Return(tgs, nil).Once()
 
 		result, err := svc.ListTransitGateways(ctx)
@@ -113,7 +114,7 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 		tg := &domain.TransitGateway{ID: tgID, OwnerTenantID: tenantID}
 		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcDelete, tgID.String()).Return(nil).Once()
 		mockRepo.On("GetByID", mock.Anything, tgID).Return(tg, nil).Once()
-		mockRepo.On("ListAttachments", mock.Anything, tgID).Return([]*domain.TransitGatewayAttachment{}, nil).Once()
+		mockRepo.On("ListAttachments", mock.Anything, tgID, tenantID).Return([]*domain.TransitGatewayAttachment{}, nil).Once()
 		mockRepo.On("ListRouteTables", mock.Anything, tgID).Return([]*domain.TransitGatewayRouteTable{}, nil).Once()
 		mockRepo.On("Delete", mock.Anything, tgID).Return(nil).Once()
 		mockAuditSvc.On("Log", mock.Anything, userID, "transit_gateway.delete", "transit_gateway", tgID.String(), mock.Anything).Return(nil).Once()
@@ -143,7 +144,7 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcCreate, tgID.String()).Return(nil).Once()
 		mockRepo.On("GetByID", mock.Anything, tgID).Return(tg, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, vpcID).Return(vpc, nil).Once()
-		mockRepo.On("ListAttachments", mock.Anything, tgID).Return([]*domain.TransitGatewayAttachment{}, nil).Once()
+		mockRepo.On("ListAttachments", mock.Anything, tgID, tenantID).Return([]*domain.TransitGatewayAttachment{}, nil).Once()
 		mockRepo.On("AddAttachment", mock.Anything, mock.Anything).Return(nil).Once()
 		mockSubnetRepo.On("ListByVPC", mock.Anything, vpcID).Return(subnets, nil).Once()
 		mockRepo.On("ListRouteTables", mock.Anything, tgID).Return([]*domain.TransitGatewayRouteTable{defaultRT}, nil).Once()
@@ -167,7 +168,7 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcCreate, tgID.String()).Return(nil).Once()
 		mockRepo.On("GetByID", mock.Anything, tgID).Return(tg, nil).Once()
 		mockVpcRepo.On("GetByID", mock.Anything, vpcID).Return(vpc, nil).Once()
-		mockRepo.On("ListAttachments", mock.Anything, tgID).Return([]*domain.TransitGatewayAttachment{existingAtt}, nil).Once()
+		mockRepo.On("ListAttachments", mock.Anything, tgID, tenantID).Return([]*domain.TransitGatewayAttachment{existingAtt}, nil).Once()
 
 		_, err := svc.AttachVPC(ctx, tgID, vpcID)
 		require.Error(t, err)
@@ -189,9 +190,11 @@ func TestTransitGatewayService_Unit(t *testing.T) {
 		tgID := uuid.New()
 		vpcID := uuid.New()
 		att := &domain.TransitGatewayAttachment{ID: attID, TransitGatewayID: tgID, VPCID: vpcID}
+		tg := &domain.TransitGateway{ID: tgID, OwnerTenantID: tenantID}
 
 		mockRBACSvc.On("Authorize", mock.Anything, userID, tenantID, domain.PermissionVpcDelete, attID.String()).Return(nil).Once()
 		mockRepo.On("GetAttachment", mock.Anything, attID).Return(att, nil).Once()
+		mockRepo.On("GetByID", mock.Anything, tgID).Return(tg, nil).Once()
 		mockRepo.On("ListRouteTables", mock.Anything, tgID).Return([]*domain.TransitGatewayRouteTable{}, nil).Once()
 		mockRepo.On("RemoveAttachmentAssociations", mock.Anything, attID).Return(nil).Once()
 		mockRepo.On("RemoveAttachment", mock.Anything, attID).Return(nil).Once()

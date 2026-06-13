@@ -580,8 +580,8 @@ func (m *MockTransitGatewayRepo) RemoveAttachment(ctx context.Context, id uuid.U
 func (m *MockTransitGatewayRepo) RemoveAttachmentAssociations(ctx context.Context, attID uuid.UUID) error {
 	return m.Called(ctx, attID).Error(0)
 }
-func (m *MockTransitGatewayRepo) ListAttachments(ctx context.Context, tgID uuid.UUID) ([]*domain.TransitGatewayAttachment, error) {
-	args := m.Called(ctx, tgID)
+func (m *MockTransitGatewayRepo) ListAttachments(ctx context.Context, tgID, tenantID uuid.UUID) ([]*domain.TransitGatewayAttachment, error) {
+	args := m.Called(ctx, tgID, tenantID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

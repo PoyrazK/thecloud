@@ -133,7 +133,12 @@ func (s *TransitGatewayService) GetTransitGateway(ctx context.Context, id uuid.U
 
 // ListTransitGateways returns all Transit Gateways for the current tenant.
 func (s *TransitGatewayService) ListTransitGateways(ctx context.Context) ([]*domain.TransitGateway, error) {
+	userID := appcontext.UserIDFromContext(ctx)
 	tenantID := appcontext.TenantIDFromContext(ctx)
+
+	if err := s.rbacSvc.Authorize(ctx, userID, tenantID, domain.PermissionVpcRead, "*"); err != nil {
+		return nil, err
+	}
 	return s.repo.List(ctx, tenantID)
 }
 
@@ -153,12 +158,14 @@ func (s *TransitGatewayService) DeleteTransitGateway(ctx context.Context, id uui
 	if err != nil {
 		return errors.Wrap(errors.NotFound, "transit gateway not found", err)
 	}
-	_ = tg
+	if tg.OwnerTenantID != tenantID {
+		return errors.New(errors.Forbidden, "transit gateway belongs to another tenant")
+	}
 
 	// Get attachments to clean up OVS flows
-	attachments, err := s.repo.ListAttachments(ctx, id)
+	attachments, err := s.repo.ListAttachments(ctx, id, tenantID)
 	if err != nil {
-		s.logger.Error("failed to list attachments during TGW deletion", "tg_id", id, "error", err)
+		return errors.Wrap(errors.Internal, "failed to list attachments during TGW deletion", err)
 	}
 	for _, att := range attachments {
 		if err := s.detachVPC(ctx, att); err != nil {
@@ -169,7 +176,7 @@ func (s *TransitGatewayService) DeleteTransitGateway(ctx context.Context, id uui
 	// Delete route tables
 	rts, err := s.repo.ListRouteTables(ctx, id)
 	if err != nil {
-		s.logger.Error("failed to list route tables during TGW deletion", "tg_id", id, "error", err)
+		return errors.Wrap(errors.Internal, "failed to list route tables during TGW deletion", err)
 	}
 	for _, rt := range rts {
 		if err := s.repo.DeleteRouteTable(ctx, rt.ID); err != nil {
@@ -224,7 +231,7 @@ func (s *TransitGatewayService) AttachVPC(ctx context.Context, tgID, vpcID uuid.
 	}
 
 	// Check for existing attachment
-	existing, err := s.repo.ListAttachments(ctx, tgID)
+	existing, err := s.repo.ListAttachments(ctx, tgID, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(errors.Internal, "failed to list existing attachments", err)
 	}
@@ -291,6 +298,15 @@ func (s *TransitGatewayService) DetachVPC(ctx context.Context, attID uuid.UUID) 
 		return errors.Wrap(errors.NotFound, "attachment not found", err)
 	}
 
+	// Verify TGW ownership
+	tg, err := s.repo.GetByID(ctx, att.TransitGatewayID)
+	if err != nil {
+		return errors.Wrap(errors.NotFound, "transit gateway not found", err)
+	}
+	if tg.OwnerTenantID != tenantID {
+		return errors.New(errors.Forbidden, "transit gateway belongs to another tenant")
+	}
+
 	if err := s.detachVPC(ctx, att); err != nil {
 		return err
 	}
@@ -353,6 +369,7 @@ func (s *TransitGatewayService) propagateSubnetRoutes(ctx context.Context, tg *d
 	}
 
 	var failedRoutes []string
+	var lastErr error
 	for _, rt := range rts {
 		for _, sn := range subnets {
 			route := &domain.TransitGatewayRoute{
@@ -366,12 +383,13 @@ func (s *TransitGatewayService) propagateSubnetRoutes(ctx context.Context, tg *d
 			if err := s.repo.AddRoute(ctx, rt.ID, route); err != nil {
 				s.logger.Warn("failed to propagate subnet route", "rt_id", rt.ID, "subnet", sn.CIDRBlock, "error", err)
 				failedRoutes = append(failedRoutes, sn.CIDRBlock)
+				lastErr = err
 			}
 		}
 	}
 
 	if len(failedRoutes) > 0 {
-		return errors.Wrap(errors.Internal, fmt.Sprintf("failed to propagate %d routes: %v", len(failedRoutes), failedRoutes), nil)
+		return errors.Wrap(errors.Internal, fmt.Sprintf("failed to propagate %d routes: %v", len(failedRoutes), failedRoutes), lastErr)
 	}
 	return nil
 }
