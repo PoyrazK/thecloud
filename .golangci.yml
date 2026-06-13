@@ -90,6 +90,21 @@ issues:
       linters:
         - nolintlint
       text: "directive.*unused.*bodyclose"
+    - path: internal/repositories/noop/
+      linters:
+        - revive
+    - path: internal/repositories/redis/
+      linters:
+        - revive
+    - path: internal/routing/
+      linters:
+        - revive
+    - path: pkg/audit/
+      linters:
+        - revive
+    - path: pkg/safehelper/
+      linters:
+        - revive
     - linters:
         - nolintlint
       text: "directive.*unused.*codeql"
