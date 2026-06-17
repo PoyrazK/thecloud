@@ -370,6 +370,343 @@ func (h *IAMHandler) GetUserPolicies(c *gin.Context) {
 	httputil.Success(c, http.StatusOK, policies)
 }
 
+// IAMGroupRequest is the payload for group creation/update.
+type IAMGroupRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
+}
+
+// CreateGroup creates a new user group.
+// @Summary Create User Group
+// @Description Create a new user group for organizing users and attaching policies.
+// @Tags iam
+// @Security APIKeyAuth
+// @Accept json
+// @Produce json
+// @Param request body IAMGroupRequest true "Group details"
+// @Success 201 {object} domain.Group
+// @Failure 400 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/groups [post]
+func (h *IAMHandler) CreateGroup(c *gin.Context) {
+	var req IAMGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, err.Error()))
+		return
+	}
+
+	group := &domain.Group{
+		Name:        req.Name,
+		Description: req.Description,
+	}
+
+	if err := h.svc.CreateGroup(c.Request.Context(), group); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusCreated, group)
+}
+
+// GetGroupByID returns a specific group.
+// @Summary Get User Group
+// @Description Get details of a specific user group by its ID.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Group ID"
+// @Success 200 {object} domain.Group
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/groups/{id} [get]
+func (h *IAMHandler) GetGroupByID(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	group, err := h.svc.GetGroupByID(c.Request.Context(), id)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, group)
+}
+
+// ListGroups returns all groups.
+// @Summary List User Groups
+// @Description List all user groups for the tenant.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Success 200 {array} domain.Group
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/groups [get]
+func (h *IAMHandler) ListGroups(c *gin.Context) {
+	groups, err := h.svc.ListGroups(c.Request.Context())
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, groups)
+}
+
+// UpdateGroup updates a group's details.
+// @Summary Update User Group
+// @Description Update the name and description of a user group.
+// @Tags iam
+// @Security APIKeyAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Group ID"
+// @Param request body UpdateGroupRequest true "Updated group details"
+// @Success 200 {object} domain.Group
+// @Failure 400 {object} httputil.Response
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/groups/{id} [put]
+func (h *IAMHandler) UpdateGroup(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	var req IAMGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httputil.Error(c, errors.New(errors.InvalidInput, err.Error()))
+		return
+	}
+
+	group := &domain.Group{
+		ID:          id,
+		Name:        req.Name,
+		Description: req.Description,
+	}
+
+	if err := h.svc.UpdateGroup(c.Request.Context(), group); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, group)
+}
+
+// DeleteGroup removes a group.
+// @Summary Delete User Group
+// @Description Delete an existing user group. Members and policy attachments are cascade deleted.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Group ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/groups/{id} [delete]
+func (h *IAMHandler) DeleteGroup(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.DeleteGroup(c.Request.Context(), id); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "deleted"})
+}
+
+// AddUserToGroup adds a user to a group.
+// @Summary Add User to Group
+// @Description Add a user as a member of a user group.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Group ID"
+// @Param userId path string true "User ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/groups/{id}/members/{userId} [post]
+func (h *IAMHandler) AddUserToGroup(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	userID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.AddUserToGroup(c.Request.Context(), userID, groupID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "added"})
+}
+
+// RemoveUserFromGroup removes a user from a group.
+// @Summary Remove User from Group
+// @Description Remove a user from a user group membership.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Group ID"
+// @Param userId path string true "User ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/groups/{id}/members/{userId} [delete]
+func (h *IAMHandler) RemoveUserFromGroup(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	userID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.RemoveUserFromGroup(c.Request.Context(), userID, groupID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "removed"})
+}
+
+// GetGroupMembers lists all users in a group.
+// @Summary List Group Members
+// @Description List all user IDs that are members of a specific group.
+// @Tags iam
+// @Security APIKeyAuth
+// @Produce json
+// @Param id path string true "Group ID"
+// @Success 200 {array} uuid.UUID
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/groups/{id}/members [get]
+func (h *IAMHandler) GetGroupMembers(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	members, err := h.svc.GetUsersInGroup(c.Request.Context(), groupID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, members)
+}
+
+// AttachPolicyToGroup attaches a policy to a group.
+// @Summary Attach IAM Policy to Group
+// @Description Attach a specific IAM policy to a group.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Group ID"
+// @Param policyId path string true "Policy ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/groups/{id}/policies/{policyId} [post]
+func (h *IAMHandler) AttachPolicyToGroup(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	policyID, err := uuid.Parse(c.Param("policyId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.AttachPolicyToGroup(c.Request.Context(), groupID, policyID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "attached"})
+}
+
+// DetachPolicyFromGroup removes a policy from a group.
+// @Summary Detach IAM Policy from Group
+// @Description Remove a specific IAM policy assignment from a group.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Group ID"
+// @Param policyId path string true "Policy ID"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Failure 404 {object} httputil.Response
+// @Router /iam/groups/{id}/policies/{policyId} [delete]
+func (h *IAMHandler) DetachPolicyFromGroup(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+	policyID, err := uuid.Parse(c.Param("policyId"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	if err := h.svc.DetachPolicyFromGroup(c.Request.Context(), groupID, policyID); err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, gin.H{"status": "detached"})
+}
+
+// GetGroupPolicies lists all policies attached to a specific group.
+// @Summary List Group IAM Policies
+// @Description List all IAM policies currently attached to a specific group.
+// @Tags iam
+// @Security APIKeyAuth
+// @Param id path string true "Group ID"
+// @Success 200 {array} domain.Policy
+// @Failure 401 {object} httputil.Response
+// @Failure 403 {object} httputil.Response
+// @Router /iam/groups/{id}/policies [get]
+func (h *IAMHandler) GetGroupPolicies(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	policies, err := h.svc.GetPoliciesForGroup(c.Request.Context(), groupID)
+	if err != nil {
+		httputil.Error(c, err)
+		return
+	}
+
+	httputil.Success(c, http.StatusOK, policies)
+}
+
 func (h *IAMHandler) validatePolicy(policy *domain.Policy) error {
 	if policy.Name == "" {
 		return fmt.Errorf("policy name is required")

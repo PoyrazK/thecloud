@@ -36,6 +36,25 @@ type IAMRepository interface {
 	AttachPolicyToServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error
 	DetachPolicyFromServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID, policyID uuid.UUID) error
 	GetPoliciesForServiceAccount(ctx context.Context, tenantID uuid.UUID, saID uuid.UUID) ([]*domain.Policy, error)
+
+	// Group Management
+	CreateGroup(ctx context.Context, tenantID uuid.UUID, group *domain.Group) error
+	GetGroupByID(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) (*domain.Group, error)
+	ListGroups(ctx context.Context, tenantID uuid.UUID) ([]*domain.Group, error)
+	UpdateGroup(ctx context.Context, tenantID uuid.UUID, group *domain.Group) error
+	DeleteGroup(ctx context.Context, tenantID uuid.UUID, id uuid.UUID) error
+
+	// Group Membership
+	AddUserToGroup(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, groupID uuid.UUID) error
+	RemoveUserFromGroup(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID, groupID uuid.UUID) error
+	GetGroupsForUser(ctx context.Context, tenantID uuid.UUID, userID uuid.UUID) ([]*domain.Group, error)
+	GetUsersInGroup(ctx context.Context, tenantID uuid.UUID, groupID uuid.UUID) ([]uuid.UUID, error)
+
+	// Group Policy Assignment
+	AttachPolicyToGroup(ctx context.Context, tenantID uuid.UUID, groupID uuid.UUID, policyID uuid.UUID) error
+	DetachPolicyFromGroup(ctx context.Context, tenantID uuid.UUID, groupID uuid.UUID, policyID uuid.UUID) error
+	GetPoliciesForGroup(ctx context.Context, tenantID uuid.UUID, groupID uuid.UUID) ([]*domain.Policy, error)
+	GetGroupsForPolicy(ctx context.Context, tenantID uuid.UUID, policyID uuid.UUID) ([]*domain.Group, error)
 }
 
 // IAMService defines the business logic for IAM management.
@@ -57,6 +76,24 @@ type IAMService interface {
 	AttachPolicyToServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error
 	DetachPolicyFromServiceAccount(ctx context.Context, saID uuid.UUID, policyID uuid.UUID) error
 	GetPoliciesForServiceAccount(ctx context.Context, saID uuid.UUID) ([]*domain.Policy, error)
+
+	// Group Management
+	CreateGroup(ctx context.Context, group *domain.Group) error
+	GetGroupByID(ctx context.Context, id uuid.UUID) (*domain.Group, error)
+	ListGroups(ctx context.Context) ([]*domain.Group, error)
+	UpdateGroup(ctx context.Context, group *domain.Group) error
+	DeleteGroup(ctx context.Context, id uuid.UUID) error
+
+	// Group Membership
+	AddUserToGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error
+	RemoveUserFromGroup(ctx context.Context, userID uuid.UUID, groupID uuid.UUID) error
+	GetGroupsForUser(ctx context.Context, userID uuid.UUID) ([]*domain.Group, error)
+	GetUsersInGroup(ctx context.Context, groupID uuid.UUID) ([]uuid.UUID, error)
+
+	// Group Policy Assignment
+	AttachPolicyToGroup(ctx context.Context, groupID uuid.UUID, policyID uuid.UUID) error
+	DetachPolicyFromGroup(ctx context.Context, groupID uuid.UUID, policyID uuid.UUID) error
+	GetPoliciesForGroup(ctx context.Context, groupID uuid.UUID) ([]*domain.Policy, error)
 
 	// SimulatePolicy evaluates what-if actions/resources against the given principal's policies.
 	// Returns the decision and which statement matched, for debugging.

@@ -128,6 +128,11 @@ func (s *rbacService) HasPermission(ctx context.Context, userID uuid.UUID, tenan
 				return allowed, nil
 			}
 		}
+
+		// 2c. Check group-attached policies via user's group memberships
+		if allowed, stop := s.checkGroupIAMPolicies(ctx, tenantID, userID, permission, resource, evalCtx); allowed || stop {
+			return allowed, nil
+		}
 	}
 	// 3. Fallback to Role-based logic
 	if roleName == domain.RoleAdmin {
@@ -186,6 +191,33 @@ func (s *rbacService) checkRoleIAMPolicies(ctx context.Context, tenantID uuid.UU
 		return false, false
 	}
 	return s.evaluatePolicies(ctx, policies, permission, resource, evalCtx)
+}
+
+// checkGroupIAMPolicies evaluates IAM policies attached to groups a user belongs to.
+// Returns (allowed, stop) where stop=true means decision is final.
+func (s *rbacService) checkGroupIAMPolicies(ctx context.Context, tenantID, userID uuid.UUID, permission domain.Permission, resource string, evalCtx map[string]interface{}) (bool, bool) {
+	groups, err := s.iamRepo.GetGroupsForUser(ctx, tenantID, userID)
+	if err != nil {
+		s.logger.Error("RBAC: failed to get user groups, falling through to RBAC fallback", "user_id", userID, "tenant_id", tenantID, "error", err)
+		return false, false
+	}
+	if len(groups) == 0 {
+		return false, false
+	}
+	for _, group := range groups {
+		policies, err := s.iamRepo.GetPoliciesForGroup(ctx, tenantID, group.ID)
+		if err != nil {
+			s.logger.Warn("RBAC: failed to get group policies", "group_id", group.ID, "error", err)
+			continue
+		}
+		if len(policies) == 0 {
+			continue
+		}
+		if allowed, stop := s.evaluatePolicies(ctx, policies, permission, resource, evalCtx); allowed || stop {
+			return allowed, stop
+		}
+	}
+	return false, false
 }
 
 // evaluatePolicies evaluates a set of policies and returns (allowed, stop).
