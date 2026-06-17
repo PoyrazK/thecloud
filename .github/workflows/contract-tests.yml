@@ -28,7 +28,7 @@ jobs:
           done
 
       - name: Run Schemathesis
-        uses: schemathesis/action@v2
+        uses: schemathesis/action@v3
         with:
           schema: './docs/swagger/swagger.json'
           base-url: 'http://localhost:8080'
