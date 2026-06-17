@@ -3,7 +3,7 @@ import React from 'react';
 import styles from './StatusIndicator.module.css';
 
 interface StatusIndicatorProps {
-  status: 'running' | 'stopped' | 'pending' | 'error';
+  status: 'running' | 'stopped' | 'pending' | 'error' | 'success' | 'failure';
   label?: string;
 }
 

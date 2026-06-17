@@ -1,5 +1,6 @@
 
 import { Sidebar } from '@/components/ui/Sidebar';
+import styles from './layout.module.css';
 
 export default function AppLayout({
   children,
@@ -7,15 +8,10 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className={styles.shell}>
       <Sidebar />
-      <main style={{ 
-        flex: 1, 
-        marginLeft: 'var(--sidebar-width)', 
-        padding: '32px',
-        overflowY: 'auto'
-      }}>
-        {children}
+      <main className={styles.main}>
+        <div className={styles.mainInner}>{children}</div>
       </main>
     </div>
   );

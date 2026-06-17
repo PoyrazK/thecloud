@@ -6,35 +6,46 @@
 }
 
 .dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   box-shadow: 0 0 8px currentColor;
 }
 
 .label {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  color: var(--muted-foreground);
   text-transform: capitalize;
+  letter-spacing: 0.02em;
 }
 
 .running {
-  background-color: var(--accent-green);
-  color: var(--accent-green);
+  background-color: var(--good);
+  color: var(--good);
 }
 
 .stopped {
-  background-color: var(--text-tertiary);
-  color: var(--text-tertiary);
+  background-color: #64748b;
+  color: #64748b;
   box-shadow: none;
 }
 
 .pending {
-  background-color: var(--accent-orange);
-  color: var(--accent-orange);
+  background-color: var(--warn);
+  color: var(--warn);
 }
 
 .error {
-  background-color: var(--accent-red);
-  color: var(--accent-red);
+  background-color: var(--danger);
+  color: var(--danger);
+}
+
+.success {
+  background-color: var(--good);
+  color: var(--good);
+}
+
+.failure {
+  background-color: var(--danger);
+  color: var(--danger);
 }

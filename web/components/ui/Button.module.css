@@ -3,60 +3,108 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  font-weight: 500;
-  transition: all var(--transition-fast);
+  gap: 8px;
+  border-radius: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease,
+    border-color 140ms ease;
   cursor: pointer;
-  border: none;
+  border: 1px solid transparent;
   font-family: inherit;
   outline: none;
+  white-space: nowrap;
 }
 
-.button:active {
-  transform: scale(0.98);
+.button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
-/* Variants */
 .primary {
-  background-color: var(--accent-blue); /* System Blue */
-  color: #FFFFFF;
+  background: linear-gradient(145deg, var(--brand), var(--brand-strong));
+  color: #fff;
+  box-shadow: 0 12px 22px rgba(15, 107, 255, 0.34);
 }
 
 .primary:hover {
-  opacity: 0.85; /* Standard shrink/dim effect */
+  transform: translateY(-1px);
+  box-shadow: 0 16px 26px rgba(15, 107, 255, 0.4);
 }
 
 .secondary {
-  background-color: rgba(0, 0, 0, 0.06); /* Light Grey */
-  color: var(--accent-blue);
-  backdrop-filter: none; /* No glass needed on white */
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--foreground);
 }
 
 .secondary:hover {
-  background-color: rgba(0, 0, 0, 0.12); /* Darker Grey */
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
 }
 
 .ghost {
-  background-color: transparent;
-  color: var(--accent-blue);
+  background: rgba(248, 250, 252, 0.75);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: var(--muted-foreground);
 }
 
 .ghost:hover {
-  background-color: rgba(0, 118, 255, 0.1); /* Light Blue Tint */
+  color: var(--foreground);
+  border-color: rgba(15, 23, 42, 0.2);
+  transform: translateY(-1px);
 }
 
-/* Sizes */
 .sm {
-  padding: 6px 12px;
+  height: 34px;
+  padding: 0 12px;
   font-size: 13px;
 }
 
 .md {
-  padding: 8px 16px;
+  height: 40px;
+  padding: 0 14px;
   font-size: 14px;
 }
 
 .lg {
-  padding: 12px 24px;
+  height: 46px;
+  padding: 0 18px;
   font-size: 16px;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.secondary .spinner,
+.ghost .spinner {
+  border-color: rgba(15, 23, 42, 0.35);
+  border-bottom-color: transparent;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

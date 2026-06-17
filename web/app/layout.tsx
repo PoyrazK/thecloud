@@ -1,13 +1,27 @@
 
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { IBM_Plex_Mono, Manrope, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const display = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-display',
+});
+
+const body = Manrope({
+  subsets: ['latin'],
+  variable: '--font-body',
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  weight: ['400', '500'],
+});
 
 export const metadata: Metadata = {
-  title: 'The Cloud - Open Source Cloud Platform',
-  description: 'A free, open-source cloud platform that anyone can run, modify, and own.',
+  title: 'The Cloud Console',
+  description: 'Open-source cloud control plane and elegant console experience.',
 };
 
 export default function RootLayout({
@@ -17,7 +31,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${display.variable} ${body.variable} ${mono.variable}`}>
         {children}
       </body>
     </html>

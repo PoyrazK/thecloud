@@ -1,21 +1,38 @@
 .card {
-  border-radius: 12px;
+  border-radius: 18px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background-color: #FFFFFF; /* Explicit white */
-  /* Border and shadow handled by .material-platter */
 }
 
 .header {
-  padding: 16px 20px; /* Reduced side padding */
-  border-bottom: 1px solid var(--system-gray-5);
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--text-primary);
-  background-color: transparent;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
 }
 
 .content {
-  padding: 20px;
+  padding: 16px;
+}
+
+.title {
+  font-weight: 700;
+  font-size: 0.98rem;
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 0.83rem;
+}
+
+.action {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }

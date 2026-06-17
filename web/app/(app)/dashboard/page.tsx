@@ -1,171 +1,230 @@
 
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Activity, HardDrive, Network, RefreshCw, Server } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { StatusIndicator } from '@/components/ui/StatusIndicator';
 import { Button } from '@/components/ui/Button';
-import Link from 'next/link';
-import { Activity, Server, HardDrive, Cpu } from 'lucide-react';
+import { cloudApiRequest } from '@/lib/api';
+import { eventStatus } from '@/lib/events';
+import { useApiConfig } from '@/hooks/useApiConfig';
+import styles from '../pages.module.css';
 
-export default function Home() {
+interface ApiInstance {
+  id: string;
+  status: string;
+}
+
+interface ApiBucket {
+  id: string;
+}
+
+interface ApiVpc {
+  id: string;
+}
+
+interface ApiEvent {
+  id: string;
+  action: string;
+  resource_id: string;
+  resource_type: string;
+  created_at: string;
+}
+
+function relativeTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export default function DashboardPage() {
+  const { config, ready, hasCredentials } = useApiConfig();
+  const [instances, setInstances] = useState<ApiInstance[]>([]);
+  const [buckets, setBuckets] = useState<ApiBucket[]>([]);
+  const [vpcs, setVpcs] = useState<ApiVpc[]>([]);
+  const [events, setEvents] = useState<ApiEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadDashboard = useCallback(async () => {
+    if (!ready) {
+      return;
+    }
+
+    if (!hasCredentials) {
+      setLoading(false);
+      setInstances([]);
+      setBuckets([]);
+      setVpcs([]);
+      setEvents([]);
+      setError(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const [instanceData, bucketData, vpcData, eventData] = await Promise.all([
+        cloudApiRequest<ApiInstance[]>('/instances', undefined, config),
+        cloudApiRequest<ApiBucket[]>('/storage/buckets', undefined, config),
+        cloudApiRequest<ApiVpc[]>('/vpcs', undefined, config),
+        cloudApiRequest<ApiEvent[]>('/events?limit=5', undefined, config),
+      ]);
+
+      setInstances(instanceData ?? []);
+      setBuckets(bucketData ?? []);
+      setVpcs(vpcData ?? []);
+      setEvents(eventData ?? []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load dashboard data.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [config, hasCredentials, ready]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  const runningInstances = useMemo(
+    () => instances.filter((item) => item.status?.toLowerCase().includes('running')).length,
+    [instances]
+  );
+
+  const healthyEventRatio = useMemo(() => {
+    if (events.length === 0) {
+      return 'n/a';
+    }
+
+    const healthyEvents = events.filter((event) => eventStatus(event.action) === 'success').length;
+    const ratio = Math.round((healthyEvents / events.length) * 100);
+    return `${ratio}%`;
+  }, [events]);
+
   return (
-    <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
-      <header style={{ 
-        marginBottom: '32px', 
-        paddingTop: '20px',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10
-      }}>
-        <h1 style={{ 
-          fontSize: '34px', 
-          fontWeight: 700, 
-          marginBottom: '4px',
-          letterSpacing: '0.01em',
-          color: 'var(--text-primary)'
-        }}>
-          Dashboard
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '15px' }}>Overview</p>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div>
+          <h1 className={styles.title}>Dashboard</h1>
+          <p className={styles.subtitle}>Live control plane summary across compute, storage, and network.</p>
+        </div>
+        <div className={styles.headerActions}>
+          <Button variant="secondary" onClick={() => void loadDashboard()} loading={loading}>
+            <RefreshCw size={15} />
+            Refresh
+          </Button>
+        </div>
       </header>
-  
-      {/* Metrics Grid */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', 
-        gap: '20px',
-        marginBottom: '32px'
-      }}>
-        <Card>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ 
-              padding: '12px', 
-              borderRadius: '50%', /* Circular icon backgrounds */
-              background: 'rgba(10, 132, 255, 0.15)',
-              color: 'var(--accent-blue)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '48px',
-              height: '48px'
-            }}>
-              <Server size={22} strokeWidth={2.5} />
-            </div>
-            <div>
-              <div style={{ fontSize: '26px', fontWeight: 600, lineHeight: 1 }}>12</div>
-              <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px', fontWeight: 500 }}>Active Instances</div>
-            </div>
-          </div>
-        </Card>
-        
-        <Card>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-             <div style={{ 
-              padding: '12px', 
-               borderRadius: '50%',
-              background: 'rgba(48, 209, 88, 0.15)',
-              color: 'var(--accent-green)',
-               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '48px',
-              height: '48px'
-            }}>
-              <Activity size={22} strokeWidth={2.5} />
-            </div>
-            <div>
-              <div style={{ fontSize: '26px', fontWeight: 600, lineHeight: 1 }}>98.2%</div>
-               <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px', fontWeight: 500 }}>Healthy Services</div>
-            </div>
-          </div>
-        </Card>
 
-        <Card>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-             <div style={{ 
-              padding: '12px', 
-               borderRadius: '50%',
-              background: 'rgba(255, 159, 10, 0.15)',
-              color: 'var(--accent-orange)',
-               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '48px',
-              height: '48px'
-            }}>
-              <HardDrive size={22} strokeWidth={2.5} />
-            </div>
-            <div>
-              <div style={{ fontSize: '26px', fontWeight: 600, lineHeight: 1 }}>450 GB</div>
-               <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px', fontWeight: 500 }}>Storage Used</div>
-            </div>
+      {!hasCredentials ? (
+        <div className={styles.notice}>
+          <div>
+            <strong>API access not configured.</strong>
+            <p className={styles.noticeText}>Add your API key and optional tenant ID in Settings to load live data.</p>
           </div>
-        </Card>
-        
-        <Card>
-           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-             <div style={{ 
-              padding: '12px', 
-               borderRadius: '50%',
-              background: 'rgba(255, 69, 58, 0.15)',
-              color: 'var(--accent-red)',
-               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '48px',
-              height: '48px'
-            }}>
-              <Cpu size={22} strokeWidth={2.5} />
-            </div>
-            <div>
-              <div style={{ fontSize: '26px', fontWeight: 600, lineHeight: 1 }}>45%</div>
-               <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginTop: '4px', fontWeight: 500 }}>CPU Load</div>
-            </div>
-          </div>
-        </Card>
-      </div>
+          <Link href="/settings" className="linkAccent">
+            Open Settings
+          </Link>
+        </div>
+      ) : null}
 
-      {/* Recent Activity & Resources */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '2fr 1fr', 
-        gap: '24px' 
-      }}>
-        <Card title="Recent Activity" style={{ minHeight: '400px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {[1, 2, 3].map((i) => (
-              <div key={i} style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
-                padding: '12px 0',
-                borderBottom: i < 3 ? '1px solid var(--glass-border)' : 'none'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                   <StatusIndicator status="running" />
-                   <div>
-                     <div style={{ fontWeight: 500 }}>Instance i-0x823 launched</div>
-                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>2 minutes ago</div>
-                   </div>
+      {error ? <div className={styles.error}>{error}</div> : null}
+
+      <section className={styles.statsGrid}>
+        <Link href="/compute" className={styles.statLink}>
+          <article className={styles.stat}>
+            <div className={styles.statLabel}>Instances</div>
+            <div className={styles.statValue}>{runningInstances}</div>
+            <div className={styles.statHint}>Running now</div>
+          </article>
+        </Link>
+        <Link href="/storage" className={styles.statLink}>
+          <article className={styles.stat}>
+            <div className={styles.statLabel}>Storage Buckets</div>
+            <div className={styles.statValue}>{buckets.length}</div>
+            <div className={styles.statHint}>Object stores</div>
+          </article>
+        </Link>
+        <Link href="/network" className={styles.statLink}>
+          <article className={styles.stat}>
+            <div className={styles.statLabel}>VPC Networks</div>
+            <div className={styles.statValue}>{vpcs.length}</div>
+            <div className={styles.statHint}>Isolated network spaces</div>
+          </article>
+        </Link>
+        <Link href="/activity" className={styles.statLink}>
+          <article className={styles.stat}>
+            <div className={styles.statLabel}>Recent Event Health</div>
+            <div className={styles.statValue}>{healthyEventRatio}</div>
+            <div className={styles.statHint}>From latest control-plane events</div>
+          </article>
+        </Link>
+      </section>
+
+      <section className={styles.gridTwo}>
+        <Card title="Recent Activity" subtitle="Latest control-plane events" className={styles.panel}>
+          {events.length === 0 ? (
+            <div className={styles.empty}>{loading ? 'Loading events...' : 'No recent events found.'}</div>
+          ) : (
+            <div className={styles.activityList}>
+              {events.map((event) => (
+                <div key={event.id} className={styles.activityItem}>
+                  <div className={styles.activityTop}>
+                    <span>{event.action}</span>
+                    <StatusIndicator status={eventStatus(event.action)} label={relativeTime(event.created_at)} />
+                  </div>
+                  <div className={styles.activityMeta}>
+                    {event.resource_type}: {event.resource_id}
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm">View</Button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
 
-        <Card title="Quick Actions">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <Link href="/compute">
-              <Button variant="primary" style={{ width: '100%' }}>Launch Instance</Button>
+        <Card title="Quick Actions" subtitle="Jump into managed surfaces" className={styles.panel}>
+          <div className={styles.infoList}>
+            <Link href="/compute" className={styles.infoRowLink}>
+              <span className={styles.infoKey}>Compute</span>
+              <span className={styles.infoRowOpen}>
+                Open <Server size={14} style={{ verticalAlign: 'text-bottom' }} />
+              </span>
             </Link>
-            <Link href="/storage">
-              <Button variant="secondary" style={{ width: '100%' }}>Create Bucket</Button>
+            <Link href="/storage" className={styles.infoRowLink}>
+              <span className={styles.infoKey}>Storage</span>
+              <span className={styles.infoRowOpen}>
+                Open <HardDrive size={14} style={{ verticalAlign: 'text-bottom' }} />
+              </span>
             </Link>
-            <Link href="/activity">
-               <Button variant="ghost" style={{ width: '100%' }}>View Activity</Button>
+            <Link href="/network" className={styles.infoRowLink}>
+              <span className={styles.infoKey}>Network</span>
+              <span className={styles.infoRowOpen}>
+                Open <Network size={14} style={{ verticalAlign: 'text-bottom' }} />
+              </span>
+            </Link>
+            <Link href="/activity" className={styles.infoRowLink}>
+              <span className={styles.infoKey}>Activity</span>
+              <span className={styles.infoRowOpen}>
+                Open <Activity size={14} style={{ verticalAlign: 'text-bottom' }} />
+              </span>
             </Link>
           </div>
         </Card>
-      </div>
+      </section>
     </div>
   );
 }

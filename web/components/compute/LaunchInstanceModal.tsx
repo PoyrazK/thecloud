@@ -10,29 +10,71 @@ interface LaunchInstanceData {
   name: string;
   image: string;
   ports: string;
-  vpc: string;
+  vpcId?: string;
+}
+
+interface VpcOption {
+  id: string;
+  name: string;
+  cidr_block?: string;
 }
 
 interface LaunchInstanceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: LaunchInstanceData) => void;
+  onSubmit: (data: LaunchInstanceData) => Promise<void>;
+  isSubmitting?: boolean;
+  vpcs: VpcOption[];
 }
 
-export const LaunchInstanceModal: React.FC<LaunchInstanceModalProps> = ({ isOpen, onClose, onSubmit }) => {
+export const LaunchInstanceModal: React.FC<LaunchInstanceModalProps> = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  isSubmitting = false,
+  vpcs,
+}) => {
   const [formData, setFormData] = useState<LaunchInstanceData>({
     name: '',
     image: 'ubuntu-22.04',
-    ports: '80:80',
-    vpc: 'default-vpc',
+    ports: '',
+    vpcId: undefined,
   });
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleClose = () => {
+    setLocalError(null);
+    onClose();
+  };
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
-    onClose();
+
+    if (!formData.name.trim()) {
+      setLocalError('Instance name is required.');
+      return;
+    }
+
+    setLocalError(null);
+
+    try {
+      await onSubmit({
+        ...formData,
+        name: formData.name.trim(),
+        ports: formData.ports.trim(),
+      });
+      handleClose();
+      setFormData({ 
+        name: '',
+        image: 'ubuntu-22.04',
+        ports: '',
+        vpcId: undefined,
+      });
+    } catch {
+      // Parent component shows the API error in page-level banner.
+    }
   };
 
   return (
@@ -40,7 +82,7 @@ export const LaunchInstanceModal: React.FC<LaunchInstanceModalProps> = ({ isOpen
       <div className={`${styles.modal} material-platter`}>
         <div className={styles.header}>
           <h2 className={styles.title}>Launch Instance</h2>
-          <Button variant="ghost" onClick={onClose} className={styles.closeBtn}>
+          <Button variant="ghost" onClick={handleClose} className={styles.closeBtn} disabled={isSubmitting}>
             <X size={18} />
           </Button>
         </div>
@@ -74,14 +116,23 @@ export const LaunchInstanceModal: React.FC<LaunchInstanceModalProps> = ({ isOpen
             </div>
 
              <div className={styles.field}>
-              <label className={styles.label}>VPC Network</label>
+              <label className={styles.label}>VPC Network (Optional)</label>
               <select 
                 className={styles.select}
-                value={formData.vpc}
-                onChange={(e) => setFormData({...formData, vpc: e.target.value})}
+                value={formData.vpcId ?? ''}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    vpcId: e.target.value ? e.target.value : undefined,
+                  })
+                }
               >
-                <option value="default-vpc">default-vpc (172.31.0.0/16)</option>
-                <option value="prod-net">prod-net (10.0.0.0/16)</option>
+                <option value="">No VPC</option>
+                {vpcs.map((vpc) => (
+                  <option key={vpc.id} value={vpc.id}>
+                    {vpc.name} {vpc.cidr_block ? `(${vpc.cidr_block})` : ''}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -91,16 +142,20 @@ export const LaunchInstanceModal: React.FC<LaunchInstanceModalProps> = ({ isOpen
             <input 
               type="text" 
               className={styles.input} 
-              placeholder="e.g. 8080:80, 443:443"
+              placeholder="e.g. 8080:80, 8443:443"
               value={formData.ports}
               onChange={(e) => setFormData({...formData, ports: e.target.value})}
             />
-            <p className={styles.helpText}>Comma separated list of port mappings.</p>
+            <p className={styles.helpText}>Comma-separated host:container mappings. Leave empty for internal-only instance.</p>
           </div>
 
+          {localError ? <div className={styles.error}>{localError}</div> : null}
+
           <div className={styles.footer}>
-            <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="primary">Launch</Button>
+            <Button type="button" variant="secondary" onClick={handleClose} disabled={isSubmitting}>Cancel</Button>
+            <Button type="submit" variant="primary" loading={isSubmitting}>
+              Launch Instance
+            </Button>
           </div>
         </form>
       </div>
