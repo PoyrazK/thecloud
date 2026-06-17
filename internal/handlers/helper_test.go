@@ -120,4 +120,28 @@ func TestGetBucketAndKeyRequired(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "key is required")
 	})
+
+	t.Run("path traversal rejected", func(t *testing.T) {
+		traversalKeys := []string{
+			"../etc/passwd",
+			"foo/../bar",
+			"foo\\..\\bar",
+			"foo/../../etc/passwd",
+		}
+		for _, key := range traversalKeys {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Params = []gin.Param{
+				{Key: "bucket", Value: testBucket},
+				{Key: "key", Value: key},
+			}
+
+			bucket, key, ok := getBucketAndKeyRequired(c)
+
+			assert.False(t, ok, "key %q should be rejected", key)
+			assert.Empty(t, bucket)
+			assert.Empty(t, key)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+		}
+	})
 }
