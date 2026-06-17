@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -301,7 +302,7 @@ func TestClientAPIError(t *testing.T) {
 	_, err := client.ListInstances()
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "api error")
+	assert.True(t, errors.Is(err, errors.InvalidInput), "expected InvalidInput error, got: %v", err)
 	assert.Contains(t, err.Error(), "invalid input")
 }
 

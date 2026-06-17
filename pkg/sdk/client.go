@@ -3,12 +3,14 @@ package sdk
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
+	"github.com/poyrazk/thecloud/internal/errors"
 )
 
 // Client is the API client for the platform.
@@ -71,6 +73,67 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+// APIErrorType maps API error type strings (case-insensitive) to internal error types.
+var APIErrorType = map[string]errors.Type{
+	"BUCKET_NOT_FOUND":   errors.BucketNotFound,
+	"OBJECT_NOT_FOUND":   errors.ObjectNotFound,
+	"INVALID_INPUT":      errors.InvalidInput,
+	"BAD_REQUEST":        errors.InvalidInput,
+	"NOT_FOUND":          errors.NotFound,
+	"INTERNAL":           errors.Internal,
+	"FORBIDDEN":          errors.Forbidden,
+	"UNAUTHORIZED":       errors.Unauthorized,
+	"CONFLICT":           errors.Conflict,
+	"RESOURCE_LIMIT_EXCEEDED": errors.ResourceLimitExceeded,
+	"QUOTA_EXCEEDED":     errors.QuotaExceeded,
+	"NOT_IMPLEMENTED":    errors.NotImplemented,
+	"PORT_CONFLICT":      errors.PortConflict,
+	"TOO_MANY_PORTS":     errors.TooManyPorts,
+	"INSTANCE_NOT_RUNNING": errors.InstanceNotRunning,
+	"LB_NOT_FOUND":       errors.LBNotFound,
+	"LB_TARGET_EXISTS":   errors.LBTargetExists,
+	"LB_CROSS_VPC":       errors.LBCrossVPC,
+	"PERMISSION_DENIED":  errors.PermissionDenied,
+	// Lowercase variants
+	"bucket_not_found":   errors.BucketNotFound,
+	"object_not_found":   errors.ObjectNotFound,
+	"invalid_input":      errors.InvalidInput,
+	"bad_request":        errors.InvalidInput,
+	"not_found":          errors.NotFound,
+	"internal":           errors.Internal,
+	"forbidden":          errors.Forbidden,
+	"unauthorized":       errors.Unauthorized,
+	"conflict":           errors.Conflict,
+	"resource_limit_exceeded": errors.ResourceLimitExceeded,
+	"quota_exceeded":     errors.QuotaExceeded,
+	"not_implemented":    errors.NotImplemented,
+	"port_conflict":      errors.PortConflict,
+	"too_many_ports":     errors.TooManyPorts,
+	"instance_not_running": errors.InstanceNotRunning,
+	"lb_not_found":       errors.LBNotFound,
+	"lb_target_exists":   errors.LBTargetExists,
+	"lb_cross_vpc":       errors.LBCrossVPC,
+	"permission_denied":  errors.PermissionDenied,
+}
+
+// parseAPIError parses the response body as an error response and returns a typed error.
+func parseAPIError(body []byte) error {
+	var apiResp Response[any]
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return errors.New(errors.Internal, fmt.Sprintf("api error: %s", string(body)))
+	}
+	if apiResp.Error == nil {
+		return errors.New(errors.Internal, fmt.Sprintf("api error: %s", string(body)))
+	}
+
+	errType := errors.Internal
+	if t, ok := APIErrorType[apiResp.Error.Type]; ok {
+		errType = t
+	}
+
+	return errors.New(errType, apiResp.Error.Message)
+}
+
 // get performs a GET request against the API.
 func (c *Client) get(path string, result interface{}) error {
 	return c.getContext(context.Background(), path, result)
@@ -87,7 +150,7 @@ func (c *Client) getContext(ctx context.Context, path string, result interface{}
 	}
 
 	if resp.IsError() {
-		return fmt.Errorf(errAPIError, resp.String())
+		return parseAPIError(resp.Body())
 	}
 
 	return nil
@@ -142,7 +205,7 @@ func (c *Client) postContext(ctx context.Context, path string, body interface{},
 	}
 
 	if resp.IsError() {
-		return fmt.Errorf(errAPIError, resp.String())
+		return parseAPIError(resp.Body())
 	}
 
 	return nil
@@ -168,7 +231,7 @@ func (c *Client) deleteWithContext(ctx context.Context, path string, result inte
 	}
 
 	if resp.IsError() {
-		return fmt.Errorf(errAPIError, resp.String())
+		return parseAPIError(resp.Body())
 	}
 
 	return nil
@@ -193,7 +256,7 @@ func (c *Client) putWithContext(ctx context.Context, path string, body interface
 	}
 
 	if resp.IsError() {
-		return fmt.Errorf(errAPIError, resp.String())
+		return parseAPIError(resp.Body())
 	}
 
 	return nil
@@ -218,7 +281,7 @@ func (c *Client) patchWithContext(ctx context.Context, path string, body interfa
 	}
 
 	if resp.IsError() {
-		return fmt.Errorf(errAPIError, resp.String())
+		return parseAPIError(resp.Body())
 	}
 
 	return nil

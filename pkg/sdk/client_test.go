@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/poyrazk/thecloud/internal/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -189,4 +190,107 @@ func TestResolveID_ListError(t *testing.T) {
 		func(v interface{}) string { return "" },
 		"abc")
 	require.Error(t, err)
+}
+
+func TestParseAPIError_BucketNotFound(t *testing.T) {
+	jsonBody := []byte(`{"error": {"type": "BUCKET_NOT_FOUND", "message": "bucket not found"}}`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.BucketNotFound), "expected BucketNotFound, got: %v", err)
+	assert.Contains(t, err.Error(), "bucket not found")
+}
+
+func TestParseAPIError_NotFound(t *testing.T) {
+	jsonBody := []byte(`{"error": {"type": "NOT_FOUND", "message": "resource not found"}}`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.NotFound), "expected NotFound, got: %v", err)
+	assert.Contains(t, err.Error(), "resource not found")
+}
+
+func TestParseAPIError_InvalidInput(t *testing.T) {
+	jsonBody := []byte(`{"error": {"type": "INVALID_INPUT", "message": "invalid input provided"}}`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.InvalidInput), "expected InvalidInput, got: %v", err)
+	assert.Contains(t, err.Error(), "invalid input provided")
+}
+
+func TestParseAPIError_Forbidden(t *testing.T) {
+	jsonBody := []byte(`{"error": {"type": "FORBIDDEN", "message": "access denied"}}`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.Forbidden), "expected Forbidden, got: %v", err)
+	assert.Contains(t, err.Error(), "access denied")
+}
+
+func TestParseAPIError_LowercaseType(t *testing.T) {
+	jsonBody := []byte(`{"error": {"type": "not_found", "message": "item not found"}}`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.NotFound), "expected NotFound (lowercase), got: %v", err)
+}
+
+func TestParseAPIError_UnknownType(t *testing.T) {
+	jsonBody := []byte(`{"error": {"type": "SOME_UNKNOWN_ERROR", "message": "something went wrong"}}`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.Internal), "expected Internal for unknown type, got: %v", err)
+	assert.Contains(t, err.Error(), "something went wrong")
+}
+
+func TestParseAPIError_InvalidJSON(t *testing.T) {
+	jsonBody := []byte(`not valid json`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.Internal), "expected Internal for invalid JSON, got: %v", err)
+}
+
+func TestParseAPIError_MissingErrorField(t *testing.T) {
+	jsonBody := []byte(`{"data": "something"}`)
+	err := parseAPIError(jsonBody)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.Internal), "expected Internal for missing error field, got: %v", err)
+}
+
+func TestClientGet_ParsesAPIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error": {"type": "BUCKET_NOT_FOUND", "message": "bucket not found"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, clientTestAPIKey)
+	var res Response[any]
+	err := client.get("/buckets/test", &res)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.BucketNotFound), "expected BucketNotFound, got: %v", err)
+}
+
+func TestClientPost_ParsesAPIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error": {"type": "INVALID_INPUT", "message": "missing required field"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, clientTestAPIKey)
+	var res Response[any]
+	err := client.post("/test", map[string]string{"a": "b"}, &res)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.InvalidInput), "expected InvalidInput, got: %v", err)
+}
+
+func TestClientDelete_ParsesAPIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error": {"type": "FORBIDDEN", "message": "cannot delete"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, clientTestAPIKey)
+	var res Response[any]
+	err := client.delete("/test/123", &res)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errors.Forbidden), "expected Forbidden, got: %v", err)
 }
