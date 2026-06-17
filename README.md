@@ -97,7 +97,7 @@ npm run dev
 ```
 
 ## Architecture
-- **Frontend**: Next.js 14, Tailwind CSS, GSAP
+- **Frontend**: Next.js 16, React 19, Tailwind CSS, GSAP
 - **Backend**: Go (Clean Architecture, Hexagonal)
 - **Database**: PostgreSQL (pgx)
 - **Infrastructure**: 

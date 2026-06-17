@@ -327,7 +327,7 @@ This document provides a comprehensive overview of every feature currently imple
 
 ### 18. Console (Frontend)
 **What it is**: Visual dashboard.
-**Tech Stack**: Next.js 14, Tailwind CSS, TypeScript.
+**Tech Stack**: Next.js 16, React 19, Tailwind CSS, TypeScript.
 **Implementation**:
 - **SSR**: Server-Side Rendering for main dashboard views.
 - **Architecture**: Component-based modern React.
