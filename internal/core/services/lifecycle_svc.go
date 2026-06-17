@@ -39,7 +39,7 @@ func (s *LifecycleService) CreateRule(ctx context.Context, bucket string, prefix
 	// 1. Verify bucket exists
 	b, err := s.storageRepo.GetBucket(ctx, bucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(errors.Internal, "failed to verify bucket", err)
 	}
 
 	// 2. Verify ownership (Implicitly handled by Authorize if we want to support shared buckets,
@@ -65,7 +65,7 @@ func (s *LifecycleService) CreateRule(ctx context.Context, bucket string, prefix
 	}
 
 	if err := s.repo.Create(ctx, rule); err != nil {
-		return nil, err
+		return nil, errors.Wrap(errors.Internal, "failed to create lifecycle rule", err)
 	}
 
 	return rule, nil
@@ -82,7 +82,7 @@ func (s *LifecycleService) ListRules(ctx context.Context, bucket string) ([]*dom
 	// Verify bucket existence/ownership first
 	b, err := s.storageRepo.GetBucket(ctx, bucket)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(errors.Internal, "failed to verify bucket", err)
 	}
 
 	if userID != b.UserID {
@@ -108,7 +108,7 @@ func (s *LifecycleService) DeleteRule(ctx context.Context, bucket string, ruleID
 	// Verify bucket existence/ownership
 	b, err := s.storageRepo.GetBucket(ctx, bucket)
 	if err != nil {
-		return err
+		return errors.Wrap(errors.Internal, "failed to verify bucket", err)
 	}
 	if userID != b.UserID {
 		return errors.New(errors.Forbidden, "you don't own this bucket")
@@ -117,11 +117,14 @@ func (s *LifecycleService) DeleteRule(ctx context.Context, bucket string, ruleID
 	// Verify rule belongs to bucket
 	rule, err := s.repo.Get(ctx, id)
 	if err != nil {
-		return err
+		return errors.Wrap(errors.Internal, "failed to get lifecycle rule", err)
 	}
 	if rule.BucketName != bucket {
 		return errors.New(errors.InvalidInput, "rule does not belong to the specified bucket")
 	}
 
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return errors.Wrap(errors.Internal, "failed to delete lifecycle rule", err)
+	}
+	return nil
 }
